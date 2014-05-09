@@ -37,6 +37,9 @@ Possibly written in NodeJS, Go or C?
 Using Redis and MySQL
 
 
+##OAuth and sign up
+We will need to implement our own oauth server and sign up process. Since we don't want users
+
 ##Data store
 I have a datastore schema started in MySQL based on the data structures that app.net uses. We will need some additional tables to host our own oauth system.
 
@@ -116,6 +119,9 @@ What's enabled? Host, user, pass, etc
 
 ######Factual API key
 
+#####Allowed client IDs & Secrets
+Limit 3rd party client connectivity
+
 #####Additional Protocol Modules:
 these would allow additional downstream pushes of streams.
 
@@ -130,8 +136,14 @@ these would allow additional downstream pushes of streams.
 
 Potential Issues
 ======
+- Scale
+Our implementation will not likely be able to host many connections without considerable resoures.
+
 - Authentication
 Each user in each spoke needs to authenticate with the parent network. For a more p2p system, we really should look at tent.io, pond, or maidsafe.net to see how they handle auth. I'm sure UUIDs are used somewhere.
+
+- Client Secrets & IDs
+To make a client compatible to the real App.net and our API, they will not likely change their client secret or ID. This is not a big deal since apps like patter or vidcast have to expose these in their source that's publicly viewable but we should take care to make sure we don't expose anything unecessarily.
 
 - Location services - While factual has an API, each instances would need their own license.
 This maybe feature we cannot easily support
