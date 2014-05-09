@@ -8,14 +8,19 @@ var nconf = require('nconf');
 var config_path = path.join(__dirname, '/config.json');
 nconf.argv().env('__').file({file: config_path});
 
-// set up express framework
+/** set up express framework */
 var express = require('express');
 var app = express();
-// get request http library
+/** get request http library */
 var request = require('request');
+/** get file io imported */
+var fs = require('fs');
 
 // pull configuration from config into variables
 var apiroot = nconf.get('uplink:apiroot') || 'https://api.app.net';
+var upstream_client_id=nconf.get('uplink:clientid') || 'NotSet';
+var webport = nconf.get('web:port') || 7070;
+var api_client_id= nconf.get('web:clientid') || '';
 
 // Todo: persistence
 // Todo: message queue
@@ -63,7 +68,6 @@ app.use(function(req, res, next) {
   // configure response
   res.prettyPrint=req.get('X-ADN-Pretty-JSON') || 0;
   res.JSONP=req.query.callback || '';
-  console.dir(req.header);
   next();
 });
 
@@ -115,7 +119,49 @@ function setupapiwithprefix(app,prefix) {
 setupapiwithprefix(app,'');
 setupapiwithprefix(app,'/stream/0');
 
+function generateToken(len) {
+  var chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz";
+  var string_length = 98;
+  var randomstring = '';
+  for (var x=0;x<string_length;x++) {
+    var letterOrNumber = Math.floor(Math.random() * 2);
+    if (letterOrNumber == 0) {
+      var newNum = Math.floor(Math.random() * 9);
+      randomstring += newNum;
+    } else {
+      var rnum = Math.floor(Math.random() * chars.length);
+      randomstring += chars.substring(rnum,rnum+1);
+    }
+  }
+  return randomstring;
+}
+
+app.get('/oauth/authenticate',function(req,resp) {
+  resp.redirect(req.query.redirect_uri+'#access_token='+generateToken());
+});
+
+app.get('/signup',function(req,resp) {
+  fs.readFile(__dirname+'/templates/signup.html', function(err,data) {
+    if (err) {
+      throw err;
+    }
+    resp.send(data.toString());
+  });
+});
+
+app.get('/', function(req,resp) {
+  fs.readFile(__dirname+'/templates/index.html', function(err,data) {
+    if (err) {
+      throw err;
+    }
+    var body=data.toString();
+    body=body.replace('{api_client_id}',api_client_id);
+    body=body.replace('{uplink_client_id}',upstream_client_id);
+    resp.send(body);
+  });
+});
+
 /**
  * Launch the server!
  */
-app.listen(7070);
+app.listen(webport);
