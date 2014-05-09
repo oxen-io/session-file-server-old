@@ -29,16 +29,13 @@ We'd need a web daemon for serving web requests.
 Then a background daemon for upstream streaming (connects to app.net using an app streaming), maintenance or background processing.
 And then a websocket daemon for user streaming.
 
-The web and background daemon will likely need to be written in the same language as they'll need to share code for creating posts. However the websocket streaming data could be implemented in a different language since it'll just be reading and no writing.
+The web and background daemon will be written in NodeJS as they'll need to share code for creating posts. 
 
-Trying to figure out an implementation language to start development.
-
-Possibly written in NodeJS, Go or C?
-Using Redis and MySQL
+The websocket daemon will be written in Go since it'll just be reading and no writing.
 
 
 ##OAuth and sign up
-We will need to implement our own oauth server and sign up process. Since we don't want users
+We will need to implement our own oauth server and sign up process. Since we don't want users using their real app.net username and password.
 
 ##Data store
 I have a datastore schema started in MySQL based on the data structures that app.net uses. We will need some additional tables to host our own oauth system.
@@ -143,7 +140,7 @@ Our implementation will not likely be able to host many connections without cons
 Each user in each spoke needs to authenticate with the parent network. For a more p2p system, we really should look at tent.io, pond, or maidsafe.net to see how they handle auth. I'm sure UUIDs are used somewhere.
 
 - Client Secrets & IDs
-To make a client compatible to the real App.net and our API, they will not likely change their client secret or ID. This is not a big deal since apps like patter or vidcast have to expose these in their source that's publicly viewable but we should take care to make sure we don't expose anything unecessarily.
+To make a client compatible to the real App.net and our API, they will not likely change their client ID. This is not a big deal since apps like patter or vidcast have to expose these in their source that's publicly viewable but we should take care to make sure we don't expose anything unecessarily.
 
 - Location services - While factual has an API, each instances would need their own license.
 This maybe feature we cannot easily support
