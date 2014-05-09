@@ -35,6 +35,7 @@ function getHashParams() {
       }
     }
     var hashParams = getHashParams();
+    // How do you tell an offical upstream access_token from a local one?
     var accessToken = hashParams["access_token"];
     if (accessToken != null) {
       $("#loggedout").hide();

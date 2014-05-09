@@ -3,9 +3,7 @@ AppDotNetAPI
 
 An App.net compatible API implemented as an App.net client.
 
-This is a piece of software that you can run to emulate the app.net API that all
-the existing app.net apps could connect to,
-if we can convince app developers to include an API root in their app.net software.
+This is a piece of software that you can run to emulate the app.net API that all the existing app.net apps could connect to (if we can convince 3rd party app developers to include a configurable API root in their app.net software).
 This way we can keep the community and software intact.
 
 Compatibility is goal #1.
@@ -48,7 +46,6 @@ I'd love to see an option that's Redis (in-memory) only. So a small server could
 
 This MySQL and/or Redis flexibility will require an abstracted wrapper around the storage and message queueing operations.
 
-
 #I'm an app.net 3rd party developer how can I get my app ready for an alternative API server?
 We just need you to have the root of the API request to be configureable.
 So if you have "https://api.app.net/" or "https://alpha-api.app.net/stream/0/" are your API root right now, you just need an UI for your users to be able to enter an alternate root. This will allows users to select what API to connect to and use.
@@ -85,41 +82,44 @@ I feel that not many important app.net clients embrace user or app streaming (ou
 
 ##Phase #5 Beyond app.net
 - what did you want to see in the API?
+<https://github.com/neuroscr/AppDotNetAPI/wiki/Future-API-ideas>
 
 
 Config
 ======
 
-#####Standalone mode:
+######Standalone mode:
 Disables any app.net connectivity. Serves it's only social network to any
 app.net API supported client
 1. Participate in the App.net social network
 2. Standalone social network
 
 ######port settings
-???
+web server port
 
 ######api base root url
 Where does this server live.
 
-#####App.net client id
-#####App.net client secret
-if connecting upstream to app.net, you'll need to set these to allow user authorization with the upstream network.
-#####App.net user token
+######Upstream client id
+if connecting upstream to app.net, you'll need to set this to allow user authorization with the upstream network.
+######Upstream user token
 if receiving a post from spoke API and we need to send it to a parent network, we will have to force all these posts to be under a single user's token. Not ideal but better than nothing
 
-#####Rate limtis
+######Rate limtis
 Global, verified user, user. Read/Write.
 
-#####MySQL & Redis connection information
+######Anotation Storage limits
+/config stuff
+
+######MySQL & Redis connection information
 What's enabled? Host, user, pass, etc
 
 ######Factual API key
 
-#####Allowed client IDs & Secrets
+######Allowed client IDs
 Limit 3rd party client connectivity
 
-#####Additional Protocol Modules:
+######Additional Protocol Modules:
 these would allow additional downstream pushes of streams.
 
 1. tent.io API - this
@@ -133,14 +133,15 @@ these would allow additional downstream pushes of streams.
 
 Potential Issues
 ======
-- Scale
+- Scale - 
 Our implementation will not likely be able to host many connections without considerable resoures.
 
-- Authentication
+- Authentication -
 Each user in each spoke needs to authenticate with the parent network. For a more p2p system, we really should look at tent.io, pond, or maidsafe.net to see how they handle auth. I'm sure UUIDs are used somewhere.
 
-- Client Secrets & IDs
+- Client Secrets & IDs -
 To make a client compatible to the real App.net and our API, they will not likely change their client ID. This is not a big deal since apps like patter or vidcast have to expose these in their source that's publicly viewable but we should take care to make sure we don't expose anything unecessarily.
 
-- Location services - While factual has an API, each instances would need their own license.
+- Location services - 
+While factual has an API, each instances would need their own license.
 This maybe feature we cannot easily support

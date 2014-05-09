@@ -1,0 +1,10 @@
+{
+	"uplink": {
+		"apiroot":"https://api.app.net",
+		"clientid":""
+	},
+	"web": {
+		"port": 7070,
+		"api_client_id": "AreWeConformingToAnySpecificFormatYetQuestionMark"
+	}
+}

@@ -1,0 +1,7 @@
+config.js
+config.json*
+.lvimrc
+node_modules
+*.swo
+*.swp
+*.DS_Store
