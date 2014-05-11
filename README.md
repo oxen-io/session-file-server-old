@@ -100,8 +100,8 @@ web server port
 ######api base root url
 Where does this server live.
 
-######Upstream client id
-if connecting upstream to app.net, you'll need to set this to allow user authorization with the upstream network.
+######Upstream client id & secret
+if connecting upstream to app.net, you'll need to set this to allow user authorization and app streaming with the upstream network.
 ######Upstream user token
 if receiving a post from spoke API and we need to send it to a parent network, we will have to force all these posts to be under a single user's token. Not ideal but better than nothing
 
