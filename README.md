@@ -85,7 +85,7 @@ I feel that not many important app.net clients embrace user or app streaming (ou
 <https://github.com/neuroscr/AppDotNetAPI/wiki/Future-API-ideas>
 
 
-Config
+Config Roadmap
 ======
 
 ######Standalone mode:

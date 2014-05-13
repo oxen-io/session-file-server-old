@@ -10,7 +10,8 @@ var api_url_base = nconf.get('adn:api_url_base') || 'https://alpha-api.app.net';
 var api_host_override = nconf.get('adn:api_host_override') || 'alpha-api.app.net';
 
 var key = nconf.get('adn:stream_key') || 'uplink_stream';
-var filter_id = nconf.get('adn:stream_filter_id') || 859;
+// this number has to be in quotes otherwise it won't match
+var filter_id = nconf.get('adn:stream_filter_id') || '859';
 
 function StreamRouter(app, consumer) {
     this.app = app;
@@ -40,7 +41,6 @@ StreamRouter.prototype.get_or_create_stream = function (app_access_token, cb) {
         }, function (e, r, body) {
             if (!e && r.statusCode === 200) {
                 console.log('created stream id ' +  body.data.id);
-                console.log('filter id '+body.data.filter.id);
                 cb(body.data.endpoint);
             } else {
                 console.log('Error getting creating stream', e, 'status', r.statusCode, 'body', body);
@@ -111,7 +111,11 @@ StreamRouter.prototype.stream = function (token) {
         stream.on('post', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            self.consumer.dispatch(msg.data.user.id, msg);
+            if (msg.data && msg.data.user && msg.data.user.id) {
+              self.consumer.dispatch(msg.data.user.id, msg);
+            } else {
+              self.consumer.dispatch(null, msg);
+            }
             //});
         });
 
@@ -164,6 +168,12 @@ StreamRouter.prototype.stream = function (token) {
             //});
         });
 
+        stream.on('user_follow', function (msg) {
+            //_.each(msg.meta.subscribed_user_ids, function (user_id) {
+            // or do we look up everyone that's following this user?
+            self.consumer.dispatch(msg.data.user.id, msg);
+            //});
+        });
 
         stream.on('stream_marker', function (msg) {
             self.consumer.consumer(msg.meta.user_id, msg);
