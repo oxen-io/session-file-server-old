@@ -104,6 +104,18 @@ test_getChannelMessages=function () {
   compareendpoints('channels/'+cid+'/messages');
 }
 
+test_getChannelMessage=function () {
+  var cid = publichannels[Math.floor(Math.random() * publichannels.length)];
+  apicall(apiroot,'channels/'+cid+'/messages',function(json) {
+    var messages=[];
+    for(var i in json.data) {
+      messages.push(json.data[i].id)
+    }
+    var mid = messages[Math.floor(Math.random() * messages.length)];
+    compareendpoints('channels/'+cid+'/messages/'+mid);
+  });
+}
+
 test_config=function () {
   compareendpoints('config');
 }
@@ -113,6 +125,7 @@ test_oembed=function () {
   compareendpoints('oembed?url=https://posts.app.net/'+postid);
 }
 
+// FIXME
 test_textProcess=function () {
   var postid=parseInt(1+(Math.random()*max_post_id));
   //compareendpoints('text/process');
@@ -137,6 +150,7 @@ apicall(apiroot,'/posts/stream/global',function(res) {
   test_getGlobal();
   test_getChannel();
   test_getChannelMessages();
+  test_getChannelMessage();
   test_config();
   test_oembed();
 });
