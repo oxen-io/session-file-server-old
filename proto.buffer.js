@@ -28,7 +28,7 @@ module.exports = {
   getChannelMessage: function(cid,mids) {
   },
   /** channel_subscription */
-  addChannelSubscription: function(data,meta.is_deleted,meta.timestamp) {
+  addChannelSubscription: function(data,deleted,ts) {
   },
   /** file */
   /** stream_marker */
@@ -41,7 +41,7 @@ module.exports = {
   /** mute */
   /** block */
   /** user */
-  updateUser: function(data,meta.timestamp) {
+  updateUser: function(data,ts) {
   },
   /** user_follow */
   addFollows: function(data,deleted,id,ts) {

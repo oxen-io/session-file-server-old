@@ -24,6 +24,9 @@ Compatibility is goal #1.
 
 1. Open your browser to <http://localhost:7070/>
 
+### Security
+It's best practice to not have clients directly connect to node.js. We recommend use stunnel or nginx to provide an HTTPS connection to ensure data is encrypted while it travels over the Internet.
+
 
 #Upstream integration
 
