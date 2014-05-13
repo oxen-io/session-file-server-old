@@ -8,6 +8,23 @@ This way we can keep the community and software intact.
 
 Compatibility is goal #1.
 
+## Requirements
+
+* Node.js 0.8.xx+
+
+## Installation
+
+1. Copy config.sample.json to config.json
+
+1. [optional] Create a new application on App.net. Note the client_id and client_secret and put in `config.json`. The redirect URI should be /return on the host you're going to use for AltAPI, e.g., <http://localhost:7070/return>.
+
+1. `npm install` to get node js libraries
+
+1. `node app.js` to run the server
+
+1. Open your browser to <http://localhost:7070/>
+
+
 #Upstream integration
 
 It can work as a back up to the main app.net. So while app.net is running everything could feel like one network.
@@ -48,18 +65,34 @@ This MySQL and/or Redis flexibility will require an abstracted wrapper around th
 
 #I'm an app.net 3rd party developer how can I get my app ready for an alternative API server?
 We just need you to have the root of the API request to be configureable.
-So if you have "https://api.app.net/" or "https://alpha-api.app.net/stream/0/" are your API root right now, you just need an UI for your users to be able to enter an alternate root. This will allows users to select what API to connect to and use.
+So if you have "`https://api.app.net/`" or "`https://alpha-api.app.net/stream/0/`" are your API root right now, you just need an UI for your users to be able to enter an alternate root. This will allows users to select what API to connect to and use.
 
 #Roadmap
 
-##Phase #1 - Public endpoints
-This is an easy target to lay out the base foundation. We just need a data store and a webserver. We will just stream, store and relay app.net data.
+##Phase #0 - Public proxy - Complete
+This is an easy target to lay out the base foundation. We just need a webserver. We will just proxy app.net data.
 
-- posts
-- channels/messages
-- configuration
-- text processor
-- oEmbed
++ posts
+  + /posts/1
+  + /users/1/posts
+  + /users/1/stars
+  + /posts/tag/jukebox
+  + /posts/stream/global
++ channels/messages
+  + /channels/1383
+  + /channels/1383/messages
+  + /channels/1383/messages/3442494
++ configuration
+  + /config
++ text processor
+  + /text/process
++ oEmbed
+  + /oembed?url=https://posts.app.net/1
+
+##Phase #1 - Public endpoints
+We will add a data store to the project at this point. We will  stream, store and relay app.net data. Data store will likely start with memory only (in process javascript hashes), then expand to MySQL and Redis modules.
+
+Same endpoints as Phase #0
 
 ##Phase #2 - Authenticated endpoints
 I'm considering a local user database. And then you can authorize official your official ADN account. That way no one has to expose any current password.
