@@ -165,6 +165,9 @@ these would allow additional downstream pushes of streams.
 5. PuSH/RSS
 6. Webfinger
 7. App.net extensions (what new API features can we add?)
+8. Diaspora
+9. pump.io
+10. Ident.ca / StatusNet
 
 
 Potential Issues

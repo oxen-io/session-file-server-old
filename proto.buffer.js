@@ -120,6 +120,8 @@ module.exports = {
       case 'user_follow':
         //console.log('user_follow');
         this.addFollows(data,meta.is_deleted,meta.id,meta.timestamp)
+        // this.updateUser(data,meta.timestamp);
+        // this.updateUser(data,meta.timestamp);
       break;
       default:
         console.log("proto.buffer.js::dispatch - unknown appstream type ["+meta.type+"]");
