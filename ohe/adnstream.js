@@ -51,6 +51,14 @@ ADNStream.prototype.process = function (purge) {
         console.info('Got response:', response.statusCode);
         if (response.statusCode === 200) {
             console.info('Connected to stream');
+        } else if (response.statusCode === 429) {
+          console.info('Rate limited, that\'s bad...');
+          var stop = new Date().getTime();
+          // wait 30 sesc
+          while(new Date().getTime() < stop + 30*1000) {
+              ;
+          }
+          console.log("Trying again...");
         } else {
             console.error('Unexpected status code:', response.statusCode);
         }
