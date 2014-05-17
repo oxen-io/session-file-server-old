@@ -55,20 +55,40 @@ The websocket daemon will be written in Go since it'll just be reading and no wr
 ##OAuth and sign up
 We will need to implement our own oauth server and sign up process. Since we don't want users using their real app.net username and password.
 
-##Data store
-I have a datastore schema started in MySQL based on the data structures that app.net uses. We will need some additional tables to host our own oauth system.
+##Data flow
 
-Earlier phases will go straight into MySQL. Later on, I believe we can create a clever Redis caching layer between MySQL and the daemons as well as utilize it's message queuing for streaming.
+###Dialects (dialect.*.js)
+The server will support different "dialects" of the API. The first one will be "appdotnet_official" which will be the 100% compatible implementation. These will create ExpressJS mountpoints in the NodeJS web server.
 
-Luckily large parts of the app.net data set are immutable which is very cache friendly (indefinitely).
+New dialects will be able to extend the app.net API without breaking existing clients. 
 
-I'd love to see an option that's Redis (in-memory) only. So a small server could be set up for quick and easy testing and development.
+###Dispatcher
+This mainly translate API to data store. Dispatcher talks to the configured cache.
 
-This MySQL and/or Redis flexibility will require an abstracted wrapper around the storage and message queueing operations.
+###Cache
+This is just a pass-through at the moment. Eventually hand crafted modules will be created eventually. Cache will have the same exact API as DataAccessLayer. If not in local cache, it will send the request to the DataAccessLayer.
+
+###DataAccessLayer
+This contains the models for the caminte ORM and the API to get and set data in the Data store. 
+
+This is segmented in to 4 backing stores: Auth, Token, Rate limiting, and Data. You will be able to configure each backing store to use a different storage backend (memory, SQLite, Redis, MySQL). 
+
+In the Data segment, if data is not found, it can proxy the request up to the upstream provider to pull down and store data to fulfill the request.
+
+###Upstream streaming
+If configured, the NodeJS web server will create an app token with an upstream network (app.net at the moment) and use app streaming to receive network updates and populate it's cache/data store. 
+
+##Current Performance
+I'm finding with taking in account network latency, the performance of the NodeJS web server is 10-20 faster than the official app.net API (Using memory or Redis data stores). This is likely due to the small datasets I'm testing with. Only time will tell with the larger datasets to see if the performance will hold steady.
+
+##Potential Scalability
+Using Ohe's lightPoll model; I believe with a message queue, we can have multiple web worker nodes (only one master node with upstream connection). This will allow for additional scalability if you wish to do a large scale deployment or just to use all the cpu cores in one server.
 
 #I'm an app.net 3rd party developer how can I get my app ready for an alternative API server?
 We just need you to have the root of the API request to be configureable.
 So if you have "`https://api.app.net/`" or "`https://alpha-api.app.net/stream/0/`" are your API root right now, you just need an UI for your users to be able to enter an alternate root. This will allows users to select what API to connect to and use.
+
+We're talking about implementing a JSON data source that will provide a directory of all the available AltAPI servers. This will be for the 3rd party app devs that really want a really nice UI for selecting an AltAPI server.
 
 #Roadmap
 
@@ -92,8 +112,8 @@ This is an easy target to lay out the base foundation. We just need a webserver.
 + oEmbed
   + /oembed?url=https://posts.app.net/1
 
-##Phase #1 - Public endpoints
-We will add a data store to the project at this point. We will  stream, store and relay app.net data. Data store will likely start with memory only (in process javascript hashes), then expand to MySQL and Redis modules.
+##Phase #1 - Public endpoints - In Progress
+We will add a data store to the project at this point. We will  stream, store and relay app.net data. We're adding a lot of structure here. 
 
 Same endpoints as Phase #0
 
@@ -156,25 +176,22 @@ What's enabled? Host, user, pass, etc
 Limit 3rd party client connectivity
 
 ######Additional Protocol Modules:
-these would allow additional downstream pushes of streams.
+these would allow additional pushes of streams.
 
-1. tent.io API - this
+1. tent.io API
 2. pond API
 3. maidasafe.net API
 4. Activity Streams
 5. PuSH/RSS
 6. Webfinger
-7. App.net extensions (what new API features can we add?)
-8. Diaspora
-9. pump.io
-10. Ident.ca / StatusNet
+7. Diaspora
+8. pump.io
+9. Ident.ca / StatusNet
+10. App.net extensions (what new API features can we add?)
 
 
 Potential Issues
 ======
-- Scale - 
-Our implementation will not likely be able to host many connections without considerable resoures.
-
 - Authentication -
 Each user in each spoke needs to authenticate with the parent network. For a more p2p system, we really should look at tent.io, pond, or maidsafe.net to see how they handle auth. I'm sure UUIDs are used somewhere.
 

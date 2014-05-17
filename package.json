@@ -5,11 +5,15 @@
   "description": "App.net Alternative API",
   "main": "app.js",
   "dependencies": {
-    "express": "~4.1.2",
     "nconf": "~0.6.9",
+    "express": "~4.1.2",
+    "body-parser": "1.1.2",
     "request": "~2.34.0",
     "underscore": "1.6.0",
-    "event-stream": "3.1.5"
+    "event-stream": "3.1.5",
+    "caminte": "0.0.16",
+    "cookies": "0.1.0",
+    "redis": "0.10.1",
   },
   "devDependencies": {
   },
