@@ -60,13 +60,15 @@ We will need to implement our own oauth server and sign up process. Since we don
 ###Dialects (dialect.*.js)
 The server will support different "dialects" of the API. The first one will be "appdotnet_official" which will be the 100% compatible implementation. These will create ExpressJS mountpoints in the NodeJS web server.
 
-New dialects will be able to extend the app.net API without breaking existing clients. 
+New dialects will be able to extend the app.net API without breaking existing clients. A server is able to run multiple dialects at once.
 
 ###Dispatcher
-This mainly translate API to data store. Dispatcher talks to the configured cache.
+This mainly translate API to data store. Dispatcher talks to the configured cache. The upstream app stream and the DataAccessLayer (DAL) proxy will feed data through the dispatcher for transformation and to be stored in the DataStore (through the cache and DAL again in the case of the DAL proxy)
 
 ###Cache
-This is just a pass-through at the moment. Eventually hand crafted modules will be created eventually. Cache will have the same exact API as DataAccessLayer. If not in local cache, it will send the request to the DataAccessLayer.
+This is just a pass-through at the moment. Eventually hand crafted modules will be created. These modules will have more performant data structures than want the caminte ORM can provide and can be used to optimize slower API paths.
+
+Cache will have the same exact API as DataAccessLayer. If not in defined cache, it will send the request to the DataAccessLayer.
 
 ###DataAccessLayer
 This contains the models for the caminte ORM and the API to get and set data in the Data store. 
@@ -76,7 +78,7 @@ This is segmented in to 4 backing stores: Auth, Token, Rate limiting, and Data. 
 In the Data segment, if data is not found, it can proxy the request up to the upstream provider to pull down and store data to fulfill the request.
 
 ###Upstream streaming
-If configured, the NodeJS web server will create an app token with an upstream network (app.net at the moment) and use app streaming to receive network updates and populate it's cache/data store. 
+If configured, the NodeJS web server will create an app token with an upstream network (app.net at the moment) and use app streaming to receive network updates and populate it's cache/data store through the dispatcher.
 
 ##Current Performance
 I'm finding with taking in account network latency, the performance of the NodeJS web server is 10-20 faster than the official app.net API (Using memory or Redis data stores). This is likely due to the small datasets I'm testing with. Only time will tell with the larger datasets to see if the performance will hold steady.
@@ -86,7 +88,10 @@ Using Ohe's lightPoll model; I believe with a message queue, we can have multipl
 
 #I'm an app.net 3rd party developer how can I get my app ready for an alternative API server?
 We just need you to have the root of the API request to be configureable.
+
 So if you have "`https://api.app.net/`" or "`https://alpha-api.app.net/stream/0/`" are your API root right now, you just need an UI for your users to be able to enter an alternate root. This will allows users to select what API to connect to and use.
+
+We'll also need to allow your OAuth endpoints to be configureable. As the users will have different usernames and passwords than their app.net counter parts.
 
 We're talking about implementing a JSON data source that will provide a directory of all the available AltAPI servers. This will be for the 3rd party app devs that really want a really nice UI for selecting an AltAPI server.
 

@@ -122,14 +122,25 @@ StreamRouter.prototype.stream = function (token) {
         stream.on('user_follow', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            self.consumer.dispatch(msg.data.user.id, msg);
+            if (msg.data.user.id) {
+              // this should be right
+              self.consumer.dispatch(msg.data.user.id, msg);
+            } else {
+              console.log('What happened to data.user.id?');
+              console.dir(msg.data);
+              self.consumer.dispatch(null, msg);
+            }
             //});
         });
 
         stream.on('star', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            self.consumer.dispatch(msg.data.user.id, msg);
+            if (msg.data.user.id) {
+              self.consumer.dispatch(msg.data.user.id, msg);
+            } else {
+              self.consumer.dispatch(null, msg);
+            }
             //});
         });
 
