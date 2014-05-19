@@ -111,7 +111,8 @@ StreamRouter.prototype.stream = function (token) {
         stream.on('post', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            if (msg.data && msg.data.user && msg.data.user.id) {
+            // data isn't always set
+            if (msg.data && msg.data.user) {
               self.consumer.dispatch(msg.data.user.id, msg);
             } else {
               self.consumer.dispatch(null, msg);
@@ -122,7 +123,7 @@ StreamRouter.prototype.stream = function (token) {
         stream.on('user_follow', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            if (msg.data.user.id) {
+            if (msg.data.user) {
               // this should be right
               self.consumer.dispatch(msg.data.user.id, msg);
             } else {
@@ -136,7 +137,7 @@ StreamRouter.prototype.stream = function (token) {
         stream.on('star', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            if (msg.data.user.id) {
+            if (msg.data.user) {
               self.consumer.dispatch(msg.data.user.id, msg);
             } else {
               self.consumer.dispatch(null, msg);
