@@ -123,7 +123,8 @@ StreamRouter.prototype.stream = function (token) {
         stream.on('user_follow', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            if (msg.data.user) {
+            // Data isn't always defined, it's all meta
+            if (msg.data && msg.data.user) {
               // this should be right
               self.consumer.dispatch(msg.data.user.id, msg);
             } else {
@@ -183,7 +184,12 @@ StreamRouter.prototype.stream = function (token) {
         stream.on('user_follow', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            self.consumer.dispatch(msg.data.user.id, msg);
+            if (msg.data) {
+              self.consumer.dispatch(msg.data.user.id, msg);
+            } else {
+              console.log('ohe:::streamrouter.js::stream:listen_to_endpoint.user_follow - no data in msg',msg);
+              self.consumer.dispatch(null, msg);
+            }
             //});
         });
 

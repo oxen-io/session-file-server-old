@@ -56,6 +56,7 @@ ADNStream.prototype.process = function (purge) {
           var stop = new Date().getTime();
           // wait 30 sesc
           while(new Date().getTime() < stop + 30*1000) {
+            // this block all incoming web requests
               ;
           }
           console.log("Trying again...");
