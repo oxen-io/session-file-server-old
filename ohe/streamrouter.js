@@ -138,7 +138,7 @@ StreamRouter.prototype.stream = function (token) {
         stream.on('star', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            if (msg.data.user) {
+            if (msg.data && msg.data.user) {
               self.consumer.dispatch(msg.data.user.id, msg);
             } else {
               self.consumer.dispatch(null, msg);
@@ -187,7 +187,15 @@ StreamRouter.prototype.stream = function (token) {
             if (msg.data) {
               self.consumer.dispatch(msg.data.user.id, msg);
             } else {
+              self.consumer.dispatch(null, msg);
               console.log('ohe:::streamrouter.js::stream:listen_to_endpoint.user_follow - no data in msg',msg);
+/*
+   { timestamp: 1400743370135,
+     is_deleted: true,
+     type: 'user_follow',
+     id: '473123' } }
+
+*/
               self.consumer.dispatch(null, msg);
             }
             //});
