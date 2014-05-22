@@ -85,47 +85,52 @@ var apicall=function(apiroot, url, processor) {
 
 // maybe need an ignore param
 // post params
+// FIXME: maybe a compare lists model vs single object...
+// start with comparing ids to make sure we got the right objects
+// then we can do a one on one comparison and develop a score for each pair
 var compareendpoints=function (url) {
   var fts=new Date().getTime();
   apicall(apiroot,url,function(json) {
     var sts=new Date().getTime();
     apicall(localapiroot,url,function(localjson) {
       var tts=new Date().getTime();
-      if (JSON.stringify(json)===JSON.stringify(localjson)) {
-        console.log(url,"OrderMatch ",sts-fts,tts-sts);
-      } else {
-        if (objectEquals(json, localjson)) {
-          console.log(url,"Match ",sts-fts,tts-sts);
+      if (localjson) {
+        if (JSON.stringify(json)===JSON.stringify(localjson)) {
+          console.log(url,"OrderMatch ",sts-fts,tts-sts);
         } else {
-          // show official transcript
-          //console.log(JSON.stringify(json),null,4);
-          console.dir(json);
-					// deep object inspsection
-          if (json.data) {
-						if (json.data.user) {
-							console.dir(json.data.user.counts);
-							console.dir(json.data.user.description);
-							console.dir(json.data.user.avatar_image);
-							console.dir(json.data.user.cover_image);
-						}
-						console.dir(json.data.entities);
+          if (objectEquals(json, localjson)) {
+            console.log(url,"Match ",sts-fts,tts-sts);
+          } else {
+            // show official transcript
+            //console.log(JSON.stringify(json),null,4);
+            console.dir(json);
+            // deep object inspsection
+            if (json.data) {
+              if (json.data.user) {
+                console.dir(json.data.user.counts);
+                console.dir(json.data.user.description);
+                console.dir(json.data.user.avatar_image);
+                console.dir(json.data.user.cover_image);
+              }
+              console.dir(json.data.entities);
+            }
+            console.log('================================================');
+            //console.log(JSON.stringify(localjson),null,4);
+            console.dir(localjson);
+            // deep object inspsection
+            if (localjson.data) {
+              if (localjson.data.user) {
+                console.dir(localjson.data.user.counts);
+                console.dir(localjson.data.user.description);
+                console.dir(localjson.data.user.avatar_image);
+                console.dir(localjson.data.user.cover_image);
+              }
+              console.dir(localjson.data.entities);
+            }
+            console.log('================================================');
+            console.log(url,"Different ",sts-fts,tts-sts);
+            console.log(rusDiff(json, localjson));
           }
-          console.log('================================================');
-          //console.log(JSON.stringify(localjson),null,4);
-          console.dir(localjson);
-          // deep object inspsection
-          if (localjson.data) {
-            if (localjson.data.user) {
-							console.dir(localjson.data.user.counts);
-							console.dir(localjson.data.user.description);
-							console.dir(localjson.data.user.avatar_image);
-							console.dir(localjson.data.user.cover_image);
-						}
-						console.dir(localjson.data.entities);
-					}
-          console.log('================================================');
-          console.log(url,"Different ",sts-fts,tts-sts);
-          console.log(rusDiff(json, localjson));
         }
       }
     });
@@ -135,6 +140,7 @@ var compareendpoints=function (url) {
 // FIXME: how do we intentionally generate errors?
 // FIXME: generalparams
 // FIXME: tokens
+// FIXME: headers!
 
 test_post=function() {
   var postid=parseInt(min_post_id+(Math.random()*(max_post_id-min_post_id)));
@@ -191,17 +197,17 @@ test_getChannelMessages=function(cid) {
 
 test_getChannelMessage=function(mid) {
   if (mid) {
-		compareendpoints('channels/messages/?ids='+mid);
+    compareendpoints('channels/messages/?ids='+mid);
   } else {
-		var cid = publichannels[Math.floor(Math.random() * publichannels.length)];
-		apicall(apiroot,'channels/'+cid+'/messages',function(json) {
-			var messages=[];
-			for(var i in json.data) {
-				messages.push(json.data[i].id)
-			}
-			mid = messages[Math.floor(Math.random() * messages.length)];
-			compareendpoints('channels/'+cid+'/messages/'+mid);
-		});
+    var cid = publichannels[Math.floor(Math.random() * publichannels.length)];
+    apicall(apiroot,'channels/'+cid+'/messages',function(json) {
+      var messages=[];
+      for(var i in json.data) {
+        messages.push(json.data[i].id)
+      }
+      mid = messages[Math.floor(Math.random() * messages.length)];
+      compareendpoints('channels/'+cid+'/messages/'+mid);
+    });
   }
 }
 
@@ -236,49 +242,50 @@ apicall(apiroot,'/posts/stream/global',function(res) {
     }
     max_user_id=Math.max(post.user.id,max_user_id);
   }
+  console.log('Sample hashtags, max_post_id and max_user_id loaded');
   switch(process.argv[2]) {
     case 'post':
-			test_post(process.argv[3]);
+      test_post(process.argv[3]);
     break;
     case 'userposts':
-			test_getUserPosts(process.argv[3]);
+      test_getUserPosts(process.argv[3]);
     break;
     case 'userstars':
-			test_getUserStars(process.argv[3]);
+      test_getUserStars(process.argv[3]);
     break;
     case 'hashtag':
-			test_getHashtag(process.argv[3]);
+      test_getHashtag(process.argv[3]);
     break;
     case 'global':
       // tough one to test
-			test_getGlobal();
+      test_getGlobal();
     break;
     case 'channel':
-			test_getChannel(process.argv[3]);
+      test_getChannel(process.argv[3]);
     break;
     case 'channelmessages':
-			test_getChannelMessages(process.argv[3]);
+      test_getChannelMessages(process.argv[3]);
     break;
     case 'messages':
-			test_getChannelMessage(process.argv[3]);
+      test_getChannelMessage(process.argv[3]);
     break;
     case 'config':
-			test_config();
+      test_config();
     break;
     case 'oembed':
-			test_oembed(process.argv[3]);
+      test_oembed(process.argv[3]);
     break;
     default:
-			test_post();
-			test_getUserPosts();
-			test_getUserStars();
-			test_getHashtag();
-			test_getGlobal();
-			test_getChannel();
-			test_getChannelMessages();
-			test_getChannelMessage();
-			test_config();
-			test_oembed();
+      test_post();
+      test_getUserPosts();
+      test_getUserStars();
+      test_getHashtag();
+      test_getGlobal();
+      test_getChannel();
+      test_getChannelMessages();
+      test_getChannelMessage();
+      test_config();
+      test_oembed();
     break;
   }
 });
