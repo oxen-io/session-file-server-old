@@ -14,7 +14,7 @@ module.exports = {
     }
   },
   // convert DB format to API structure
-  postToAPI: function(post,callback,meta) {
+  postToAPI: function(post, callback, meta) {
     console.log('dispatcher.js::postToAPI - write me!');
     callback(post, null);
   },
@@ -25,7 +25,7 @@ module.exports = {
       return;
     }
     if (id==undefined) {
-      callback(null,'dispatcher.js::getPost - id is undefined');
+      callback(null, 'dispatcher.js::getPost - id is undefined');
     }
     var ref=this;
     this.cache.getPost(id, function(post, err, meta) {
@@ -34,15 +34,15 @@ module.exports = {
   },
   getGlobal: function(params, callback) {
     var ref=this;
-    this.cache.getGlobal(function(posts,err) {
+    this.cache.getGlobal(function(posts, err) {
       // data is an array of entities
       var apiposts=[];
       //console.log('dispatcher.js:getGlobal - mapping '+posts.length);
       if (posts.length) {
-        posts.map(function(current,idx,Arr) {
+        posts.map(function(current, idx, Arr) {
           //console.log('dispatcher.js:getGlobal - map postid: '+current.id);
           // get the post in API foromat
-          ref.postToAPI(current,function(post,err,meta) {
+          ref.postToAPI(current, function(post, err, meta) {
             apiposts.push(post);
             // join
             //console.log(apiposts.length+'/'+entities.length);
@@ -51,10 +51,10 @@ module.exports = {
               callback(apiposts);
             }
           });
-        },ref);
+        }, ref);
       } else {
         // no posts
-        callback(null,'no posts for global',meta);
+        callback(null, 'no posts for global', meta);
       }
     });
   },
@@ -65,10 +65,10 @@ module.exports = {
       var apiposts=[];
       //console.log('dispatcher.js:getGlobal - mapping '+posts.length);
       if (posts && posts.length) {
-        posts.map(function(current,idx,Arr) {
+        posts.map(function(current, idx, Arr) {
           //console.log('dispatcher.js:getGlobal - map postid: '+current.id);
           // get the post in API foromat
-          ref.postToAPI(current,function(post,err,meta) {
+          ref.postToAPI(current, function(post, err, meta) {
             apiposts.push(post);
             // join
             //console.log(apiposts.length+'/'+entities.length);
@@ -77,10 +77,10 @@ module.exports = {
               callback(apiposts);
             }
           });
-        },ref);
+        }, ref);
       } else {
         // no posts
-        callback([],'no posts for global',meta);
+        callback([], 'no posts for global', meta);
       }
     });
   },
@@ -88,11 +88,11 @@ module.exports = {
     //console.log('dispatcher.js::getUserStars start');
     var ref=this;
     this.cache.getInteractions('star', userid, function(interactions, err, meta) {
-      //console.log('dispatcher.js::getUserStars - ',interactions);
+      //console.log('dispatcher.js::getUserStars - ', interactions);
       // data is an array of interactions
       if (interactions.length) {
         var apiposts=[];
-        interactions.map(function(current,idx,Arr) {
+        interactions.map(function(current, idx, Arr) {
           // we're a hasMany, so in theory I should be able to do
           // record.posts({conds});
           // get the post in API foromat
@@ -114,14 +114,14 @@ module.exports = {
   getHashtag: function(hashtag, params, callback) {
     var ref=this;
     //console.log('dispatcher.js:getHashtag - start #'+hashtag);
-    this.cache.getHashtagEntities(hashtag,function(entities,err,meta) {
+    this.cache.getHashtagEntities(hashtag, function(entities, err, meta) {
       // data is an array of entities
       var apiposts=[];
       //console.log('dispatcher.js:getHashtag - mapping '+entities.length);
       if (entities.length) {
-        entities.map(function(current,idx,Arr) {
+        entities.map(function(current, idx, Arr) {
           // get the post in API foromat
-          ref.getPost(current.typeid, null, function(post,err,meta) {
+          ref.getPost(current.typeid, null, function(post, err, meta) {
             apiposts.push(post);
             // join
             //console.log(apiposts.length+'/'+entities.length);
@@ -130,17 +130,19 @@ module.exports = {
               callback(apiposts);
             }
           });
-        },ref);
+        }, ref);
       } else {
         // no entities
-        callback(null,'no entities for '+hashtag,meta);
+        callback(null, 'no entities for '+hashtag, meta);
       }
     });
   },
   /** channels */
   setChannel: function(json, ts, callback) {
     console.log('dispatcher.js::setChannel - write me!');
-    callback(null, null);
+    if (callback) {
+      callback(null, null);
+    }
   },
   getChannel: function(id, params, callback) {
     this.cache.getChannel(id, callback);
@@ -148,6 +150,9 @@ module.exports = {
   /** messages */
   setMessage: function(json, ts) {
     console.log('dispatcher.js::setMessage - write me!');
+    if (callback) {
+      callback(null, null);
+    }
   },
   getChannelMessages: function(cid, params, callback) {
     this.cache.getChannelMessages(cid, callback);
@@ -159,17 +164,24 @@ module.exports = {
   /** channel_subscription */
   setChannelSubscription: function(data, deleted, ts, callback) {
     console.log('dispatcher.js::setChannelSubscription - write me!');
-    callback(null, null);
+    if (callback) {
+      callback(null, null);
+    }
   },
   /** stream_marker */
   setStreamMakerdata: function(data) {
     console.log('dispatcher.js::setStreamMakerdata - write me!');
+    if (callback) {
+      callback(null, null);
+    }
   },
   /** token */
   /** star (interaction) */
   setStar: function(data, deleted, id, ts, callback) {
     console.log('dispatcher.js::setStar - write me!');
-    callback(null, null);
+    if (callback) {
+      callback(null, null);
+    }
   },
   /** mute */
   /** block */
@@ -178,7 +190,7 @@ module.exports = {
     console.log('dispatcher.js::updateUser - write me!');
     callback(null, null);
   },
-  userToAPI: function(user,callback,meta) {
+  userToAPI: function(user, callback, meta) {
     console.log('dispatcher.js::userToAPI - write me!');
     callback(user, null);
   },
@@ -189,6 +201,9 @@ module.exports = {
   /** user_follow */
   setFollows: function(data, deleted, id, ts) {
     console.log('dispatcher.js::setFollows - write me!');
+    if (callback) {
+      callback(null, null);
+    }
   },
   /** files */
   getFile: function(fileid, params, callback) {
@@ -197,7 +212,9 @@ module.exports = {
   },
   setFile: function(data, deleted, id, ts, callback) {
     console.log('dispatcher.js::setFile - write me!');
-    callback(null, null);
+    if (callback) {
+      callback(null, null);
+    }
   },
   /** text process */
   textProcess: function(text, entities, postcontext, callback) {
