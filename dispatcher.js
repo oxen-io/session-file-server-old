@@ -7,55 +7,55 @@
 
 module.exports = {
   /** posts */
-  setPost: function(post,callback) {
+  setPost: function(post, callback) {
     console.log('dispatcher.js::setPost - write me!');
-    callback(null,null);
+    callback(null, null);
   },
-  getPost: function(id,callback,params) {
+  getPost: function(id, params, callback) {
     console.log('dispatcher.js::getPost - write me!');
-    callback(null,null);
+    callback(null, null);
   },
-  getGlobal: function(callback,params) {
+  getGlobal: function(params, callback) {
     console.log('dispatcher.js::getGlobal - write me!');
-    callback(null,null);
+    callback(null, null);
   },
-  getUserPosts: function(userid,callback,params) {
+  getUserPosts: function(userid, params, callback) {
     console.log('dispatcher.js::getUserPosts - write me!');
-    callback(null,null);
+    callback(null, null);
   },
-  getUserStars: function(userid,callback,params) {
+  getUserStars: function(userid, params, callback) {
     console.log('dispatcher.js::getUserStars - write me!');
-    callback(null,null);
+    callback(null, null);
   },
-  getHashtag: function(hashtag,callback,params) {
+  getHashtag: function(hashtag, params, callback) {
     console.log('dispatcher.js::getHashtag - write me!');
-    callback(null,null);
+    callback(null, null);
   },
   /** channels */
-  setChannel: function(json,ts,callback) {
+  setChannel: function(json, ts, callback) {
     console.log('dispatcher.js::setChannel - write me!');
-    callback(null,null);
+    callback(null, null);
   },
-  getChannel: function(id,callback,params) {
+  getChannel: function(id, params, callback) {
     console.log('dispatcher.js::getChannel - write me!');
-    callback(null,null);
+    callback(null, null);
   },
   /** messages */
-  setMessage: function(json,ts) {
+  setMessage: function(json, ts) {
     console.log('dispatcher.js::setMessage - write me!');
   },
-  getChannelMessages: function(cid,callback,params) {
+  getChannelMessages: function(cid, params, callback) {
     console.log('dispatcher.js::getChannelMessages - write me!');
-    callback(null,null);
+    callback(null, null);
   },
-  getChannelMessage: function(cid,mids,callback,params) {
+  getChannelMessage: function(cid, mids, params, callback) {
     console.log('dispatcher.js::getChannelMessage - write me!');
-    callback(null,null);
+    callback(null, null);
   },
   /** channel_subscription */
   setChannelSubscription: function(data, deleted, ts, callback) {
     console.log('dispatcher.js::setChannelSubscription - write me!');
-    callback(null,null);
+    callback(null, null);
   },
   /** stream_marker */
   setStreamMakerdata: function(data) {
@@ -63,38 +63,38 @@ module.exports = {
   },
   /** token */
   /** star (interaction) */
-  setStar: function(data,deleted,id,ts,callback) {
+  setStar: function(data, deleted, id, ts, callback) {
     console.log('dispatcher.js::setStar - write me!');
-    callback(null,null);
+    callback(null, null);
   },
   /** mute */
   /** block */
   /** user */
-  updateUser: function(data,ts,callback) {
+  updateUser: function(data, ts, callback) {
     console.log('dispatcher.js::updateUser - write me!');
-    callback(null,null);
+    callback(null, null);
   },
-  getUser: function(id,callback,params) {
+  getUser: function(id, params, callback) {
     console.log('dispatcher.js::getUser - write me!');
-    callback(null,null);
+    callback(null, null);
   },
   /** user_follow */
   setFollows: function(data, deleted, id, ts) {
     console.log('dispatcher.js::setFollows - write me!');
   },
   /** files */
-  getFile: function(fileid, callback, params) {
+  getFile: function(fileid, params, callback) {
     console.log('dispatcher.js::getFile - write me!');
-    callback(null,null);
+    callback(null, null);
   },
   setFile: function(data, deleted, id, ts, callback) {
     console.log('dispatcher.js::setFile - write me!');
-    callback(null,null);
+    callback(null, null);
   },
   /** text process */
-  textProcess: function(text,callback,entities,postcontext) {
+  textProcess: function(text, entities, postcontext, callback) {
     console.log('dispatcher.js::textProcess - write me!');
-    callback(null,null);
+    callback(null, null);
   },
   /** dispatcher for streamrouter */
   dispatch: function(userid, json) {
@@ -123,14 +123,14 @@ module.exports = {
         }
       break;
       case 'channel':
-        this.setChannel(data,meta.timestamp);
+        this.setChannel(data, meta.timestamp);
       break;
       case 'message':
         // meta.timestamp is important here for channels
-        this.setMessage(data,meta.timestamp);
+        this.setMessage(data, meta.timestamp);
       break;
       case 'channel_subscription':
-        this.setChannelSubscription(data,meta.is_deleted,meta.timestamp);
+        this.setChannelSubscription(data, meta.is_deleted, meta.timestamp);
       break;
       case 'file':
         console.log('file');
@@ -142,7 +142,7 @@ module.exports = {
         console.log('token');
       break;
       case 'star':
-        this.setStar(data,meta.is_deleted,meta.id,meta.timestamp);
+        this.setStar(data, meta.is_deleted, meta.id, meta.timestamp);
       break;
       case 'mute':
         console.log('mute');
@@ -151,11 +151,11 @@ module.exports = {
         console.log('block');
       break;
       case 'user':
-        this.updateUser(data,meta.timestamp);
+        this.updateUser(data, meta.timestamp);
       break;
       case 'user_follow':
         if (data) {
-          this.setFollows(data,meta.is_deleted,meta.id,meta.timestamp);
+          this.setFollows(data, meta.is_deleted, meta.id, meta.timestamp);
         }
       break;
       default:
