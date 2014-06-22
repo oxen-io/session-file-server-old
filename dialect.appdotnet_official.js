@@ -32,15 +32,17 @@ function ISODateString(d) {
 }
 
 function formatuser(user) {
-  user.id=''+user.id;
-  user.username=''+user.username; // 530 was cast as an int
-  user.created_at=ISODateString(user.created_at);
-  user.counts.following=parseInt(0+user.counts.following);
-  user.counts.posts=parseInt(0+user.counts.posts);
-  user.counts.followers=parseInt(0+user.counts.followers);
-  user.counts.stars=parseInt(0+user.counts.stars);
-  if (user.name) {
-    user.name=''+user.name;
+  if (user) {
+    user.id=''+user.id;
+    user.username=''+user.username; // 530 was cast as an int
+    user.created_at=ISODateString(user.created_at);
+    user.counts.following=parseInt(0+user.counts.following);
+    user.counts.posts=parseInt(0+user.counts.posts);
+    user.counts.followers=parseInt(0+user.counts.followers);
+    user.counts.stars=parseInt(0+user.counts.stars);
+    if (user.name) {
+      user.name=''+user.name;
+    }
   }
   return user;
 }
@@ -49,20 +51,22 @@ function formatpost(post) {
   // cast fields to make sure they're the correct type
 
   // Now to cast
-  post.id=''+post.id; // cast to String
-  post.num_replies=parseInt(0+post.num_replies); // cast to Number
-  post.num_reposts=parseInt(0+post.num_reposts); // cast to Number
-  post.num_stars=parseInt(0+post.num_stars); // cast to Number
-  post.machine_only=post.machine_only?true:false;
-  post.thread_id=''+post.thread_id; // cast to String (Number is too big for js?)
-  if (post.reply_to) {
-    post.reply_to=''+post.reply_to; // cast to String (Number is too big for js?)
+  if (post) {
+    post.id=''+post.id; // cast to String
+    post.num_replies=parseInt(0+post.num_replies); // cast to Number
+    post.num_reposts=parseInt(0+post.num_reposts); // cast to Number
+    post.num_stars=parseInt(0+post.num_stars); // cast to Number
+    post.machine_only=post.machine_only?true:false;
+    post.thread_id=''+post.thread_id; // cast to String (Number is too big for js?)
+    if (post.reply_to) {
+      post.reply_to=''+post.reply_to; // cast to String (Number is too big for js?)
+    }
+    if (post.repost_of) {
+      post.repost_of=''+post.repost_of; // cast to String (Number is too big for js?)
+    }
+    // remove microtime
+    post.created_at=ISODateString(post.created_at);
   }
-  if (post.repost_of) {
-    post.repost_of=''+post.repost_of; // cast to String (Number is too big for js?)
-  }
-  // remove microtime
-  post.created_at=ISODateString(post.created_at);
   return post;
 }
 // we're also resposible for meta
@@ -78,7 +82,9 @@ module.exports=function(app, prefix) {
         meta: { code: 200 },
         data: formatpost(post)
       };
-      res.data.user=formatuser(post.user);
+      if (post.user) {
+        res.data.user=formatuser(post.user);
+      }
       if (meta) {
         res.meta=meta;
       }
@@ -184,11 +190,11 @@ module.exports=function(app, prefix) {
     });
   });
   app.get(prefix+'/config', function(req, resp) {
-    console.log('server.dispatcher.js::setupapiwithprefix - /config implement me');
+    console.log('dialect.appdotnet_official.js::/config - implement me');
     resp.send(404);
   });
   app.get(prefix+'/oembed', function(req, resp) {
-    console.log('server.dispatcher.js::setupapiwithprefix - /oembed implement me');
+    console.log('dialect.appdotnet_official.js::/oembed - implement me');
     resp.send(404);
   });
   app.post(prefix+'/text/process', function(req, resp) {
