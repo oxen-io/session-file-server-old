@@ -1,14 +1,14 @@
 /**
-This module takes the API and communicates with buffer API
+This module takes the API and communicates with the front-end internal API (dispatcher)
 to provide data
 this file is responsible for the dialect for the associate mountpoint
-we're responsible for filteirng models to make sure we only return
-what matches the dialect spec
+
+we're responsible for filteirng models to make sure we only return what matches the dialect's spec
 */
 /** get request http library */
 var request = require('request');
 
-function sendrepsonse(json,resp) {
+function sendrepsonse(json, resp) {
   if (resp.prettyPrint) {
     json=JSON.stringify(JSON.parse(json),null,4);
   }
@@ -70,10 +70,10 @@ function formatpost(post) {
 /**
  * Set up defined API routes at prefix
  */
-module.exports=function(app,prefix) {
+module.exports=function(app, prefix) {
   var dispatcher=app.dispatcher;
-  app.get(prefix+'/posts/:id',function(req,resp) {
-    dispatcher.getPost(req.params.id,function(post,err,meta) {
+  app.get(prefix+'/posts/:id', function(req, resp) {
+    dispatcher.getPost(req.params.id, req.apiParams, function(post, err, meta) {
       var res={
         meta: { code: 200 },
         data: formatpost(post)
@@ -82,11 +82,11 @@ module.exports=function(app,prefix) {
       if (meta) {
         res.meta=meta;
       }
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
-  app.get(prefix+'/users/:user_id',function(req,resp) {
-    dispatcher.getUser(req.params.user_id,function(user,err,meta) {
+  app.get(prefix+'/users/:user_id', function(req, resp) {
+    dispatcher.getUser(req.params.user_id, req.apiParams, function(user, err, meta) {
       var res={
         meta: meta,
         data: user
@@ -94,11 +94,11 @@ module.exports=function(app,prefix) {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
-  app.get(prefix+'/users/:user_id/posts',function(req,resp) {
-    dispatcher.getUserPosts(req.params.user_id,function(posts,err,meta) {
+  app.get(prefix+'/users/:user_id/posts', function(req, resp) {
+    dispatcher.getUserPosts(req.params.user_id, req.apiParams, function(posts, err, meta) {
       var res={
         meta: meta,
         data: posts
@@ -106,12 +106,12 @@ module.exports=function(app,prefix) {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
-  app.get(prefix+'/users/:user_id/stars',function(req,resp) {
+  app.get(prefix+'/users/:user_id/stars', function(req, resp) {
     //console.log('ADNO::usersStar');
-    dispatcher.getUserStars(req.params.user_id,function(posts,err,meta) {
+    dispatcher.getUserStars(req.params.user_id, req.apiParams, function(posts, err, meta) {
       var res={
         meta: meta,
         data: posts
@@ -119,11 +119,11 @@ module.exports=function(app,prefix) {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
-  app.get(prefix+'/posts/tag/:hashtag',function(req,resp) {
-    dispatcher.getHashtag(req.params.hashtag,function(posts,err,meta) {
+  app.get(prefix+'/posts/tag/:hashtag', function(req, resp) {
+    dispatcher.getHashtag(req.params.hashtag, req.apiParams, function(posts, err, meta) {
       var res={
         meta: meta,
         data: posts
@@ -131,11 +131,11 @@ module.exports=function(app,prefix) {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
-  app.get(prefix+'/posts/stream/global',function(req,resp) {
-    dispatcher.getGlobal(function(posts,err,meta) {
+  app.get(prefix+'/posts/stream/global', function(req, resp) {
+    dispatcher.getGlobal(req.apiParams, function(posts, err, meta) {
       var res={
         meta: meta,
         data: posts
@@ -143,12 +143,12 @@ module.exports=function(app,prefix) {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
   // channel_id 1383 is always good for testing
-  app.get(prefix+'/channels/:channel_id',function(req,resp) {
-    dispatcher.getChannel(req.params.channel_id,function(channels,err,meta) {
+  app.get(prefix+'/channels/:channel_id', function(req, resp) {
+    dispatcher.getChannel(req.params.channel_id, req.apiParams, function(channels, err, meta) {
       var res={
         meta: meta,
         data: channels
@@ -156,11 +156,11 @@ module.exports=function(app,prefix) {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
-  app.get(prefix+'/channels/:channel_id/messages',function(req,resp) {
-    dispatcher.getChannelMessages(req.params.channel_id,function(messages,err,meta) {
+  app.get(prefix+'/channels/:channel_id/messages', function(req, resp) {
+    dispatcher.getChannelMessages(req.params.channel_id, req.apiParams, function(messages, err, meta) {
       var res={
         meta: meta,
         data: messages
@@ -168,11 +168,11 @@ module.exports=function(app,prefix) {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
-  app.get(prefix+'/channels/:channel_id/messages/:message_id',function(req,resp) {
-    dispatcher.getChannelMessage(req.params.channel_id,req.params.message_id,function(messages,err,meta) {
+  app.get(prefix+'/channels/:channel_id/messages/:message_id', function(req, resp) {
+    dispatcher.getChannelMessage(req.params.channel_id, req.params.message_id, req.apiParams, function(messages, err, meta) {
       var res={
         meta: meta,
         data: messages
@@ -180,26 +180,26 @@ module.exports=function(app,prefix) {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
-  app.get(prefix+'/config',function(req,resp) {
+  app.get(prefix+'/config', function(req, resp) {
     console.log('server.dispatcher.js::setupapiwithprefix - /config implement me');
     resp.send(404);
   });
-  app.get(prefix+'/oembed',function(req,resp) {
+  app.get(prefix+'/oembed', function(req, resp) {
     console.log('server.dispatcher.js::setupapiwithprefix - /oembed implement me');
     resp.send(404);
   });
-  app.post(prefix+'/text/process',function(req,resp) {
-    dispatcher.textProcess(req.body.text,function(textProcess,err) {
+  app.post(prefix+'/text/process', function(req, resp) {
+    dispatcher.textProcess(req.body.text, null, null, function(textProcess, err) {
       var res={
         meta: {
           code: 200,
         },
         data: textProcess,
       };
-      sendrepsonse(JSON.stringify(res),resp);
+      sendrepsonse(JSON.stringify(res), resp);
     });
   });
 }
