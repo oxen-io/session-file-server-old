@@ -134,7 +134,7 @@ module.exports = {
   },
   setSource: function(source, callback) {
     if (this.next) {
-      this.next.setSource(client_id, callback);
+      this.next.setSource(source, callback);
     } else {
       console.log('dataaccess.base.js::setSource - write me!');
       callback(null, null);

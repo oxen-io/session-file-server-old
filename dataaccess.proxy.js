@@ -144,7 +144,7 @@ module.exports = {
   },
   setSource: function(source, callback) {
     if (this.next) {
-      this.next.setSource(client_id, callback);
+      this.next.setSource(source, callback);
     }
   },
   /* client (app) tokens */
