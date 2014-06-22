@@ -149,23 +149,23 @@ module.exports = {
   },
   /* client (app) tokens */
   addAPIAppToken: function(client_id, token, request) {
-    console.log('api_persistent_storage::addAPIAppToken - write me!');
+    console.log('dataccess.proxy.js::addAPIAppToken - write me!');
   },
   delAPIAppToken: function(client_id, token) {
-    console.log('api_persistent_storage::delAPIAppToken - write me!');
+    console.log('dataccess.proxy.js::delAPIAppToken - write me!');
   },
   getAPIAppToken: function(client_id, token) {
-    console.log('api_persistent_storage::getAPIAppToken - write me!');
+    console.log('dataccess.proxy.js::getAPIAppToken - write me!');
   },
   /* client upstream token */
   addUpstreamClientToken: function(token, scopes) {
-    console.log('api_persistent_storage::addUpstreamClientToken - write me!');
+    console.log('dataccess.proxy.js::addUpstreamClientToken - write me!');
   },
   delUpstreamClientToken: function(token) {
-    console.log('api_persistent_storage::delUpstreamClientToken - write me!');
+    console.log('dataccess.proxy.js::delUpstreamClientToken - write me!');
   },
   getUpstreamClientToken: function() {
-    console.log('api_persistent_storage::getUpstreamClientToken - write me!');
+    console.log('dataccess.proxy.js::getUpstreamClientToken - write me!');
   },
   /** user stream */
   /** app stream */
@@ -194,26 +194,56 @@ module.exports = {
       url: ref.apiroot+'/posts/'+id
     }, function(e, r, body) {
       var res=JSON.parse(body);
-      ref.dispatcher.setPost(res.data,1,function(post,err) {
+      // was apistyle 1
+      ref.dispatcher.setPost(res.data, function(post,err) {
         if (post==null && err==null) {
           if (this.next) {
             this.next.getPost(id, callback);
+          } else {
+            callback(res.data, null, res.meta);
           }
         } else {
-          callback(post,err,res.meta);
+          callback(post, err, res.meta);
         }
       });
     });
   },
   getUserPosts: function(userid, callback) {
-    if (this.next) {
-      this.next.getUserPosts(userid, callback);
+    if (userid==undefined) {
+      callback(null,'dataccess.proxy.js::getUserPosts - userid is undefined');
+      return;
     }
+    if (userid==='') {
+      callback(null,'dataccess.proxy.js::getUserPosts - userid is empty');
+      return;
+    }
+    var ref=this;
+    console.log('proxying user posts '+userid);
+    request.get({
+      url: ref.apiroot+'/users/'+userid+'/posts'
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      for(var i in res.data) {
+        var post=res.data[i];
+        ref.dispatcher.setPost(post);
+      }
+      callback(res.data, null, res.meta);
+    });
   },
   getGlobal: function(callback) {
-    if (this.next) {
-      this.next.getGlobal(callback);
-    }
+    //console.log('dataaccess.proxy.js::getGlobal - write me');
+    var ref=this;
+    console.log('proxying global');
+    request.get({
+      url: ref.apiroot+'/posts/stream/global'
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      for(var i in res.data) {
+        var post=res.data[i];
+        ref.dispatcher.setPost(post);
+      }
+      callback(res.data, null, res.meta);
+    });
   },
   /** channels */
   setChannel: function (chnl, ts, callback) {
@@ -232,10 +262,13 @@ module.exports = {
       url: ref.apiroot+'/channels/'+id
     }, function(e, r, body) {
       var res=JSON.parse(body);
-      ref.dispatcher.setChannel(res.data,function(chnl,err) {
+      var ts=new Date().getTime();
+      ref.dispatcher.setChannel(res.data, ts, function(chnl,err) {
         if (chnl==null && err==null) {
           if (this.next) {
             this.next.getChannel(id, callback);
+          } else {
+            callback(res.data,null,res.meta);
           }
         } else {
           callback(chnl,err,res.meta);
@@ -271,6 +304,25 @@ module.exports = {
       });
     });
   },
+  getChannelMessages: function(channelid, callback) {
+    if (channelid==undefined) {
+      callback(null,'dataccess.proxy.js::getChannelMessages - channelid is undefined');
+      return;
+    }
+    var ref=this;
+    console.log('proxying messages in channel '+channelid);
+    request.get({
+      url: ref.apiroot+'/channels/'+channelid+'/messages'
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      for(var i in res.data) {
+        var msg=res.data[i];
+        ref.dispatcher.setMessage(msg);
+      }
+      callback(res.data, null, res.meta);
+    });
+
+  },  
   /** subscription */
   /*
     channelid: { type: Number, index: true },
@@ -314,28 +366,57 @@ module.exports = {
   getEntities: function(type, id, callback) {
     if (this.next) {
       this.next.getEntities(type, id, callback);
+    } else {
+      callback(null, null);
     }
   },
-  // more like getHashtagEntities
   getHashtagEntities: function(hashtag, callback) {
-    if (this.next) {
-      this.next.getHashtagEntities(hashtag, callback);
+    if (hashtag==undefined) {
+      callback(null,'dataccess.proxy.js::getHashtagEntities - hashtag is undefined');
+      return;
     }
+    if (hashtag==='') {
+      callback(null,'dataccess.proxy.js::getHashtagEntities - hashtag is empty');
+      return;
+    }
+    var ref=this;
+    console.log('proxying hashtag posts '+hashtag);
+    request.get({
+      url: ref.apiroot+'/posts/tag/'+hashtag
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      var entries=[];
+      for(var i in res.data) {
+        var post=res.data[i];
+        ref.dispatcher.setPost(post);
+        var entry={
+          idtype: 'post',
+          typeid: post.id,
+          type: 'hashtag',
+          text: hashtag
+        };
+        entries.push(entry);
+      }
+      callback(entries, null, res.meta);
+    });
   },
   /**
    * Annotations
    */
   addAnnotation: function(idtype, id, type, value, callback) {
+    //console.log('dataccess.proxy.js::addAnnotation - write me!');
     if (this.next) {
       this.next.addAnnotation(idtype, id, type, value, callback);
     }
   },
   clearAnnotations: function(idtype,id,callback) {
+    //console.log('dataccess.proxy.js::clearAnnotations - write me!');
     if (this.next) {
       this.next.clearAnnotations(idtype, id, callback);
     }
   },
   getAnnotations: function(idtype, id, callback) {
+    console.log('dataccess.proxy.js::getAnnotations - write me!');
     if (this.next) {
       this.next.getAnnotations(idtype, id, callback);
     }
@@ -365,6 +446,36 @@ module.exports = {
   // if we're going to use one table, let's keep the code advantages from that
   // getUserStarPosts
   getInteractions: function(type, userid, callback) {
+    if (type=='star') {
+      var ref=this;
+      console.log('proxying user/stars '+userid);
+      request.get({
+        url: ref.apiroot+'/users/'+userid+'/stars'
+      }, function(e, r, body) {
+        var res=JSON.parse(body);
+        // returns a list of posts but not what this function normally returns
+        // a list of interactions
+        //console.log(res);
+        var actions=[];
+        for(var i in res.data) {
+          var post=res.data[i];
+          ref.dispatcher.setPost(post);
+          var action={
+            userid: userid,
+            type: 'star',
+            datetime: post.created_at,
+            idtype: 'post',
+            typeid: post.id,
+            asthisid: 0, // meta.id
+          };
+          actions.push(action);
+        }
+        callback(actions, null, res.meta);
+      });
+      
+    } else {
+      console.log('dataccess.proxy.js::getInteractions - write me! type: '+type);
+    }
     if (this.next) {
       this.next.getInteractions(type, userid, callback);
     }
