@@ -5,18 +5,236 @@
  * responses in standard way.
  */
 
+var first_post_id;
+var last_post_id;
+
+function copyentities(type, src, dest, postcontext) {
+  if (!dest) {
+    console.log('dispatcher.js::copyentities - dest not set ',dest);
+    return;
+  }
+  // dest.entities[type]=[];
+  for(var i in src) {
+    var res=src[i];
+    var obj=new Object;
+    switch(type) {
+      case 'mentions':
+        // need is_leading only for post context
+        if (postcontext && res.altnum!=undefined) {
+          obj.is_leading=res.altnum?true:false;
+        }
+        obj.id=''+res.alt; // could be a hint of future issues here
+        obj.name=res.text;
+      break;
+      case 'hashtags':
+        obj.name=res.text;
+      break;
+      case 'links':
+        obj.url=res.alt;
+        obj.text=res.text;
+        if (res.altnum) {
+          obj.amended_len=parseInt(0+res.altnum);
+        }
+      break;
+      default:
+        console.log('unknown type '+type);
+      break;
+    }
+    obj.pos=parseInt(0+res.pos);
+    obj.len=parseInt(0+res.len);
+    dest.entities[type].push(obj);
+  }
+}
+
 module.exports = {
   /** posts */
+  // difference between stream and api?
   setPost: function(post, callback) {
-    console.log('dispatcher.js::setPost - write me!');
-    if (callback) {
-      callback(null, null);
+    if (!post.id) {
+      console.log('dispatcher.js::setPost - no id in post',post);
+      if (callback) {
+        callback(null,'setPost - no id in post');
+      }
+      return;
     }
+
+    // we're assuming we're getting a contiguous amount of posts...
+    // get a sample of where the app stream is starting out
+    if (first_post_id==undefined) {
+      // not a good way to do this,
+      // some one can interact (delete?) an older post with a much lower id
+      console.log("Setting first post to ", post.id);
+      first_post_id=post.id;
+    }
+
+    post.date=new Date(post.created_at);
+    post.ts=post.date.getTime();
+
+    // update user first, to avoid proxy
+    if (post.user && post.user.id) {
+      // update User records
+      /*
+      if (post.user.description && post.user.description.entities) {
+        console.log('disptacher.js::setPost '+post.id+' has user entites');
+      } else {
+        console.log('disptacher.js::setPost '+post.id+' has NO user entites');
+        //console.dir(post.user);
+      }
+      */
+      this.updateUser(post.user,post.ts,function(user, err) {
+        if (err) {
+          console.log("User Update err: "+err);
+        //} else {
+          //console.log("User Updated");
+        }
+      });
+    }
+    if (post.entities) {
+      this.setEntities('post',post.id,post.entities,function(entities, err) {
+        if (err) {
+          console.log("entities Update err: "+err);
+        //} else {
+          //console.log("entities Updated");
+        }
+      });
+    }
+    dataPost=post;
+    //dataPost.id=post.id; // not needed
+    if (post.user) {
+      dataPost.userid=post.user.id;
+    } else {
+      // usually on deletes, they don't include the user object
+      //console.log('No Users on post ',post);
+      /*
+{ created_at: '2013-08-16T01:10:29Z',
+  num_stars: 0,
+  is_deleted: true,
+  num_replies: 0,
+  thread_id: '9132210',
+  deleted: '1',
+  num_reposts: 0,
+  entities: { mentions: [], hashtags: [], links: [] },
+  machine_only: false,
+  source:
+   { link: 'http://tapbots.com/software/netbot',
+     name: 'Netbot for iOS',
+     client_id: 'QHhyYpuARCwurZdGuuR7zjDMHDRkwcKm' },
+  reply_to: '9132210',
+  id: '9185233',
+  date: Thu Aug 15 2013 18:10:29 GMT-0700 (PDT),
+  ts: 1376615429000 }
+      */
+    }
+    dataPost.created_at=new Date(post.created_at); // fix incoming created_at iso date to Date
+    var ref=this.cache;
+    if (post.source) {
+      this.cache.setSource(post.source, function(client, err) {
+        // param order is correct
+        //console.log('addPost setSource returned ',client,err);
+        if (err) {
+          console.log('can\'t setSource ',err);
+        } else {
+          dataPost.client_id=client.client_id;
+        }
+        ref.setPost(dataPost,callback);
+      });
+    } else {
+      ref.setPost(dataPost,callback);
+    }
+
+    if (post.annotations) {
+      this.setAnnotations('post',post.id,post.annotations);
+    }
+    
+    if (last_post_id==undefined || post.id>last_post_id) {
+      //console.log("Setting last post to ", post.id);
+      last_post_id=post.id;
+    }
+    process.stdout.write('P');
   },
   // convert DB format to API structure
   postToAPI: function(post, callback, meta) {
-    console.log('dispatcher.js::postToAPI - write me!');
-    callback(post, null);
+    var ref=this;
+    //console.log('dispatcher.js::postToAPI - gotPost. post.userid:',post.userid);
+    // post.client_id is string(32)
+    //console.log('dispatcher.js::postToAPI - gotUser. post.client_id:',post.client_id);
+
+    var finalcompsite=function(post,user,client,callback,err,meta) {
+      // copy source (client_id) structure
+      // explicitly set the field we use
+
+      var data={};
+
+      var postFields=['id','text','html','canonical_url','created_at','machine_only','num_replies','num_reposts','num_stars','thread_id','entities','source','user'];
+      for(var i in postFields) {
+        var f=postFields[i];
+        data[f]=post[f];
+      }
+      //console.log(post.num_replies+' vs '+data.num_replies);
+      var postFieldOnlySetIfValue=['repost_of','reply_to'];
+      for(var i in postFieldOnlySetIfValue) {
+        var f=postFieldOnlySetIfValue[i];
+        if (post[f]) {
+          data[f]=post[f];
+        }
+      }
+      data.user=user;
+      callback(data,err,meta);
+    }
+
+    // we need post,entities,annotations
+    // user,entities,annotations
+    // and finally client
+    // could dispatch all 3 of these in parallel
+    ref.getClient(post.client_id,function(client,clientErr,clientMeta) {
+      //console.log('dispatcher.js::postToAPI - gotClient. post.id:',post.id);
+
+      if (client) {
+        post.source={
+          link: client.link,
+          name: client.name,
+          client_id: client.client_id
+        };
+      } else {
+        console.log('dispatcher.js::makepost - client is ',client,clientErr);
+      }
+
+      ref.getUser(post.userid,function(user,err) {
+        // use entity cache
+        if (1) {
+          //console.log('dispatcher.js::postToAPI - gotEntity post. post.userid:',post.userid);
+          ref.getEntities('post',post.id,function(entities,entitiesErr,entitiesMeta) {
+            //console.log('dispatcher.js::makepost - gotEntity user.');
+
+            post.entities={
+              mentions: [],
+              hashtags: [],
+              links: [],
+            };
+            copyentities('mentions',entities.mentions,post,1);
+            copyentities('hashtags',entities.hashtags,post,1);
+            copyentities('links',entities.links,post,1);
+            // use html cache
+            if (1) {
+              finalcompsite(post,user,client,callback,err,meta);
+            } else {
+              // generate HTML
+              ref.textProcess(post.text,function(textProcess,err) {
+                //console.dir(textProcess);
+                post.html=textProcess.html;
+                finalcompsite(post,user,client,callback,err,meta);
+              },post.entities);
+            }
+          }); // getEntities
+        } else {
+          ref.textProcess(post.text,function(textProc,err) {
+            post.entities=textProc.entities;
+            post.html=textProc.html;
+            finalcompsite(post,user,client,callback,err,meta);
+          },null,1);
+        }
+      }); // getUser
+    },1); // getClient
   },
   getPost: function(id, params, callback) {
     // probably should just exception and backtrace
@@ -105,7 +323,7 @@ module.exports = {
               callback(apiposts);
             }
           });
-        });
+        },ref);
       } else {
         callback(interactions, err, meta);
       }
@@ -138,21 +356,77 @@ module.exports = {
     });
   },
   /** channels */
-  setChannel: function(json, ts, callback) {
-    console.log('dispatcher.js::setChannel - write me!');
-    if (callback) {
-      callback(null, null);
+  setChannel: function(json,ts,callback) {
+    var ref=this;
+    // map API to DB
+    // default to most secure
+    var raccess=2; // 0=public,1=loggedin,2=selective
+    var waccess=2; // 1=loggedin,2=selective
+    // editors are always seletcive
+    if (json.readers.any_user) {
+      raccess=1;
     }
+    if (json.readers.public) {
+      raccess=0;
+    }
+    if (json.writers.any_user) {
+      waccess=1;
+    }
+    var channel={
+      id: json.id,
+      ownerid: json.owner.id,
+      type: json.type,
+      reader: raccess,
+      writer: waccess,
+      readers: json.readers.user_ids,
+      writers: json.writers.user_ids,
+      editors: json.editors.user_ids,
+    };
+    // update user object
+    this.updateUser(json.owner,ts);
+    this.cache.setChannel(channel,ts,function(chnl,err) {
+      // if newer update annotations
+      if (callback) {
+        callback(chnl,err);
+      }
+    });
+    process.stdout.write('C');
   },
   getChannel: function(id, params, callback) {
     this.cache.getChannel(id, callback);
   },
   /** messages */
-  setMessage: function(json, ts) {
-    console.log('dispatcher.js::setMessage - write me!');
-    if (callback) {
-      callback(null, null);
-    }
+  setMessage: function(json,ts) {
+    //console.log('dispatcher.js::setMessage - write me!');
+    // update user object
+    // if the app gets behind (and/or we have mutliple stream)
+    // the message could be delayed, so it's better to tie the user timestamp
+    // for when the message was created then now
+    // if though the user object maybe be up to date when the packet was sent
+    // however the delay in receiving and processing maybe the cause of delay
+    // meta.timestamp maybe the most accurate here?
+    this.updateUser(json.user,ts);
+    // create message DB object (API=>DB)
+    var message={
+      id: json.id,
+      channelid: json.channel_id,
+      text: json.text,
+      html: json.html,
+      machine_only: json.machine_only,
+      client_id: json.client_id,
+      thread_id: json.thread_id,
+      userid: json.user.id,
+      reply_to: json.reply_to,
+      is_deleted: json.is_deleted,
+      created_at: json.created_at
+    };
+    this.cache(message,function(msg,err) {
+      // if current, extract annotations too
+      if (callback) {
+        callback(msg,err);
+      }
+    });
+    process.stdout.write('M');
   },
   getChannelMessages: function(cid, params, callback) {
     this.cache.getChannelMessages(cid, callback);
@@ -163,10 +437,15 @@ module.exports = {
   },
   /** channel_subscription */
   setChannelSubscription: function(data, deleted, ts, callback) {
-    console.log('dispatcher.js::setChannelSubscription - write me!');
-    if (callback) {
-      callback(null, null);
+    // update user object
+    if (data.user) {
+      this.updateUser(data.user, ts);
     }
+    // update channel object
+    this.setChannel(data.channel, ts);
+    // update subscription
+    this.cache.setSubscription(data.channel.id, data.user.id, deleted, ts, callback);
+    process.stdout.write(deleted?'s':'S');
   },
   /** stream_marker */
   setStreamMakerdata: function(data) {
@@ -177,33 +456,219 @@ module.exports = {
   },
   /** token */
   /** star (interaction) */
+  // id is meta.id, not sure what this is yet
   setStar: function(data, deleted, id, ts, callback) {
-    console.log('dispatcher.js::setStar - write me!');
-    if (callback) {
-      callback(null, null);
+    // and what if the posts doesn't exist in our cache?
+    // update post
+    // yea, there was one post that didn't has post set
+    if (data && data.post) {
+      this.setPost(data.post);
     }
+    // update user record
+    if (data) {
+      this.updateUser(data.user,ts);
+    }
+    // create/update star
+    if (data) {
+      this.cache.setInteraction(data.user.id,data.post.id,'star',id,deleted,ts,callback);
+    } else {
+      if (deleted) {
+        this.cache.setInteraction(0,0,'star',id,deleted,ts,callback);
+      } else {
+        console.log('dispatcher.js::setStar - Create empty?');
+        if (callback) {
+          callback(null, null);
+        }
+      }
+    }
+    process.stdout.write(deleted?'_':'*');
   },
   /** mute */
   /** block */
   /** user */
   updateUser: function(data, ts, callback) {
-    console.log('dispatcher.js::updateUser - write me!');
-    callback(null, null);
+    if (!data) {
+      console.log('dispatcher.js:updateUser - data is missing',data);
+      callback(null,'data is missing');
+      return;
+    }
+
+    // fix api/stream record in db format
+    var userData=data; // this creates a reference, not a copy
+    userData.username=data.username.toLowerCase(); // so we can find it
+    userData.created_at=new Date(data.created_at); // fix incoming created_at iso date to Date
+    // if there isn't counts probably a bad input
+    if (data.counts) {
+      userData.following=data.counts.following;
+      userData.followers=data.counts.followers;
+      userData.posts=data.counts.posts;
+      userData.stars=data.counts.stars;
+    }
+    // set avatar to null if is_default true
+    userData.avatar_width=data.avatar_image.width;
+    userData.avatar_height=data.avatar_image.height;
+    userData.avatar_image=data.avatar_image.url;
+    userData.cover_width=data.cover_image.width;
+    userData.cover_height=data.cover_image.height;
+    userData.cover_image=data.cover_image.url;
+
+    if (data.description) {
+      //console.log('user '+data.id+' has description',data.description.entities);
+      if (data.description.entities) {
+        //console.log('user '+data.id+' has entities');
+        this.setEntities('user',data.id,data.description.entities,function(entities, err) {
+          if (err) {
+            console.log("entities Update err: "+err);
+          //} else {
+            //console.log("entities Updated");
+          }
+        });
+      }
+      // cache html version
+      userData.descriptionhtml=data.description.html;
+      // since userData is a reference to data, we can't stomp on it until we're done
+      userData.description=data.description.text;
+    }
+    var ref=this;
+    //console.log('made '+data.created_at+' become '+userData.created_at);
+    // can we tell the difference between an add or update?
+    this.cache.setUser(userData,ts,function(user,err,meta) {
+      // only updated annotation if the timestamp is newer than we have
+      // TODO: define signal if ts is old
+      if (data.annotations) {
+        ref.setAnnotations('user',data.id,data.annotations);
+      }
+      if (callback) {
+        callback(user,err,meta);
+      }
+    });
+    process.stdout.write('U');
   },
   userToAPI: function(user, callback, meta) {
-    console.log('dispatcher.js::userToAPI - write me!');
-    callback(user, null);
+    if (!user) {
+      callback(null,'dispatcher.js::userToAPI - no user passed in');
+      return;
+    }
+    // copy user structure
+    res={
+      id: user.id,
+      username: user.username,
+      created_at: user.created_at,
+      canonical_url: user.canonical_url,
+      type: user.type,
+      timezone: user.timezone,
+      locale: user.locale,
+      avatar_image: {
+        url: user.avatar_image,
+        width: user.avatar_width,
+        height: user.avatar_height,
+        is_default: user.avatar_image==''?true:false,
+      },
+      cover_image: {
+        url: user.cover_image,
+        width: user.cover_width,
+        height: user.cover_height,
+        is_default: user.cover_image==''?true:false,
+      },
+      counts: {
+        following: user.following,
+        posts: user.posts,
+        followers: user.followers,
+        stars: user.stars,
+      }
+    };
+    if (user.description) {
+      res.description={
+        text: user.description,
+        html: user.description,
+        entities: {
+          mentions: [],
+          hashtags: [],
+          links: []
+        }
+      };
+    }
+    // conditionals
+    if (user.name) {
+      res.name=user.name; // 530 was cast as a int
+    }
+    if (user.verified_domain) {
+      res.verified_domain=user.verified_domain;
+    }
+    if (user.verified_link) {
+      res.verified_link=user.verified_link;
+    }
+
+    if (user.description && !res.description) {
+      console.log('dispatcher.js::userToAPI - sanity check failure...');
+    }
+
+    // final peice
+    if (user.description) {
+      var ref=this;
+      // use entity cache?
+      if (1) {
+        ref.getEntities('user',user.id,function(userEntities,userEntitiesErr,userEntitiesMeta) {
+          copyentities('mentions',userEntities.mentions,res.description);
+          copyentities('hashtags',userEntities.hashtags,res.description);
+          copyentities('links',userEntities.links,res.description);
+          // use html cache?
+          if (1) {
+            if (res.description) {
+              res.description.html=user.descriptionhtml;
+            } else {
+              console.log('dispatcher.js::userToAPI - what happened to the description?!? ',user,res);
+            }
+            callback(res,userEntitiesErr);
+          } else {
+            // you can pass entities if you want...
+            ref.textProcess(user.description,function(textProc,err) {
+              res.description.html=textProc.html;
+              callback(res,userEntitiesErr);
+            },userEntities);
+          }
+        });
+      } else {
+        ref.textProcess(user.description,function(textProc,err) {
+          res.description.html=textProc.html;
+          res.description.entities=textProc.entities;
+          callback(res,null);
+        });
+      }
+    } else {
+      callback(res,null);
+    }
   },
   getUser: function(id, params, callback) {
-    console.log('dispatcher.js::getUser - write me!');
-    callback(null, null);
+    var ref=this;
+    this.cache.getUser(id,function(user,userErr,userMeta) {
+      ref.userToAPI(user,callback,userMeta);
+    });
   },
   /** user_follow */
   setFollows: function(data, deleted, id, ts) {
-    console.log('dispatcher.js::setFollows - write me!');
-    if (callback) {
-      callback(null, null);
+    // data can be null
+    // update user object
+    if (data) {
+      if (data.user) {
+        this.updateUser(data.user,ts);
+      } else {
+        console.log('dispatcher.js::setFollows - no user',data);
+      }
+      // update user object
+      if (data.follows_user) {
+        this.updateUser(data.follows_user,ts);
+      } else {
+        console.log('dispatcher.js::setFollows - no follows_user',data);
+      }
+      // set relationship status
+      this.cache.setFollow(data.user.id,data.follows_user.id,id,deleted,ts);
+    } else {
+      // likely deleted is true in this path
+      this.cache.setFollow(0,0,id,deleted,ts);
     }
+    // too bad we're throwing out this id... could be something
+    process.stdout.write(deleted?'f':'F');
   },
   /** files */
   getFile: function(fileid, params, callback) {
@@ -211,10 +676,123 @@ module.exports = {
     callback(null, null);
   },
   setFile: function(data, deleted, id, ts, callback) {
-    console.log('dispatcher.js::setFile - write me!');
-    if (callback) {
-      callback(null, null);
+    // map data onto model
+    if (data.user) {
+      this.updateUser(data.user);
     }
+    var file=data;
+    if (deleted) {
+      file.id=id; // we need this for delete
+    }
+    file.userid=data.user.id;
+    // client_id?
+    // data.source handling...
+    this.cache.setFile(data, deleted, id, callback);
+    // file annotations are this mutable
+    // if so we need to make sure we only update if timestamp if newer
+    /*
+      if (data.annotations) {
+        ref.setAnnotations('file',data.id,data.annotations);
+      }
+    */
+  },
+  /** client */
+  getSource: function(source,callback) {
+    if (source==undefined) {
+      callback(null,'source is undefined');
+      return;
+    }
+    //console.dir(source);
+    var ref=this.cache;
+    console.log('dispatcher.js::getSource ',source.client_id);
+    this.cache.getClient(source.client_id,function(client,err,meta) {
+      if (client==null || err) {
+        //console.log('dispatcher.js::getSource failure ',err,client);
+        // we need to create it
+        ref.addSource(source.client_id,source.name,source.link,callback);
+      } else {
+        callback(client,err,meta);
+      }
+    });
+    process.stdout.write('c');
+  },
+  getClient: function(client_id,callback,shouldAdd) {
+    if (client_id==undefined) {
+      callback(null,'client_id is undefined');
+      return;
+    }
+    if (client_id==null) {
+      callback(null,'client_id is null');
+      return;
+    }
+    //console.log('dispatcher.js::getClient ',client_id);
+    this.cache.getClient(client_id,function(client,err,meta) {
+      if (client==null || err) {
+        console.log('dispatcher.js::getClient failure '+err);
+        // should we just be setClient??
+        if (shouldAdd!=undefined) {
+          console.log("Should add client_id: "+client_id);
+        }
+      } else {
+        callback(client,err,meta);
+      }
+    });
+  },
+  /** entities */
+  getEntities: function(type,id,callback) {
+    this.cache.getEntities(type,id,callback);
+  },
+  setEntities: function(type,id,entities,callback) {
+    //console.dir('dispatcher.js::setEntities - '+type,entities);
+    // I'm pretty sure these arrays are always set
+    if (entities.mentions && entities.mentions.length) {
+      this.cache.extractEntities(type,id,entities.mentions,'mention',function(nEntities,err,meta) {
+      });
+      process.stdout.write('@');
+    }
+    if (entities.hashtags && entities.hashtags.length) {
+      this.cache.extractEntities(type,id,entities.hashtags,'hashtag',function(nEntities,err,meta) {
+      });
+      process.stdout.write('#');
+    }
+    if (entities.links && entities.links.length) {
+      this.cache.extractEntities(type,id,entities.links,'link',function(nEntities,err,meta) {
+      });
+      process.stdout.write('^');
+    }
+  },
+  /** annotations */
+  getAnnotation: function(type,id,callback) {
+    this.cache.getAnnotations(type,id,callback);
+  },
+  setAnnotations: function(type,id,annotations,callback) {
+    // probably should clear all the existing anntations for this ID
+    // channel annotations mutable
+    // and we don't have a unique constraint to tell if it's an add or update or del
+    var ref=this;
+    this.cache.clearAnnotations(type,id,function() {
+      for(var i in annotations) {
+        var note=annotations[i];
+        // insert into idtype,id,type,value
+        // type,id,note.type,note.value
+        ref.cache.addAnnotation(type,id,note.type,note.value,function(nNote,err) {
+          if (err) {
+            console.log('dispatcher.js::setAnnotations - addAnnotation failure',err);
+          //} else {
+          }
+          process.stdout.write('a');
+          /*
+          if (note.value.length) {
+            writevaluearray($id,note.value);
+          }
+          */
+        });
+      }
+      if (callback) {
+        // what would we return??
+        callback();
+      }
+    });
   },
   /** text process */
   textProcess: function(text, entities, postcontext, callback) {
@@ -281,6 +859,8 @@ module.exports = {
       case 'user_follow':
         if (data) {
           this.setFollows(data, meta.is_deleted, meta.id, meta.timestamp);
+        } else {
+          this.setFollows(null, meta.is_deleted, meta.id, meta.timestamp);
         }
       break;
       default:
