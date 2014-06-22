@@ -1,16 +1,5 @@
-// http://www.camintejs.com / https://github.com/biggora/caminte
-var Schema = require('caminte').Schema;
-
-// caminte can support:  mysql, sqlite3, riak, postgres, couchdb, mongodb, redis, neo4j, firebird, rethinkdb, tingodb
-// however AltAPI will officially support: sqlite, Redis or MySQL for long term storage
-//
-// @duerig wants Redis for long term storage
-// however it requires the entire dataset to be in memory, so not all the network data
-// could be store in it, unless you have 128gb+ of memory
-//
-// so MySQL is good alternative if you want a large dataset
-// SQLite is a good incase the user doesn't want to install any extra software
-
+// if next object is set, pass it through to next object
+// otherwise end chain
 module.exports = {
   next: null,
   /*
@@ -265,5 +254,4 @@ module.exports = {
       this.next.getInteractions(type, userid, callback);
     }
   },
-
 }
