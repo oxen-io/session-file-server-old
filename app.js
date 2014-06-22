@@ -25,17 +25,26 @@ var api_client_id= nconf.get('web:api_client_id') || '';
 // Todo: general parameters
 // Todo: expiration models and configuration
 
+function clone(o) {
+  var ret = {};
+  Object.keys(o).forEach(function (val) {
+    ret[val] = o[val];
+  });
+  return ret;
+}
+
 // Todo: end error object
 var proxy=require('./dataaccess.proxy.js');
 var db=require('./dataaccess.base.js');
-db.next=proxy;
-var cache=require('./dataaccess.base.js');;
-cache.next=db;
+var cache=clone(db);
 var dispatcher=require('./dispatcher.js');
-dispatcher.cache=cache;
-// Todo: message queue
-// Todo: api dialects
 var dialects=[];
+// Todo: message queue
+
+// initialize
+db.next=proxy;
+cache.next=db;
+dispatcher.cache=cache;
 // register dialect
 dialects['appdotnet_official']=require('./dialect.appdotnet_official.js');
 
