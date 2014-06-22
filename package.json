@@ -13,7 +13,7 @@
     "event-stream": "3.1.5",
     "caminte": "0.0.16",
     "cookies": "0.1.0",
-    "redis": "0.10.1",
+    "redis": "0.10.1"
   },
   "devDependencies": {
   },
