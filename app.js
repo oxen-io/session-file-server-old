@@ -16,14 +16,24 @@ var request = require('request');
 /** get file io imported */
 var fs = require('fs');
 
-// pull configuration from config into variables
+/** pull configuration from config into variables */
 var apiroot = nconf.get('uplink:apiroot') || 'https://api.app.net';
-var upstream_client_id=nconf.get('uplink:clientid') || 'NotSet';
+var upstream_client_id=nconf.get('uplink:client_id') || 'NotSet';
 var webport = nconf.get('web:port') || 7070;
-var api_client_id= nconf.get('web:clientid') || '';
+var api_client_id= nconf.get('web:api_client_id') || '';
 
+// Todo: make these modular load modules from config file
+
+// Todo: general parameters
+// Todo: expiration models and configuration
+
+// Todo: end error object
+// Todo: proxy
 // Todo: persistence
+// Todo: cache
+// Todo: dispatcher
 // Todo: message queue
+// Todo: api dialects
 // Todo: Rate Limiting?
 
 /**
@@ -149,6 +159,7 @@ app.get('/signup',function(req,resp) {
   });
 });
 
+/** include homepage route */
 app.get('/', function(req,resp) {
   fs.readFile(__dirname+'/templates/index.html', function(err,data) {
     if (err) {
@@ -165,3 +176,9 @@ app.get('/', function(req,resp) {
  * Launch the server!
  */
 app.listen(webport);
+
+// if full data store
+// check caches/dates since we were offline for any missing data
+// hoover users (from our last max ID to appstream start (dispatcher.first_post))
+// hoover posts (from our last max ID to appstream start (dispatcher.first_post))
+// hoover stars for all users in db
