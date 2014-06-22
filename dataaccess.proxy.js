@@ -23,15 +23,65 @@ module.exports = {
     }
   },
   getUserID: function(username, callback) {
-    if (this.next) {
-      this.next.getUserID(username, callback);
+    if (!username) {
+      callback(null,'dataccess.proxy.js::getUserID() - username was not set');
+      return;
     }
+    var ref=this;
+    console.log('proxying user @'+username);
+    request.get({
+      url: ref.apiroot+'/users/@'+username
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      // upload fresh proxy data back into dataSource
+      ref.dispatcher.updateUser(res.data,new Date().getTime(),function(user,err) {
+        if (user==null & err==null) {
+          if (this.next) {
+            this.next.getUserID(username, callback);
+            return;
+          }
+        } else if (err) {
+          console.log("dataccess.proxy.js - User get err: ",err);
+        //} else {
+          //console.log("User Updated");
+        }
+        // finally reutrn
+        callback(user,err,res.meta);
+      });
+    });
   },
   // callback is user,err,meta
   getUser: function(userid, callback) {
-    if (this.next) {
-      this.next.getUser(username, callback);
+    if (userid==undefined) {
+      callback(null,'dataccess.proxy.js:getUser - userid is undefined');
+      return;
     }
+    if (!userid) {
+      callback(null,'dataccess.proxy.js:getUser - userid isn\'t set');
+      return;
+    }
+    var ref=this;
+    console.log('proxying user '+userid);
+    request.get({
+      url: ref.apiroot+'/users/'+userid
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      // upload fresh proxy data back into dataSource
+      ref.dispatcher.updateUser(res.data,new Date().getTime(),function(user,err) {
+        if (user==null & err==null) {
+          if (this.next) {
+            this.next.getUser(username, callback);
+            return;
+          }
+        } else if (err) {
+          console.log("dataccess.proxy.js - User Update err: ",err);
+        //} else {
+          //console.log("User Updated");
+        }
+        // finally reutrn
+        callback(user,err,res.meta);
+      });
+    });
   },
   /*
    * local user token
@@ -134,9 +184,26 @@ module.exports = {
     }
   },
   getPost: function(id, callback) {
-    if (this.next) {
-      this.next.getPost(id, callback);
+    if (id==undefined) {
+      callback(null,'dataccess.proxy.js::getPost - id is undefined');
+      return;
     }
+    var ref=this;
+    console.log('proxying post '+id);
+    request.get({
+      url: ref.apiroot+'/posts/'+id
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      ref.dispatcher.setPost(res.data,1,function(post,err) {
+        if (post==null && err==null) {
+          if (this.next) {
+            this.next.getPost(id, callback);
+          }
+        } else {
+          callback(post,err,res.meta);
+        }
+      });
+    });
   },
   getUserPosts: function(userid, callback) {
     if (this.next) {
@@ -155,9 +222,26 @@ module.exports = {
     }
   },
   getChannel: function(id, callback) {
-    if (this.next) {
-      this.next.getChannel(id, callback);
+    if (id==undefined) {
+      callback(null,'dataccess.proxy.js::getChannel - id is undefined');
+      return;
     }
+    var ref=this;
+    console.log('proxying channel '+id);
+    request.get({
+      url: ref.apiroot+'/channels/'+id
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      ref.dispatcher.setChannel(res.data,function(chnl,err) {
+        if (chnl==null && err==null) {
+          if (this.next) {
+            this.next.getChannel(id, callback);
+          }
+        } else {
+          callback(chnl,err,res.meta);
+        }
+      });
+    });
   },
   /** messages */
   setMessage: function (msg, callback) {
@@ -166,9 +250,26 @@ module.exports = {
     }
   },
   getMessage: function(id, callback) {
-    if (this.next) {
-      this.next.getMessage(id, callback);
+    if (id==undefined) {
+      callback(null,'dataccess.proxy.js::getMessage - id is undefined');
+      return;
     }
+    var ref=this;
+    console.log('proxying message '+id);
+    request.get({
+      url: ref.apiroot+'/channels/messages?ids='+id
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      ref.dispatcher.setMessage(res.data,function(msg,err) {
+        if (msg==null && err==null) {
+          if (this.next) {
+            this.next.getMessage(id, callback);
+          }
+        } else {
+          callback(msg,err,res.meta);
+        }
+      });
+    });
   },
   /** subscription */
   /*
@@ -184,11 +285,19 @@ module.exports = {
     }
   },
   getUserSubscriptions: function(userid, callback) {
+    if (id==undefined) {
+      callback(null,'dataccess.proxy.js::getUserSubscriptions - id is undefined');
+      return;
+    }
     if (this.next) {
       this.next.getUserSubscriptions(userid, callback);
     }
   },
   getChannelSubscriptions: function(channelid, callback) {
+    if (id==undefined) {
+      callback(null,'dataccess.proxy.js::getChannelSubscriptions - id is undefined');
+      return;
+    }
     if (this.next) {
       this.next.getChannelSubscriptions(channelid, callback);
     }
@@ -238,6 +347,10 @@ module.exports = {
     }
   },
   getFollows: function(userid, callback) {
+    if (id==undefined) {
+      callback(null,'dataccess.proxy.js::getFollows - userid is undefined');
+      return;
+    }
     if (this.next) {
       this.next.getFollows(userid, callback);
     }
