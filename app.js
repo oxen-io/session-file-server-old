@@ -14,6 +14,12 @@ var app = express();
 /** get file io imported */
 var fs = require('fs');
 
+/** ohe libs */
+/** for getting app_token */
+var auth = require('./ohe/auth');
+/** for building app stream */
+var adnstream = require('./ohe/adnstream');
+
 /** pull configuration from config into variables */
 var apiroot = nconf.get('uplink:apiroot') || 'https://api.app.net';
 var upstream_client_id=nconf.get('uplink:client_id') || 'NotSet';
@@ -51,36 +57,6 @@ dialects['appdotnet_official']=require('./dialect.appdotnet_official.js');
 // set up proxy object
 proxy.apiroot=apiroot;
 proxy.dispatcher=dispatcher; // upload dispatcher
-
-/**
- * Create simple ADN Proxy handler for requests
- */
-var adnproxy=function(url, response) {
-  console.log("Requesting "+url+" from "+apiroot);
-  request.get({
-    url: apiroot+'/'+url
-  }, function(e, r, body) {
-    // When using JSONP, our servers will return a 200 status code in the HTTP response, regardless of the effective status code.
-    if (response.JSONP) {
-      if (response.prettyPrint) {
-        body=JSON.stringify(JSON.parse(body),null,4);
-      }
-      response.send(JSONP+'({'+body+'})');
-    } else {
-      if (!e && r.statusCode === 200) {
-        console.log("200");
-        if (response.prettyPrint) {
-          body=JSON.stringify(JSON.parse(body),null,4);
-        }
-        response.send(body);
-      } else {
-        // 204,302,400,401,403,404,405,429,500,507
-        console.log("Error ",e,"status",r.statusCode,'body',body);
-        response.send(body);
-      }
-    }
-  });
-}
 
 /**
  * Set up middleware to check for prettyPrint
@@ -144,6 +120,18 @@ app.get('/', function(req,resp) {
  * Launch the server!
  */
 app.listen(webport);
+
+/** set up upstream */
+if (upstream_client_id!='NotSet') {
+  // send events into "dispatcher"
+  var stream_router = require('./ohe/streamrouter').create_router(app, dispatcher);
+  // this blocks the API until connected =\
+  auth.get_app_token(function (token) {
+      stream_router.stream(token);
+  });
+} else {
+  console.log("uplink:client_id not set in config. No uplink set up!");
+}
 
 // if full data store
 // check caches/dates since we were offline for any missing data
