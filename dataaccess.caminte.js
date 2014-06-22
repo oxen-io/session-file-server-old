@@ -201,6 +201,59 @@ var fileModel = schemaData.define('file', {
 // Rate Todo: userTokenLimit, appTokenLimit
 // Data Todo: mutes, blocks, upstream_tokens
 
+// cheat macros
+function db_insert(rec,model,callback) {
+  rec.isValid(function(valid) {
+    if (valid) {
+      model.create(rec, function(err) {
+        if (err) {
+          console.log(typeof(model)+" insert Error ",err);
+        }
+        if (callback) {
+          if (rec.id) {
+            // why don't we just return the entire record
+            // that way we can get access to fields we don't have a getter for
+            // or are generated on insert
+            callback(rec,err);
+          } else {
+            callback(null,err);
+          }
+        }
+      });
+    } else {
+      console.log(typeof(model)+" validation failure");
+      console.dir(rec.errors);
+      if (callback) {
+        // can we tell the different between string and array?
+        callback(null,rec.errors);
+      }
+    }
+  });
+}
+// these macros mainly flip the callback to be consistent
+function db_delete(id,model,callback) {
+  model.destroyById(id,function(err,rec) {
+    if (err) {
+      console.log("delUser Error ",err);
+    }
+    if (callback) {
+      callback(rec,err);
+    }
+  });
+}
+function db_get(id,model,callback) {
+  model.findById(id, function(err, rec) {
+    if (err) {
+      console.log("db_get Error ",err);
+    }
+    // this one is likely not optional...
+    if (callback) {
+      callback(rec,err);
+    }
+  });
+}
+//
+
 module.exports = {
   next: null,
   /*
@@ -212,9 +265,11 @@ module.exports = {
     }
   },
   setUser: function(iuser, ts, callback) {
-    if (this.next) {
-      this.next.setUser(iuser, ts, callback);
-    }
+    // FIXME: check ts against last_update to make sure it's newer info than we have
+    // since we have cached fields
+    userModel.findOrCreate({ id: iuser.id }, iuser, function(err,user) {
+      if (callback) callback(user,err);
+    });
   },
   delUser: function(userid, callback) {
     if (this.next) {
@@ -222,15 +277,44 @@ module.exports = {
     }
   },
   getUserID: function(username, callback) {
-    if (this.next) {
-      this.next.getUserID(username, callback);
+    if (!username) {
+      callback(null,'dataaccess.caminte.js::getUserID() - username was not set');
+      return;
     }
+    var ref=this;
+    var username=username.toLowerCase();
+    userModel.findOne({ where: { username: username }}, function(err, user) {
+      if (user==null && err==null) {
+        if (this.next) {
+          this.next.getUserID(username, callback);
+          return;
+        }
+      } else {
+        callback(user,err);
+      }
+    });
   },
   // callback is user,err,meta
   getUser: function(userid, callback) {
-    if (this.next) {
-      this.next.getUser(username, callback);
+    if (userid==undefined) {
+      callback(null,'dataaccess.caminte.js:getUser - userid is undefined');
+      return;
     }
+    if (!userid) {
+      callback(null,'dataaccess.caminte.js:getUser - userid isn\'t set');
+      return;
+    }
+    var ref=this;
+    db_get(userid,userModel, function(user, err) {
+      if (user==null && err==null) {
+        if (this.next) {
+          this.next.getUser(username, callback);
+          return;
+        }
+      } else {
+        callback(user,err);
+      }
+    });
   },
   /*
    * local user token
@@ -287,14 +371,19 @@ module.exports = {
     }
   },
   getClient: function(client_id, callback) {
-    if (this.next) {
-      this.next.getClient(client_id, callback);
-    }
+    clientModel.findOne({ where: {client_id: client_id} }, function(err, client) {
+      callback(client,err);
+    });
   },
   setSource: function(source, callback) {
-    if (this.next) {
-      this.next.setSource(client_id, callback);
-    }
+    clientModel.findOrCreate({
+      client_id: source.client_id
+    },{
+      name: source.name,
+      link: source.link
+    },function(err,client) {
+      callback(client,err);
+    });
   },
   /* client (app) tokens */
   addAPIAppToken: function(client_id, token, request) {
@@ -328,46 +417,111 @@ module.exports = {
     }
   },
   setPost:  function(ipost, callback) {
-    if (this.next) {
-      this.next.setPost(ipost, callback);
-    }
+    // oh these suck the worst!
+    postModel.findOrCreate({
+      id: ipost.id
+    }, ipost, function(err,post) {
+      if (callback) {
+        callback(post,err);
+      }
+    });
+    //db_insert(new postModel(ipost), postModel, callback);
+    // maybe call to check garbage collection?
   },
   getPost: function(id, callback) {
-    if (this.next) {
-      this.next.getPost(id, callback);
+    if (id==undefined) {
+      callback(null,'dataaccess.caminte.js::getPost - id is undefined');
+      return;
     }
+    var ref=this;
+    db_get(id,postModel,function(post,err) {
+      if (post==null && err==null) {
+        if (this.next) {
+          this.next.getPost(id, callback);
+        }
+      } else {
+        callback(post,err);
+      }
+    });
   },
   getUserPosts: function(userid, callback) {
-    if (this.next) {
-      this.next.getUserPosts(userid, callback);
-    }
+    postModel.find({ where: { userid: userid} }, function(err, posts) {
+      if (err==null && posts==null) {
+        if (this.next) {
+          this.next.getUserPosts(userid, callback);
+        }
+      }
+      callback(posts,err);
+    });
   },
   getGlobal: function(callback) {
-    if (this.next) {
-      this.next.getGlobal(callback);
-    }
+    var Query=postModel.find().order('id','DESC').limit(20).run({},function(err,posts) {
+      //console.dir(posts);
+      if (err==null && posts==null) {
+        if (this.next) {
+          this.next.getGlobal(callback);
+        }
+      }
+      callback(posts,err);
+    });
   },
   /** channels */
   setChannel: function (chnl, ts, callback) {
-    if (this.next) {
-      this.next.setChannel(chnl, ts, callback);
-    }
+    // created_at vs last_update
+    channelModel.findOrCreate({
+      id: chnl.id
+    }, chnl, function(err,ochnl) {
+      if (callback) {
+        callback(ochnl,err);
+      }
+    });
   },
   getChannel: function(id, callback) {
-    if (this.next) {
-      this.next.getChannel(id, callback);
+    if (id==undefined) {
+      callback(null,'dataaccess.caminte.js::getChannel - id is undefined');
+      return;
     }
-  },
+    var ref=this;
+    db_get(id,channelModel,function(channel,err) {
+      if (channel==null && err==null) {
+        if (this.next) {
+          this.next.getChannel(id, callback);
+        }
+      } else {
+        callback(channel,err);
+      }
+    });  },
   /** messages */
   setMessage: function (msg, callback) {
-    if (this.next) {
-      this.next.setMessage(msg, callback);
-    }
+    // If a Message has been deleted, the text, html, and entities properties will be empty and may be omitted.
+    messageModel.findOrCreate({
+      id: msg.id
+    }, msg, function(err,omsg) {
+      if (callback) {
+        callback(omsg,err);
+      }
+    });
   },
   getMessage: function(id, callback) {
-    if (this.next) {
-      this.next.getMessage(id, callback);
+    if (id==undefined) {
+      callback(null,'dataaccess.caminte.js::getMessage - id is undefined');
+      return;
     }
+    var ref=this;
+    db_get(id,messageModel,function(message,err) {
+      if (message==null && err==null) {
+        if (this.next) {
+          this.next.getMessage(id, callback);
+        }
+      } else {
+        callback(message,err);
+      }
+    });
+  },
+  getChannelMessages: function(channelid, callback) {
+    messageModel.find({ where: { channel_id: channelid } }, function(err, messages) {
+      callback(messages, err);
+    });
   },
   /** subscription */
   /*
@@ -378,82 +532,273 @@ module.exports = {
     last_updated: { type: Date },
   */
   setSubscription: function (chnlid, userid, del, ts, callback) {
-    if (this.next) {
-      this.next.setSubscription(chnlid, userid, del, ts, callback);
-    }
+    subscriptionModel.findOrCreate({
+      id: msg.id
+    }, msg, function(err,omsg) {
+      if (callback) {
+        callback(omsg,err);
+      }
+    });
   },
   getUserSubscriptions: function(userid, callback) {
+    if (id==undefined) {
+      callback(null,'dataaccess.caminte.js::getUserSubscriptions - id is undefined');
+      return;
+    }
     if (this.next) {
       this.next.getUserSubscriptions(userid, callback);
     }
+    callback(null,null);
   },
   getChannelSubscriptions: function(channelid, callback) {
+    if (id==undefined) {
+      callback(null,'dataaccess.caminte.js::getChannelSubscriptions - id is undefined');
+      return;
+    }
     if (this.next) {
       this.next.getChannelSubscriptions(channelid, callback);
     }
+    callback(null,null);
   },
   /** files */
+  setFile: function(file, del, ts, callback) {
+    if (del) {
+      db_delete(file.id,fileModel,callback);
+    } else {
+      fileModel.findOrCreate({
+        id: file.id
+      },file, function(err,ofile) {
+        if (callback) {
+          callback(ofile,err);
+        }
+      });
+    }
+  },
   /** entities */
   // should this model more closely follow the annotation model?
   // not really because entities are immutable (on posts not users)
   extractEntities: function(type, id, entities, entitytype, callback) {
+    // Todo: implement this.next calling
+    /*
     if (this.next) {
       this.next.extractEntities(type, id, entities, entitytype, callback);
     }
+    */
+    // delete (type & idtype & id)
+    entityModel.find({where: { idtype: type, typeid: id, type: entitytype }},function(err,oldEntities) {
+      //console.dir(oldEntities);
+
+      // why do we have empty entity records in the DB?
+      /*
+        dataaccess.caminte.js::extractEntities - OldEntity doesn't have id  { idtype: null,
+          typeid: null,
+          type: null,
+          pos: null,
+          len: null,
+          text: null,
+          alt: null,
+          altnum: null,
+          id: null }
+      */
+      // I think find returns an empty record if nothing is found...
+      // how to test this?
+
+      for(var i in oldEntities) {
+        var oldEntity=oldEntities[i];
+        if (oldEntity.id) {
+          entityModel.destroyById(oldEntity.id,function(err) {
+            if (err) {
+              console.log('couldn\'t destory old entity ',err);
+            }
+          });
+        } else {
+          //console.log('dataaccess.caminte.js::extractEntities - OldEntity doesn\'t have id ',oldEntity);
+        }
+      }
+      // delete all oldEntities
+      //console.log('uploading '+entities.length+' '+type+' '+entitytype);
+      // foreach entities
+      for(var i in entities) {
+        //console.dir(entities[i]);
+        // insert
+        entity=new entityModel(entities[i]);
+        entity.typeid=id;
+        entity.idtype=type;
+        entity.type=entitytype;
+        entity.text=entities[i].name?entities[i].name:entities[i].text;
+        entity.alt=entities[i].url?entities[i].url:entities[i].id;
+        entity.altnum=entities[i].is_leading?entities[i].is_leading:entities[i].amended_len;
+        //console.log('Insert entity '+entitytype+' #'+i+' '+type);
+        db_insert(entity,entityModel);
+      }
+      if (callback) {
+        callback(null,null);
+      }
+    });
+
   },
   getEntities: function(type, id, callback) {
-    if (this.next) {
-      this.next.getEntities(type, id, callback);
-    }
+    //console.log('type: '+type+' id: '+id);
+    var res={
+      mentions: [],
+      hashtags: [],
+      links: [],
+    };
+    // count is always 0 or 1...
+    // with find or all
+    entityModel.find({ where: { idtype: type, typeid: id } }, function(err, entities) {
+      if (entities==null && err==null) {
+        if (this.next) {
+          this.next.getEntities(type, id, callback);
+        }
+      } else {
+        //console.log('dataaccess.caminte.js::getEntities '+type+' '+id+' - count ',entities.length);
+        for(var i in entities) {
+          var entity=entities[i];
+          //console.log('et '+entity.type);
+          if (res[entity.type+'s']) {
+            res[entity.type+'s'].push(entities[i]);
+          } else {
+            console.log('getEntities unknown type '+entity.type+' for '+type+' '+id);
+          }
+        }
+      }
+      callback(res,null);
+    });
   },
   // more like getHashtagEntities
   getHashtagEntities: function(hashtag, callback) {
+    // Todo: implement this.next calling
+    /*
     if (this.next) {
       this.next.getHashtagEntities(hashtag, callback);
     }
+    */
+    // sorted by post created date...., well we have post id we can use
+    entityModel.find({ where: { type: 'hashtag', text: hashtag }, order: 'typeid' }, function(err, entities) {
+      callback(entities,err);
+    });
   },
   /**
    * Annotations
    */
   addAnnotation: function(idtype, id, type, value, callback) {
-    if (this.next) {
-      this.next.addAnnotation(idtype, id, type, value, callback);
-    }
+    note=new annotationModel;
+    note.idtype=idtype;
+    note.typeid=id;
+    note.type=type;
+    note.value=value;
+    db_insert(note,annotationModel,callback);
   },
   clearAnnotations: function(idtype,id,callback) {
-    if (this.next) {
-      this.next.clearAnnotations(idtype, id, callback);
-    }
+    annotationModel.find({where: { idtype: idtype, typeid: id }},function(err,oldAnnotations) {
+      for(var i in oldAnnotations) {
+        var oldNote=oldAnnotations[i];
+        // causes TypeError: Cannot read property 'constructor' of null
+        // when using by id... ah I see wrong type of id...
+        if (oldNote.id) {
+          annotationModel.destroyById(oldNote.id,function(err) {
+            if (err) {
+              console.log('couldn\'t destory old annotation ',err);
+            }
+          });
+        } else {
+          //console.log('dataaccess.caminte.js::clearAnnotations - OldNote doesn\'t have id ',oldNote);
+        }
+      }
+      if (callback) {
+        callback();
+      }
+    });
   },
   getAnnotations: function(idtype, id, callback) {
+    // Todo: implement this.next calling
+    /*
     if (this.next) {
       this.next.getAnnotations(idtype, id, callback);
     }
+    */
+    annotationModel.find({where: { idtype: idtype, typeid: id }},function(err,annotations) {
+      callback(annotations,err);
+    });
   },
   /** follow */
   setFollow: function (srcid, trgid, id, del, ts, callback) {
-    if (this.next) {
-      this.next.setFollow(srcid, trgid, id, del, ts, callback);
+    // FIXME: ORM issues here...
+    // create vs update fields?
+    if (srcid && trgid) {
+      followModel.updateOrCreate({
+        userid: srcid,
+        followsid: trgid
+      }, {
+        userid: srcid,
+        followsid: trgid,
+        active: del?0:1,
+        referenceid: id,
+        //created_at: ts,
+        last_updated: ts
+      }, function(err,users) {
+        if (callback) {
+          callback(users,err);
+        }
+      });
+    } else {
+      // FIXME: write me
+      // search by referenceid, likely delete it
+      console.log('dataaccess.caminte.js::setFollow - no data, write me... deleted? '+del);
+      if (callback) {
+        callback(null,null);
+      }
     }
+    // find (id and status, dates)
+    // update or insert    
   },
   getFollows: function(userid, callback) {
+    if (id==undefined) {
+      callback(null,'dataaccess.caminte.js::getFollows - userid is undefined');
+      return;
+    }
     if (this.next) {
       this.next.getFollows(userid, callback);
     }
   },
   /** Star/Interactions */
   setInteraction: function(userid, postid, type, metaid, deleted, ts, callback) {
-    if (this.next) {
-      this.next.setInteraction(userid, postid, type, metaid, deleted, ts, callback);
-    }
+    // is there an existing match for this key (userid,postid,type)
+    interactionModel.find({ where: { userid: userid, typeid: postid, type: type } },function(err,foundInteraction) {
+      // is this new action newer
+      interaction=new interactionModel();
+      interaction.userid=userid;
+      interaction.type=type;
+      interaction.datetime=ts;
+      interaction.idtype='post';
+      interaction.typeid=postid;
+      interaction.asthisid=metaid;
+      if (foundInteraction.id==null) {
+        db_insert(interaction,interactionModel,callback);
+      } else {
+        console.log('setInteraction found dupe',foundInteraction,interaction);
+      }
+    });
   },
   // getUserInteractions, remember reposts are stored here too
   // if we're going to use one table, let's keep the code advantages from that
   // getUserStarPosts
   getInteractions: function(type, userid, callback) {
-    if (this.next) {
-      this.next.getInteractions(type, userid, callback);
-    }
+    //console.log('Getting '+type+' for '+userid);
+    interactionModel.find({ where: { userid: userid, type: type, idtype: 'post' } },function(err, interactions) {
+      if (interactions==null && err==null) {
+        // none found
+        //console.log('dataaccess.caminte.js::getStars - check proxy?');
+        // user.stars_updated vs appstream start
+        // if updated>appstream start, we can assume it's up to date
+        if (this.next) {
+          this.next.getInteractions(type, userid, callback);
+        }
+      }
+      //console.dir(interactions);
+      callback(interactions,err);
+    });    
   },
 
 }
