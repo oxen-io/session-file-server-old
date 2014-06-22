@@ -11,8 +11,6 @@ nconf.argv().env('__').file({file: config_path});
 /** set up express framework */
 var express = require('express');
 var app = express();
-/** get request http library */
-var request = require('request');
 /** get file io imported */
 var fs = require('fs');
 
@@ -28,13 +26,22 @@ var api_client_id= nconf.get('web:api_client_id') || '';
 // Todo: expiration models and configuration
 
 // Todo: end error object
-// Todo: proxy
-// Todo: persistence
-// Todo: cache
-// Todo: dispatcher
+var proxy=require('./dataaccess.proxy.js');
+var db=require('./dataaccess.base.js');
+db.next=proxy;
+var cache=require('./dataaccess.base.js');;
+cache.next=db;
+var dispatcher=require('./dispatcher.js');
+dispatcher.cache=cache;
 // Todo: message queue
 // Todo: api dialects
-// Todo: Rate Limiting?
+var dialects=[];
+// register dialect
+dialects['appdotnet_official']=require('./dialect.appdotnet_official.js');
+
+// set up proxy object
+proxy.apiroot=apiroot;
+proxy.dispatcher=dispatcher; // upload dispatcher
 
 /**
  * Create simple ADN Proxy handler for requests
@@ -81,70 +88,22 @@ app.use(function(req, res, next) {
   next();
 });
 
-
-/**
- * Set up defined API routes at prefix
- */
-function setupapiwithprefix(app,prefix) {
-  app.get(prefix+'/posts/:id',function(req,resp) {
-    adnproxy('posts/'+req.params.id,resp);
-  });
-  app.get(prefix+'/users/:user_id/posts',function(req,resp) {
-    adnproxy('users/'+req.params.user_id+'/posts',resp);
-  });
-  app.get(prefix+'/users/:user_id/stars',function(req,resp) {
-    adnproxy('users/'+req.params.user_id+'/stars',resp);
-  });
-  app.get(prefix+'/posts/tag/:hashtag',function(req,resp) {
-    adnproxy('posts/tag/'+req.params.hashtag,resp);
-  });
-  app.get(prefix+'/posts/stream/global',function(req,resp) {
-    adnproxy('posts/stream/global',resp);
-  });
-  // channel_id 1383 is always good for testing
-  app.get(prefix+'/channels/:channel_id',function(req,resp) {
-    adnproxy('channels/'+req.params.channel_id,resp);
-  });
-  app.get(prefix+'/channels/:channel_id/messages',function(req,resp) {
-    adnproxy('channels/'+req.params.channel_id+'/messages',resp);
-  });
-  app.get(prefix+'/channels/:channel_id/messages/:message_id',function(req,resp) {
-    adnproxy('channels/'+req.params.channel_id+'/messages/'+req.params.message_id,resp);
-  });
-  app.get(prefix+'/config',function(req,resp) {
-    adnproxy('config',resp);
-  });
-  app.get(prefix+'/oembed',function(req,resp) {
-    adnproxy('oembed?url='+req.query.url,resp);
-  });
-  app.post(prefix+'/text/process',function(req,resp) {
-    // not quite sure how to get post data from express yet
-    //adnproxy('text/process'+req.query.text,resp);
-  });
-}
-
 /**
  * support both styles of calling API
  */
-setupapiwithprefix(app,'');
-setupapiwithprefix(app,'/stream/0');
+app.apiroot=apiroot;
+app.dispatcher=dispatcher;
 
-function generateToken(len) {
-  var chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz";
-  var string_length = 98;
-  var randomstring = '';
-  for (var x=0;x<string_length;x++) {
-    var letterOrNumber = Math.floor(Math.random() * 2);
-    if (letterOrNumber == 0) {
-      var newNum = Math.floor(Math.random() * 9);
-      randomstring += newNum;
-    } else {
-      var rnum = Math.floor(Math.random() * chars.length);
-      randomstring += chars.substring(rnum,rnum+1);
-    }
+// I want to be able to say set up these dialects on these roots
+// dialect, [roots]
+function setupdialect(dialect, mounts) {
+  for(var i in mounts) {
+    var prefix=mounts[i];
+    console.log('Registering '+dialect+' dialect at '+prefix+'/');
+    dialects[dialect](app, prefix);
   }
-  return randomstring;
 }
+setupdialect('appdotnet_official', ['', '/stream/0']);
 
 app.get('/oauth/authenticate',function(req,resp) {
   resp.redirect(req.query.redirect_uri+'#access_token='+generateToken());
