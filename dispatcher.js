@@ -1,50 +1,100 @@
+/**
+ * Dispatcher is an internal front-facing API for all functions and services
+ *
+ * "Dialects" will call these functions to the data-access chain to store/retrieve data and format 
+ * responses in standard way.
+ */
+
 module.exports = {
   /** posts */
-  addPost: function(json) {
-    console.log('proto.buffer.js::addPost - write me!');
+  setPost: function(post,callback) {
+    console.log('dispatcher.js::setPost - write me!');
+    callback(null,null);
   },
-  getPost: function(id) {
+  getPost: function(id,callback,params) {
+    console.log('dispatcher.js::getPost - write me!');
+    callback(null,null);
   },
-  getGlobal: function() {
+  getGlobal: function(callback,params) {
+    console.log('dispatcher.js::getGlobal - write me!');
+    callback(null,null);
   },
-  getUserPosts: function(userid) {
+  getUserPosts: function(userid,callback,params) {
+    console.log('dispatcher.js::getUserPosts - write me!');
+    callback(null,null);
   },
-  getUserStars: function(userid) {
+  getUserStars: function(userid,callback,params) {
+    console.log('dispatcher.js::getUserStars - write me!');
+    callback(null,null);
   },
-  getHashtag: function(hashtag) {
+  getHashtag: function(hashtag,callback,params) {
+    console.log('dispatcher.js::getHashtag - write me!');
+    callback(null,null);
   },
   /** channels */
-  addChannel: function(json) {
-    console.log('proto.buffer.js::addChannel - write me!');
+  setChannel: function(json,ts,callback) {
+    console.log('dispatcher.js::setChannel - write me!');
+    callback(null,null);
   },
-  getChannel: function(id) {
+  getChannel: function(id,callback,params) {
+    console.log('dispatcher.js::getChannel - write me!');
+    callback(null,null);
   },
   /** messages */
-  addMessage: function(json) {
-    console.log('proto.buffer.js::addMessage - write me!');
+  setMessage: function(json,ts) {
+    console.log('dispatcher.js::setMessage - write me!');
   },
-  getChannelMessages: function(cid) {
+  getChannelMessages: function(cid,callback,params) {
+    console.log('dispatcher.js::getChannelMessages - write me!');
+    callback(null,null);
   },
-  getChannelMessage: function(cid,mids) {
+  getChannelMessage: function(cid,mids,callback,params) {
+    console.log('dispatcher.js::getChannelMessage - write me!');
+    callback(null,null);
   },
   /** channel_subscription */
-  addChannelSubscription: function(data,deleted,ts) {
+  setChannelSubscription: function(data, deleted, ts, callback) {
+    console.log('dispatcher.js::setChannelSubscription - write me!');
+    callback(null,null);
   },
-  /** file */
   /** stream_marker */
-  addStreamMakerdata: function(data) {
+  setStreamMakerdata: function(data) {
+    console.log('dispatcher.js::setStreamMakerdata - write me!');
   },
   /** token */
-  /** star */
-  addStar: function(data,deleted,id,ts) {
+  /** star (interaction) */
+  setStar: function(data,deleted,id,ts,callback) {
+    console.log('dispatcher.js::setStar - write me!');
+    callback(null,null);
   },
   /** mute */
   /** block */
   /** user */
-  updateUser: function(data,ts) {
+  updateUser: function(data,ts,callback) {
+    console.log('dispatcher.js::updateUser - write me!');
+    callback(null,null);
+  },
+  getUser: function(id,callback,params) {
+    console.log('dispatcher.js::getUser - write me!');
+    callback(null,null);
   },
   /** user_follow */
-  addFollows: function(data,deleted,id,ts) {
+  setFollows: function(data, deleted, id, ts) {
+    console.log('dispatcher.js::setFollows - write me!');
+  },
+  /** files */
+  getFile: function(fileid, callback, params) {
+    console.log('dispatcher.js::getFile - write me!');
+    callback(null,null);
+  },
+  setFile: function(data, deleted, id, ts, callback) {
+    console.log('dispatcher.js::setFile - write me!');
+    callback(null,null);
+  },
+  /** text process */
+  textProcess: function(text,callback,entities,postcontext) {
+    console.log('dispatcher.js::textProcess - write me!');
+    callback(null,null);
   },
   /** dispatcher for streamrouter */
   dispatch: function(userid, json) {
@@ -68,44 +118,31 @@ module.exports = {
           if (data==undefined) data={};
           data.is_deleted=true;
         }
-        this.addPost(data);
-        // this.updateUser(data,meta.timestamp);
-        // if (data.annotations) {
-        //   this.extractAnnotation(data);
-        // }
+        if (data.id) {
+          this.setPost(data);
+        }
       break;
       case 'channel':
-        this.addChannel(data,meta.timestamp);
-        // annotation?
+        this.setChannel(data,meta.timestamp);
       break;
       case 'message':
-        this.addMessage(data);
-        // this.updateUser(data,meta.timestamp);
-        // if (data.annotations) {
-        //   this.extractAnnotation(data,'message');
-        // }
+        // meta.timestamp is important here for channels
+        this.setMessage(data,meta.timestamp);
       break;
       case 'channel_subscription':
-        console.log('channel_subscription');
-        // this.addChannelSubscription(data,meta.is_deleted,meta.timestamp);
+        this.setChannelSubscription(data,meta.is_deleted,meta.timestamp);
       break;
       case 'file':
         console.log('file');
       break;
       case 'stream_marker':
         console.log('stream_marker');
-        // this.addStreamMakerdata(data);
-        // this.updateUser(data,meta.timestamp);
       break;
       case 'token':
         console.log('token');
       break;
       case 'star':
-        //console.log('star');
-        // need to know when this event happened
-        this.addStar(data,meta.is_deleted,meta.id,meta.timestamp);
-        // do we get a full post object too?
-        // this.updateUser(data,meta.timestamp);
+        this.setStar(data,meta.is_deleted,meta.id,meta.timestamp);
       break;
       case 'mute':
         console.log('mute');
@@ -114,17 +151,15 @@ module.exports = {
         console.log('block');
       break;
       case 'user':
-        console.log('user');
-        // this.updateUser(data,meta.timestamp);
+        this.updateUser(data,meta.timestamp);
       break;
       case 'user_follow':
-        //console.log('user_follow');
-        this.addFollows(data,meta.is_deleted,meta.id,meta.timestamp)
-        // this.updateUser(data,meta.timestamp);
-        // this.updateUser(data,meta.timestamp);
+        if (data) {
+          this.setFollows(data,meta.is_deleted,meta.id,meta.timestamp);
+        }
       break;
       default:
-        console.log("proto.buffer.js::dispatch - unknown appstream type ["+meta.type+"]");
+        console.log("dispatcher.js::dispatch - unknown appstream type ["+meta.type+"]");
       break;
     }
   }
