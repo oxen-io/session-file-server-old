@@ -4,29 +4,10 @@ AppDotNetAPI
 An App.net compatible API implemented as an App.net client.
 
 This is a piece of software that you can run to emulate the app.net API that all the existing app.net apps could connect to (if we can convince 3rd party app developers to include a configurable API root in their app.net software).
+
 This way we can keep the community and software intact.
 
 Compatibility is goal #1.
-
-## Requirements
-
-* Node.js 0.8.xx+
-
-## Installation
-
-1. Copy config.sample.json to config.json
-
-1. [optional] Create a new application on App.net. Note the client_id and client_secret and put in `config.json`. The redirect URI should be /return on the host you're going to use for AltAPI, e.g., <http://localhost:7070/return>.
-
-1. `npm install` to get node js libraries
-
-1. `node app.js` to run the server
-
-1. Open your browser to <http://localhost:7070/>
-
-### Security
-It's best practice to not have clients directly connect to node.js. We recommend use stunnel or nginx to provide an HTTPS connection to ensure data is encrypted while it travels over the Internet.
-
 
 #Upstream integration
 
@@ -62,26 +43,30 @@ The server will support different "dialects" of the API. The first one will be "
 
 New dialects will be able to extend the app.net API without breaking existing clients. A server is able to run multiple dialects at once.
 
-###Dispatcher
-This mainly translate API to data store. Dispatcher talks to the configured cache. The upstream app stream and the DataAccessLayer (DAL) proxy will feed data through the dispatcher for transformation and to be stored in the DataStore (through the cache and DAL again in the case of the DAL proxy)
+###Dispatcher (dispatcher.js)
+This mainly translate internal API calls to DataAccess Chain. Dispatcher talks to the configured "cache". The upstream app stream and the DataAccess chain will feed data through the dispatcher for transformation and to be stored in the DataStore.
 
-###Cache
-This is just a pass-through at the moment. Eventually hand crafted modules will be created. These modules will have more performant data structures than want the caminte ORM can provide and can be used to optimize slower API paths.
+###DataAccess Chain (dataaccess.*.js)
+The DataAccess chain is list of DataAccess objects. Each objects in the chain will have the same exact API. If a query is not in current DataAccess layer, it will send the request to the next DataAccess layer in the chain until the request is served. Writes can cascading up too incase there are mulitple upstream providers to post to each one individually.
 
-Cache will have the same exact API as DataAccessLayer. If not in defined cache, it will send the request to the DataAccessLayer.
+####DataAccess: Cache
+This is just a pass-through at the moment (dataaccess.base.js). Eventually hand crafted modules will be created. These modules will have more performant data structures than the data store can provide and can be used to optimize slower API paths.
 
-###DataAccessLayer
-This contains the models for the caminte ORM and the API to get and set data in the Data store. 
+####DataAccess: Data store
+This contains the models for the caminte ORM (dataaccess.caminte.js) and the API to get and set data in the Data store. 
 
-This is segmented in to 4 backing stores: Auth, Token, Rate limiting, and Data. You will be able to configure each backing store to use a different storage backend (memory, SQLite, Redis, MySQL). 
+This will be segmented in to 4 backing stores: Auth, Token, Rate limiting, and Data. You will be able to configure each backing store to use a different storage backend (memory, SQLite, Redis, MySQL). 
 
-In the Data segment, if data is not found, it can proxy the request up to the upstream provider to pull down and store data to fulfill the request.
+This layer will be responsible for managing expiration and size of the data set. 
+
+####DataAccess: Upstream Proxy
+Reqeusts will be turned into requests that can be proxied from an upstream server. 
 
 ###Upstream streaming
 If configured, the NodeJS web server will create an app token with an upstream network (app.net at the moment) and use app streaming to receive network updates and populate it's cache/data store through the dispatcher.
 
 ##Current Performance
-I'm finding with taking in account network latency, the performance of the NodeJS web server is 10-20 faster than the official app.net API (Using memory or Redis data stores). This is likely due to the small datasets I'm testing with. Only time will tell with the larger datasets to see if the performance will hold steady.
+I'm finding (with taking in account network latency) the performance of the NodeJS web server is 10-20 faster than the official app.net API (Using memory or Redis data stores). This is likely due to the small datasets I'm testing with. Only time will tell with the larger datasets to see if the performance will hold steady.
 
 ##Potential Scalability
 Using Ohe's lightPoll model; I believe with a message queue, we can have multiple web worker nodes (only one master node with upstream connection). This will allow for additional scalability if you wish to do a large scale deployment or just to use all the cpu cores in one server.
@@ -95,9 +80,28 @@ We'll also need to allow your OAuth endpoints to be configureable. As the users 
 
 We're talking about implementing a JSON data source that will provide a directory of all the available AltAPI servers. This will be for the 3rd party app devs that really want a really nice UI for selecting an AltAPI server.
 
+# Requirements
+
+* Node.js 0.8.xx+
+
+# Installation
+
+1. Copy config.sample.json to config.json
+
+1. [optional] Create a new application on App.net. Note the client_id and client_secret and put in `config.json`. The redirect URI should be /return on the host you're going to use for AltAPI, e.g., <http://localhost:7070/return>.
+
+1. `npm install` to get node js libraries
+
+1. `node app.js` to run the server
+
+1. Open your browser to <http://localhost:7070/>
+
+# Security
+It's best practice to not have clients directly connect to node.js. We recommend use stunnel or nginx to provide an HTTPS connection to ensure data is encrypted while it travels over the Internet.
+
 #Roadmap
 
-##Phase #0 - Public proxy - Complete
+##Phase #0 - Public proxy - Regression fixes in progress
 This is an easy target to lay out the base foundation. We just need a webserver. We will just proxy app.net data.
 
 + posts
@@ -110,15 +114,15 @@ This is an easy target to lay out the base foundation. We just need a webserver.
   + /channels/1383
   + /channels/1383/messages
   + /channels/1383/messages/3442494
-+ configuration
-  + /config
-+ text processor
-  + /text/process
-+ oEmbed
-  + /oembed?url=https://posts.app.net/1
+- configuration
+  - /config
+- text processor
+  - /text/process
+- oEmbed
+  - /oembed?url=https://posts.app.net/1
 
 ##Phase #1 - Public endpoints - In Progress
-We will add a data store to the project at this point. We will  stream, store and relay app.net data. We're adding a lot of structure here. 
+We have added a data store to the project at this point. We will  stream, store and relay app.net data. We're adding a lot of structure here. 
 
 Same endpoints as Phase #0
 
@@ -185,7 +189,7 @@ these would allow additional pushes of streams.
 
 1. tent.io API
 2. pond API
-3. maidasafe.net API
+3. maidsafe.net API
 4. Activity Streams
 5. PuSH/RSS
 6. Webfinger
