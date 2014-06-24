@@ -1,6 +1,17 @@
 /** get request http library */
 var request = require('request');
 
+var proxycalls=0;
+var lcalls=0;
+// minutely status report
+setInterval(function () {
+  var ts=new Date().getTime();
+  process.stdout.write("\n");
+  console.log('data.proxy report '+(proxycalls-lcalls)+' proxy recent calls. '+proxycalls+' overall');
+  // just need a redis info call to pull memory and keys stats
+  lcalls=proxycalls;
+},60*1000);
+
 // pass in proxy settings or just conf it?
 module.exports = {
   next: null,
@@ -24,11 +35,12 @@ module.exports = {
   },
   getUserID: function(username, callback) {
     if (!username) {
-      callback(null,'dataccess.proxy.js::getUserID() - username was not set');
+      callback(null, 'dataccess.proxy.js::getUserID() - username was not set');
       return;
     }
     var ref=this;
     console.log('proxying user @'+username);
+    proxycalls++;
     request.get({
       url: ref.apiroot+'/users/@'+username
     }, function(e, r, body) {
@@ -53,15 +65,16 @@ module.exports = {
   // callback is user,err,meta
   getUser: function(userid, callback) {
     if (userid==undefined) {
-      callback(null,'dataccess.proxy.js:getUser - userid is undefined');
+      callback(null, 'dataccess.proxy.js:getUser - userid is undefined');
       return;
     }
     if (!userid) {
-      callback(null,'dataccess.proxy.js:getUser - userid isn\'t set');
+      callback(null, 'dataccess.proxy.js:getUser - userid isn\'t set');
       return;
     }
     var ref=this;
     console.log('proxying user '+userid);
+    proxycalls++;
     request.get({
       url: ref.apiroot+'/users/'+userid
     }, function(e, r, body) {
@@ -185,11 +198,12 @@ module.exports = {
   },
   getPost: function(id, callback) {
     if (id==undefined) {
-      callback(null,'dataccess.proxy.js::getPost - id is undefined');
+      callback(null, 'dataccess.proxy.js::getPost - id is undefined');
       return;
     }
     var ref=this;
     console.log('proxying post '+id);
+    proxycalls++;
     request.get({
       url: ref.apiroot+'/posts/'+id
     }, function(e, r, body) {
@@ -210,15 +224,16 @@ module.exports = {
   },
   getUserPosts: function(userid, callback) {
     if (userid==undefined) {
-      callback(null,'dataccess.proxy.js::getUserPosts - userid is undefined');
+      callback(null, 'dataccess.proxy.js::getUserPosts - userid is undefined');
       return;
     }
     if (userid==='') {
-      callback(null,'dataccess.proxy.js::getUserPosts - userid is empty');
+      callback(null, 'dataccess.proxy.js::getUserPosts - userid is empty');
       return;
     }
     var ref=this;
     console.log('proxying user posts '+userid);
+    proxycalls++;
     request.get({
       url: ref.apiroot+'/users/'+userid+'/posts'
     }, function(e, r, body) {
@@ -234,6 +249,7 @@ module.exports = {
     //console.log('dataaccess.proxy.js::getGlobal - write me');
     var ref=this;
     console.log('proxying global');
+    proxycalls++;
     request.get({
       url: ref.apiroot+'/posts/stream/global'
     }, function(e, r, body) {
@@ -253,11 +269,12 @@ module.exports = {
   },
   getChannel: function(id, callback) {
     if (id==undefined) {
-      callback(null,'dataccess.proxy.js::getChannel - id is undefined');
+      callback(null, 'dataccess.proxy.js::getChannel - id is undefined');
       return;
     }
     var ref=this;
     console.log('proxying channel '+id);
+    proxycalls++;
     request.get({
       url: ref.apiroot+'/channels/'+id
     }, function(e, r, body) {
@@ -284,11 +301,12 @@ module.exports = {
   },
   getMessage: function(id, callback) {
     if (id==undefined) {
-      callback(null,'dataccess.proxy.js::getMessage - id is undefined');
+      callback(null, 'dataccess.proxy.js::getMessage - id is undefined');
       return;
     }
     var ref=this;
     console.log('proxying message '+id);
+    proxycalls++;
     request.get({
       url: ref.apiroot+'/channels/messages?ids='+id
     }, function(e, r, body) {
@@ -306,11 +324,12 @@ module.exports = {
   },
   getChannelMessages: function(channelid, callback) {
     if (channelid==undefined) {
-      callback(null,'dataccess.proxy.js::getChannelMessages - channelid is undefined');
+      callback(null, 'dataccess.proxy.js::getChannelMessages - channelid is undefined');
       return;
     }
     var ref=this;
     console.log('proxying messages in channel '+channelid);
+    proxycalls++;
     request.get({
       url: ref.apiroot+'/channels/'+channelid+'/messages'
     }, function(e, r, body) {
@@ -322,7 +341,7 @@ module.exports = {
       callback(res.data, null, res.meta);
     });
 
-  },  
+  },
   /** subscription */
   /*
     channelid: { type: Number, index: true },
@@ -338,7 +357,7 @@ module.exports = {
   },
   getUserSubscriptions: function(userid, callback) {
     if (id==undefined) {
-      callback(null,'dataccess.proxy.js::getUserSubscriptions - id is undefined');
+      callback(null, 'dataccess.proxy.js::getUserSubscriptions - id is undefined');
       return;
     }
     if (this.next) {
@@ -347,7 +366,7 @@ module.exports = {
   },
   getChannelSubscriptions: function(channelid, callback) {
     if (id==undefined) {
-      callback(null,'dataccess.proxy.js::getChannelSubscriptions - id is undefined');
+      callback(null, 'dataccess.proxy.js::getChannelSubscriptions - id is undefined');
       return;
     }
     if (this.next) {
@@ -372,15 +391,16 @@ module.exports = {
   },
   getHashtagEntities: function(hashtag, callback) {
     if (hashtag==undefined) {
-      callback(null,'dataccess.proxy.js::getHashtagEntities - hashtag is undefined');
+      callback(null, 'dataccess.proxy.js::getHashtagEntities - hashtag is undefined');
       return;
     }
     if (hashtag==='') {
-      callback(null,'dataccess.proxy.js::getHashtagEntities - hashtag is empty');
+      callback(null, 'dataccess.proxy.js::getHashtagEntities - hashtag is empty');
       return;
     }
     var ref=this;
     console.log('proxying hashtag posts '+hashtag);
+    proxycalls++;
     request.get({
       url: ref.apiroot+'/posts/tag/'+hashtag
     }, function(e, r, body) {
@@ -429,7 +449,7 @@ module.exports = {
   },
   getFollows: function(userid, callback) {
     if (id==undefined) {
-      callback(null,'dataccess.proxy.js::getFollows - userid is undefined');
+      callback(null, 'dataccess.proxy.js::getFollows - userid is undefined');
       return;
     }
     if (this.next) {
@@ -449,6 +469,7 @@ module.exports = {
     if (type=='star') {
       var ref=this;
       console.log('proxying user/stars '+userid);
+      proxycalls++;
       request.get({
         url: ref.apiroot+'/users/'+userid+'/stars'
       }, function(e, r, body) {
@@ -472,7 +493,7 @@ module.exports = {
         }
         callback(actions, null, res.meta);
       });
-      
+
     } else {
       console.log('dataccess.proxy.js::getInteractions - write me! type: '+type);
     }

@@ -201,6 +201,48 @@ var fileModel = schemaData.define('file', {
 // Rate Todo: userTokenLimit, appTokenLimit
 // Data Todo: mutes, blocks, upstream_tokens
 
+// minutely status report
+setInterval(function () {
+  var ts=new Date().getTime();
+  userModel.count({},function(err,userCount) {
+    followModel.count({},function(err,followCount) {
+      postModel.count({},function(err,postCount) {
+        channelModel.count({},function(err,channelCount) {
+          messageModel.count({},function(err,messageCount) {
+            subscriptionModel.count({},function(err,subscriptionCount) {
+              interactionModel.count({},function(err,interactionCount) {
+                annotationModel.count({},function(err,annotationCount) {
+                  entityModel.count({},function(err,entityCount) {
+                    // break so the line stands out from the instant updates
+                    // dispatcher's output handles this for now
+                    //process.stdout.write("\n");
+                    // if using redis
+                    if (1) {
+                      //console.dir(schemaAuth.client.server_info);
+                      // just need a redis info call to pull memory and keys stats
+                      // evicted_keys, expired_keys are interesting, keyspace_hits/misses
+                      // total_commands_proccesed, total_connections_received, connected_clients
+                      // update internal counters
+                      schemaData.client.info(function(err,res) {
+                        schemaData.client.on_info_cmd(err,res);
+                      });
+                      // then pull from counters
+                      console.log("persistence redis "+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
+                    }
+                    console.log('persistence '+userCount+'U '+followCount+'F '+postCount+'P '+channelCount+'C '+messageCount+'M '+subscriptionCount+'s '+interactionCount+'i '+annotationCount+'a '+entityCount+'e');
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+},60*1000);
+
+
+
 // cheat macros
 function db_insert(rec,model,callback) {
   rec.isValid(function(valid) {
@@ -751,7 +793,7 @@ module.exports = {
       }
     }
     // find (id and status, dates)
-    // update or insert    
+    // update or insert
   },
   getFollows: function(userid, callback) {
     if (id==undefined) {
@@ -798,7 +840,7 @@ module.exports = {
       }
       //console.dir(interactions);
       callback(interactions,err);
-    });    
+    });
   },
 
 }

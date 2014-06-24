@@ -1,12 +1,15 @@
 /**
  * Dispatcher is an internal front-facing API for all functions and services
  *
- * "Dialects" will call these functions to the data-access chain to store/retrieve data and format 
+ * "Dialects" will call these functions to the data-access chain to store/retrieve data and format
  * responses in standard way.
  */
 
 var first_post_id;
 var last_post_id;
+
+// for status reports
+var lmem=0;
 
 function copyentities(type, src, dest, postcontext) {
   if (!dest) {
@@ -46,6 +49,28 @@ function copyentities(type, src, dest, postcontext) {
   }
 }
 
+// minutely status report
+setInterval(function () {
+  var ts=new Date().getTime();
+  var mem=process.memoryUsage();
+  /*
+  regarding: the dispatcher stdout writes (isThisDoingAnything)
+  it's pretty compact, only one or two lines per minute
+  so finding the exception still shouldn't be an issue
+  though they will get further and further apart as the quality of the code gets better
+  either case the exceptions need to be logged in a proper log file
+  */
+  // break so the line stands out from the instant updates
+  process.stdout.write("\n");
+  console.log("dispatcher @"+ts+" Memory+["+(mem.heapUsed-lmem.heapUsed)+"] Heap["+mem.heapUsed+"] uptime: "+process.uptime());
+  lmem=mem;
+},60*1000);
+
+// cache is available at this.cache
+// we set from API to DB format
+// we get from DB format to API
+// how much error checking do we need in the get callback?
+// should we stop the callback on failure? probably not...
 module.exports = {
   /** posts */
   // difference between stream and api?
@@ -145,7 +170,7 @@ module.exports = {
     if (post.annotations) {
       this.setAnnotations('post',post.id,post.annotations);
     }
-    
+
     if (last_post_id==undefined || post.id>last_post_id) {
       //console.log("Setting last post to ", post.id);
       last_post_id=post.id;
