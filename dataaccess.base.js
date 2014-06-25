@@ -40,7 +40,7 @@ module.exports = {
   // callback is user,err,meta
   getUser: function(userid, callback) {
     if (this.next) {
-      this.next.getUser(username, callback);
+      this.next.getUser(userid, callback);
     } else {
       console.log('dataaccess.base.js::getUser - write me!');
       callback(null, null);
@@ -190,17 +190,17 @@ module.exports = {
       callback(null, null);
     }
   },
-  getUserPosts: function(userid, callback) {
+  getUserPosts: function(userid, params, callback) {
     if (this.next) {
-      this.next.getUserPosts(userid, callback);
+      this.next.getUserPosts(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getUserPosts - write me!');
       callback(null, null);
     }
   },
-  getGlobal: function(callback) {
+  getGlobal: function(params, callback) {
     if (this.next) {
-      this.next.getGlobal(callback);
+      this.next.getGlobal(params, callback);
     } else {
       console.log('dataaccess.base.js::getGlobal - write me!');
       callback(null, null);
@@ -240,9 +240,9 @@ module.exports = {
       callback(null, null);
     }
   },
-  getChannelMessages: function(channelid, callback) {
+  getChannelMessages: function(channelid, params, callback) {
     if (this.next) {
-      this.next.getChannelMessages(channelid, callback);
+      this.next.getChannelMessages(channelid, params, callback);
     } else {
       console.log('dataaccess.base.js::getChannelMessages - write me!');
       callback(null, null);
@@ -264,17 +264,17 @@ module.exports = {
       callback(null, null);
     }
   },
-  getUserSubscriptions: function(userid, callback) {
+  getUserSubscriptions: function(userid, params, callback) {
     if (this.next) {
-      this.next.getUserSubscriptions(userid, callback);
+      this.next.getUserSubscriptions(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getUserSubscriptions - write me!');
       callback(null, null);
     }
   },
-  getChannelSubscriptions: function(channelid, callback) {
+  getChannelSubscriptions: function(channelid, params, callback) {
     if (this.next) {
-      this.next.getChannelSubscriptions(channelid, callback);
+      this.next.getChannelSubscriptions(channelid, params, callback);
     } else {
       console.log('dataaccess.base.js::getChannelSubscriptions - write me!');
       callback(null, null);
@@ -345,9 +345,9 @@ module.exports = {
       callback(null, null);
     }
   },
-  getFollows: function(userid, callback) {
+  getFollows: function(userid, params, callback) {
     if (this.next) {
-      this.next.getFollows(userid, callback);
+      this.next.getFollows(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getFollows - write me!');
       callback(null, null);
@@ -365,12 +365,20 @@ module.exports = {
   // getUserInteractions, remember reposts are stored here too
   // if we're going to use one table, let's keep the code advantages from that
   // getUserStarPosts
-  getInteractions: function(type, userid, callback) {
+  getInteractions: function(type, userid, params, callback) {
     if (this.next) {
-      this.next.getInteractions(type, userid, callback);
+      this.next.getInteractions(type, userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getInteractions - write me!');
       callback(null, null);
     }
   },
+  getOEmbed: function(url, callback) {
+    if (this.next) {
+      this.next.getOEmbed(url, callback);
+    } else {
+      console.log('dataaccess.base.js::getOEmbed - write me!');
+      callback(null, null);
+    }
+  }
 }

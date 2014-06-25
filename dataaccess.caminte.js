@@ -283,15 +283,15 @@ function db_delete(id,model,callback) {
     }
   });
 }
-function db_get(id,model,callback) {
+function db_get(id, model, callback) {
   model.findById(id, function(err, rec) {
     if (err) {
       console.log("db_get Error ",err);
     }
     // this one is likely not optional...
-    if (callback) {
-      callback(rec,err);
-    }
+    //if (callback) {
+    callback(rec, err);
+    //}
   });
 }
 //
@@ -304,6 +304,10 @@ module.exports = {
   addUser: function(username, password, callback) {
     if (this.next) {
       this.next.addUser(username,password,callback);
+    } else {
+      if (callback) {
+        callback(null, null);
+      }
     }
   },
   setUser: function(iuser, ts, callback) {
@@ -316,6 +320,10 @@ module.exports = {
   delUser: function(userid, callback) {
     if (this.next) {
       this.next.delUser(userid, callback);
+    } else {
+      if (callback) {
+        callback(null, null);
+      }
     }
   },
   getUserID: function(username, callback) {
@@ -327,13 +335,12 @@ module.exports = {
     var username=username.toLowerCase();
     userModel.findOne({ where: { username: username }}, function(err, user) {
       if (user==null && err==null) {
-        if (this.next) {
-          this.next.getUserID(username, callback);
+        if (ref.next) {
+          ref.next.getUserID(username, callback);
           return;
         }
-      } else {
-        callback(user,err);
       }
+      callback(user,err);
     });
   },
   // callback is user,err,meta
@@ -346,16 +353,19 @@ module.exports = {
       callback(null,'dataaccess.caminte.js:getUser - userid isn\'t set');
       return;
     }
+    if (callback==undefined) {
+      callback(null,'dataaccess.caminte.js:getUser - callback is undefined');
+      return;
+    }
     var ref=this;
-    db_get(userid,userModel, function(user, err) {
+    db_get(userid, userModel, function(user, err) {
       if (user==null && err==null) {
-        if (this.next) {
-          this.next.getUser(username, callback);
+        if (ref.next) {
+          ref.next.getUser(userid, callback);
           return;
         }
-      } else {
-        callback(user,err);
-      }
+      } 
+      callback(user, err);
     });
   },
   /*
@@ -471,37 +481,45 @@ module.exports = {
     // maybe call to check garbage collection?
   },
   getPost: function(id, callback) {
+    //console.log('dataaccess.caminte.js::getPost - id is '+id);
     if (id==undefined) {
       callback(null,'dataaccess.caminte.js::getPost - id is undefined');
       return;
     }
     var ref=this;
-    db_get(id,postModel,function(post,err) {
+    db_get(id, postModel, function(post,err) {
+      //console.log('dataaccess.caminte.js::getPost - post, err',post,err);
       if (post==null && err==null) {
-        if (this.next) {
-          this.next.getPost(id, callback);
+        //console.log('dataaccess.caminte.js::getPost - next?',ref.next);
+        if (ref.next) {
+          //console.log('dataaccess.caminte.js::getPost - next');
+          ref.next.getPost(id, callback);
+          return;
         }
-      } else {
-        callback(post,err);
       }
+      callback(post,err);
     });
   },
-  getUserPosts: function(userid, callback) {
+  getUserPosts: function(userid, params, callback) {
+    var ref=this;
     postModel.find({ where: { userid: userid} }, function(err, posts) {
       if (err==null && posts==null) {
-        if (this.next) {
-          this.next.getUserPosts(userid, callback);
+        if (ref.next) {
+          ref.next.getUserPosts(userid, params, callback);
+          return;
         }
       }
       callback(posts,err);
     });
   },
-  getGlobal: function(callback) {
+  getGlobal: function(params, callback) {
+    var ref=this;
     var Query=postModel.find().order('id','DESC').limit(20).run({},function(err,posts) {
       //console.dir(posts);
       if (err==null && posts==null) {
-        if (this.next) {
-          this.next.getGlobal(callback);
+        if (ref.next) {
+          ref.next.getGlobal(params, callback);
+          return;
         }
       }
       callback(posts,err);
@@ -526,12 +544,12 @@ module.exports = {
     var ref=this;
     db_get(id,channelModel,function(channel,err) {
       if (channel==null && err==null) {
-        if (this.next) {
-          this.next.getChannel(id, callback);
+        if (ref.next) {
+          ref.next.getChannel(id, callback);
+          return;
         }
-      } else {
-        callback(channel,err);
       }
+      callback(channel,err);
     });  },
   /** messages */
   setMessage: function (msg, callback) {
@@ -552,15 +570,15 @@ module.exports = {
     var ref=this;
     db_get(id,messageModel,function(message,err) {
       if (message==null && err==null) {
-        if (this.next) {
-          this.next.getMessage(id, callback);
+        if (ref.next) {
+          ref.next.getMessage(id, callback);
+          return;
         }
-      } else {
-        callback(message,err);
       }
+      callback(message,err);
     });
   },
-  getChannelMessages: function(channelid, callback) {
+  getChannelMessages: function(channelid, params, callback) {
     messageModel.find({ where: { channel_id: channelid } }, function(err, messages) {
       callback(messages, err);
     });
@@ -582,23 +600,25 @@ module.exports = {
       }
     });
   },
-  getUserSubscriptions: function(userid, callback) {
+  getUserSubscriptions: function(userid, params, callback) {
     if (id==undefined) {
       callback(null,'dataaccess.caminte.js::getUserSubscriptions - id is undefined');
       return;
     }
     if (this.next) {
-      this.next.getUserSubscriptions(userid, callback);
+      this.next.getUserSubscriptions(userid, params, callback);
+      return;
     }
     callback(null,null);
   },
-  getChannelSubscriptions: function(channelid, callback) {
+  getChannelSubscriptions: function(channelid, params, callback) {
     if (id==undefined) {
       callback(null,'dataaccess.caminte.js::getChannelSubscriptions - id is undefined');
       return;
     }
     if (this.next) {
-      this.next.getChannelSubscriptions(channelid, callback);
+      this.next.getChannelSubscriptions(channelid, params, callback);
+      return;
     }
     callback(null,null);
   },
@@ -688,10 +708,12 @@ module.exports = {
     };
     // count is always 0 or 1...
     // with find or all
+    var ref=this;
     entityModel.find({ where: { idtype: type, typeid: id } }, function(err, entities) {
       if (entities==null && err==null) {
-        if (this.next) {
-          this.next.getEntities(type, id, callback);
+        if (ref.next) {
+          ref.next.getEntities(type, id, callback);
+          return;
         }
       } else {
         //console.log('dataaccess.caminte.js::getEntities '+type+' '+id+' - count ',entities.length);
@@ -732,7 +754,7 @@ module.exports = {
     note.value=value;
     db_insert(note,annotationModel,callback);
   },
-  clearAnnotations: function(idtype,id,callback) {
+  clearAnnotations: function(idtype, id, callback) {
     annotationModel.find({where: { idtype: idtype, typeid: id }},function(err,oldAnnotations) {
       for(var i in oldAnnotations) {
         var oldNote=oldAnnotations[i];
@@ -795,14 +817,16 @@ module.exports = {
     // find (id and status, dates)
     // update or insert
   },
-  getFollows: function(userid, callback) {
+  getFollows: function(userid, params, callback) {
     if (id==undefined) {
       callback(null,'dataaccess.caminte.js::getFollows - userid is undefined');
       return;
     }
     if (this.next) {
-      this.next.getFollows(userid, callback);
+      this.next.getFollows(userid, params, callback);
+      return;
     }
+    callback(null, null);
   },
   /** Star/Interactions */
   setInteraction: function(userid, postid, type, metaid, deleted, ts, callback) {
@@ -826,21 +850,30 @@ module.exports = {
   // getUserInteractions, remember reposts are stored here too
   // if we're going to use one table, let's keep the code advantages from that
   // getUserStarPosts
-  getInteractions: function(type, userid, callback) {
+  getInteractions: function(type, userid, params, callback) {
     //console.log('Getting '+type+' for '+userid);
+    var ref=this;
     interactionModel.find({ where: { userid: userid, type: type, idtype: 'post' } },function(err, interactions) {
       if (interactions==null && err==null) {
         // none found
         //console.log('dataaccess.caminte.js::getStars - check proxy?');
         // user.stars_updated vs appstream start
         // if updated>appstream start, we can assume it's up to date
-        if (this.next) {
-          this.next.getInteractions(type, userid, callback);
+        if (ref.next) {
+          ref.next.getInteractions(type, userid, params, callback);
+          return;
         }
       }
       //console.dir(interactions);
       callback(interactions,err);
     });
   },
-
+  getOEmbed: function(url, callback) {
+    if (this.next) {
+      this.next.getOEmbed(url, callback);
+    } else {
+      console.log('dataaccess.caminte.js::getOEmbed - write me!');
+      callback(null, null);
+    }
+  }
 }
