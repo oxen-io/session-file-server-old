@@ -190,12 +190,20 @@ module.exports=function(app, prefix) {
     });
   });
   app.get(prefix+'/config', function(req, resp) {
-    console.log('dialect.appdotnet_official.js::/config - implement me');
-    resp.send(404);
+    // adn docs say no meta but it returns one
+    var res={
+      meta: { code: 200 },
+      data: dispatcher.getConfig()
+    };
+    sendrepsonse(JSON.stringify(res), resp);
   });
   app.get(prefix+'/oembed', function(req, resp) {
-    console.log('dialect.appdotnet_official.js::/oembed - implement me');
-    resp.send(404);
+    // never any meta
+    dispatcher.getOEmbed(req.query.url, function(oembed, err) {
+      // there's no data/meta envelope for oembed
+      //console.log('ADNO::oembed got ',oembed);
+      sendrepsonse(JSON.stringify(oembed), resp);
+    });
   });
   app.post(prefix+'/text/process', function(req, resp) {
     dispatcher.textProcess(req.body.text, null, null, function(textProcess, err) {
