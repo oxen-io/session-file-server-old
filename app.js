@@ -4,9 +4,19 @@
 var path = require('path');
 var nconf = require('nconf');
 
+function clone(o) {
+  var ret = {};
+  Object.keys(o).forEach(function (val) {
+    ret[val] = o[val];
+  });
+  return ret;
+}
+
 // Look for a config file
 var config_path = path.join(__dirname, '/config.json');
-nconf.argv().env('__').file({file: config_path});
+// and a model file
+var config_model_path = path.join(__dirname, '/config.models.json');
+nconf.argv().env('__').file({file: config_path}).file('model', {file: config_model_path});
 
 /** set up express framework */
 var express = require('express');
@@ -31,28 +41,46 @@ var api_client_id= nconf.get('web:api_client_id') || '';
 // Todo: general parameters
 // Todo: expiration models and configuration
 
-function clone(o) {
-  var ret = {};
-  Object.keys(o).forEach(function (val) {
-    ret[val] = o[val];
-  });
-  return ret;
-}
-
 // Todo: end error object
 var proxy=require('./dataaccess.proxy.js');
-var db=require('./dataaccess.base.js');
-var cache=clone(db);
+var db=require('./dataaccess.caminte.js');
+var cache=require('./dataaccess.base.js');
 var dispatcher=require('./dispatcher.js');
 var dialects=[];
 // Todo: message queue
 
-// initialize
+// initialize chain
 db.next=proxy;
 cache.next=db;
 dispatcher.cache=cache;
-// register dialect
-dialects['appdotnet_official']=require('./dialect.appdotnet_official.js');
+dispatcher.notsilent=!(nconf.get('uplink:silent') || false);
+// app.net defaults
+dispatcher.config=nconf.get('dataModel:config') || {
+  "text": {
+    "uri_template_length": {
+      "post_id": 9,
+      "message_id": 12
+    }
+  },
+  "user": {
+    "annotation_max_bytes": 8192,
+    "text_max_length": 256
+  },
+  "file": {
+    "annotation_max_bytes": 8192
+  },
+  "post": {
+    "annotation_max_bytes": 8192,
+    "text_max_length": 256
+  },
+  "message": {
+    "annotation_max_bytes": 8192,
+    "text_max_length": 2048
+  },
+  "channel": {
+    "annotation_max_bytes": 8192
+  }
+};
 
 // set up proxy object
 proxy.apiroot=apiroot;
@@ -79,16 +107,28 @@ app.use(function(req, res, next) {
 app.apiroot=apiroot;
 app.dispatcher=dispatcher;
 
-// I want to be able to say set up these dialects on these roots
-// dialect, [roots]
-function setupdialect(dialect, mounts) {
-  for(var i in mounts) {
-    var prefix=mounts[i];
-    console.log('Registering '+dialect+' dialect at '+prefix+'/');
-    dialects[dialect](app, prefix);
+/* load dialects from config */
+var mounts=nconf.get('web:mounts') || [
+  {
+    "destination": "",
+    "dialect": "appdotnet_official"
+  },
+  {
+    "destination": "/stream/0",
+    "dialect": "appdotnet_official"
   }
+];
+var dialects={};
+for(var i in mounts) {
+  var mount=mounts[i];
+  if (dialects[mount.dialect]==undefined) {
+    // load dialect
+    console.log("Loading dialect "+mount.dialect);
+    dialects[mount.dialect]=require('./dialect.'+mount.dialect+'.js');
+  }
+  console.log('Mounting '+mount.dialect+' at '+mount.destination+'/');
+  dialects[mount.dialect](app, mount.destination);
 }
-setupdialect('appdotnet_official', ['', '/stream/0']);
 
 app.get('/oauth/authenticate',function(req,resp) {
   resp.redirect(req.query.redirect_uri+'#access_token='+generateToken());
