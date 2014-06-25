@@ -6,3 +6,4 @@ node_modules
 *.swp
 *.DS_Store
 attic
+config.models.json

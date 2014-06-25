@@ -1,0 +1,60 @@
+{
+  "authModel": {
+    "version": 0,
+    "type": "redis",
+    "options": {
+      "port": 6379
+    }
+  },
+  "tokenModel": {
+    "version": 0,
+    "type": "redis",
+    "options": {
+      "port": 6379
+    }
+  },
+  "rateModel": {
+    "version": 0,
+    "type": "redis",
+    "options": {
+      "port": 6379
+    }
+  },
+  "dataModel": {
+    "version": 0,
+    "type": "redis",
+    "options": {
+      "port": 6379
+    },
+    "switches": {
+      "storeHTML": true,
+      "storeEntity": true
+    },
+    "config": {
+      "text": {
+        "uri_template_length": {
+          "post_id": 9,
+          "message_id": 12
+        }
+      },
+      "user": {
+        "annotation_max_bytes": 8192,
+        "text_max_length": 256
+      },
+      "file": {
+        "annotation_max_bytes": 8192
+      },
+      "post": {
+        "annotation_max_bytes": 8192,
+        "text_max_length": 256
+      },
+      "message": {
+        "annotation_max_bytes": 8192,
+        "text_max_length": 2048
+      },
+      "channel": {
+        "annotation_max_bytes": 8192
+      }
+    }
+  }
+}
