@@ -1,11 +1,22 @@
 {
-	"uplink": {
-		"apiroot":"https://api.app.net",
-		"client_id":"",
-		"client_secret":""
-	},
-	"web": {
-		"port": 7070,
-		"api_client_id": "AreWeConformingToAnySpecificFormatYetQuestionMark"
-	}
+  "uplink": {
+    "apiroot": "https://api.app.net",
+    "client_id": "",
+    "client_secret": "",
+    "silent": false
+  },
+  "web": {
+    "port": 7070,
+    "api_client_id": "AreWeConformingToAnySpecificFormatYetQuestionMark"
+    "mounts": [
+      {
+        "destination": "",
+        "dialect": "appdotnet_official"
+      },
+      {
+        "destination": "/stream/0",
+        "dialect": "appdotnet_official"
+      }
+    ]
+  }
 }
