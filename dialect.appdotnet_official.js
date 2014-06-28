@@ -82,7 +82,7 @@ module.exports=function(app, prefix) {
         meta: { code: 200 },
         data: formatpost(post)
       };
-      if (post.user) {
+      if (post && post.user) {
         res.data.user=formatuser(post.user);
       }
       if (meta) {
@@ -141,7 +141,8 @@ module.exports=function(app, prefix) {
     });
   });
   app.get(prefix+'/posts/stream/global', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams, function(posts, err, meta) {
+    dispatcher.getGlobal(req.pageParams, function(posts, err, meta) {
+      // meta order: min_id, code, max_id, more
       var res={
         meta: meta,
         data: posts
