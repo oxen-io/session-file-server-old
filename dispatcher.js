@@ -9,7 +9,7 @@ var first_post_id;
 var last_post_id;
 
 // for status reports
-var lmem=0;
+var lmem={ heapUser: 0 };
 
 function copyentities(type, src, dest, postcontext) {
   if (!dest) {
@@ -78,6 +78,13 @@ module.exports = {
   /** posts */
   // difference between stream and api?
   setPost: function(post, callback) {
+    if (!post) {
+      console.log('dispatcher.js::setPost - post is not set!');
+      if (callback) {
+        callback(null,'setPost - post is not set!');
+      }
+      return;
+    }
     if (!post.id) {
       console.log('dispatcher.js::setPost - no id in post',post);
       if (callback) {
@@ -281,26 +288,37 @@ module.exports = {
     }
     var ref=this;
     this.cache.getPost(id, function(post, err, meta) {
-      ref.postToAPI(post, callback, meta)
+      if (post) {
+        ref.postToAPI(post, callback, meta);
+      } else {
+        callback(null, 'getPost - post is not set!');
+      }
     });
   },
   getGlobal: function(params, callback) {
     var ref=this;
-    this.cache.getGlobal(params, function(posts, err) {
+    this.cache.getGlobal(params, function(posts, err, meta) {
+      //console.log('dispatcher.js::getGlobal - returned meta ',meta);
       // data is an array of entities
-      var apiposts=[];
+      var apiposts={}, postcounter=0;
       //console.log('dispatcher.js:getGlobal - mapping '+posts.length);
       if (posts.length) {
         posts.map(function(current, idx, Arr) {
           //console.log('dispatcher.js:getGlobal - map postid: '+current.id);
           // get the post in API foromat
-          ref.postToAPI(current, function(post, err, meta) {
-            apiposts.push(post);
+          ref.postToAPI(current, function(post, err, postmeta) {
+            apiposts[post.id]=post;
+            postcounter++;
             // join
             //console.log(apiposts.length+'/'+entities.length);
-            if (apiposts.length==posts.length) {
+            if (postcounter==posts.length) {
               //console.log('dispatcher.js::getGlobal - finishing');
-              callback(apiposts);
+              // need to restore original order
+              var res=[];
+              for(var i in posts) {
+                res.push(apiposts[posts[i].id]);
+              }
+              callback(res, null, meta);
             }
           });
         }, ref);
@@ -366,7 +384,7 @@ module.exports = {
   getHashtag: function(hashtag, params, callback) {
     var ref=this;
     //console.log('dispatcher.js:getHashtag - start #'+hashtag);
-    this.cache.getHashtagEntities(hashtag, function(entities, err, meta) {
+    this.cache.getHashtagEntities(hashtag, params, function(entities, err, meta) {
       // data is an array of entities
       var apiposts=[];
       //console.log('dispatcher.js:getHashtag - mapping '+entities.length);
@@ -810,10 +828,10 @@ module.exports = {
     });
   },
   /** entities */
-  getEntities: function(type,id,callback) {
-    this.cache.getEntities(type,id,callback);
+  getEntities: function(type, id, callback) {
+    this.cache.getEntities(type, id, callback);
   },
-  setEntities: function(type,id,entities,callback) {
+  setEntities: function(type, id, entities, callback) {
     //console.dir('dispatcher.js::setEntities - '+type,entities);
     // I'm pretty sure these arrays are always set
     if (entities.mentions && entities.mentions.length) {
@@ -839,10 +857,10 @@ module.exports = {
     }
   },
   /** annotations */
-  getAnnotation: function(type,id,callback) {
-    this.cache.getAnnotations(type,id,callback);
+  getAnnotation: function(type, id, callback) {
+    this.cache.getAnnotations(type, id, callback);
   },
-  setAnnotations: function(type,id,annotations,callback) {
+  setAnnotations: function(type, id, annotations, callback) {
     // probably should clear all the existing anntations for this ID
     // channel annotations mutable
     // and we don't have a unique constraint to tell if it's an add or update or del
