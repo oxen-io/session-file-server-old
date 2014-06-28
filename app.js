@@ -86,6 +86,16 @@ dispatcher.config=nconf.get('dataModel:config') || {
 proxy.apiroot=apiroot;
 proxy.dispatcher=dispatcher; // upload dispatcher
 
+/** set up query parameters */
+// all Boolean (0 or 1) and prefixed by include_
+var generalParams=['muted','deleted','directed_posts','machine','starred_by','reposters','annotations','post_annotations','user_annotations','html','marker','read','recent_messages','message_annotations','inactive','incomplete','private','file_annotations'];
+// Stream Faceting allows you to filter and query a user's personalized stream or unified stream with an interface similar to our Post Search API. If you use stream faceting, the API will only return recent posts in a user's stream.
+// Boolean (0 or 1)
+var streamFacetParams=['has_oembed_photo'];
+var pageParams=['since_id','before_id','count','last_read','last_read_inclusive','marker','marker_inclusive'];
+var channelParams=['channel_types'];
+var fileParams=['file_types'];
+
 /**
  * Set up middleware to check for prettyPrint
  * This is run on each incoming request
@@ -95,8 +105,72 @@ app.use(function(req, res, next) {
     // Authorization Bearer <YOUR ACCESS TOKEN>
     //console.log('Authorization '+req.get('Authorization'));
   }
+  // set defaults
+  //  Defaults to false except when you specifically request a Post from a muted user or when you specifically request a muted user's stream.
+  req.generalParams={};
+  req.generalParams.muted=false;
+  req.generalParams.deleted=true;
+  // Defaults to false for "My Stream" and true everywhere else.
+  req.generalParams.directed_posts=true;
+  req.generalParams.machine=false;
+  req.generalParams.starred_by=false;
+  req.generalParams.reposters=false;
+  req.generalParams.annotations=false;
+  req.generalParams.post_annotations=false;
+  req.generalParams.user_annotations=false;
+  req.generalParams.html=true;
+  // channel
+  req.generalParams.marker=false;
+  req.generalParams.read=true;
+  req.generalParams.recent_messages=false;
+  req.generalParams.message_annotations=false;
+  req.generalParams.inactive=false;
+  // file
+  req.generalParams.incomplete=true;
+  req.generalParams.private=true;
+  req.generalParams.file_annotations=false;
+  //
+  req.channelParams={};
+  req.channelParams.types='';
+  if (req.query.channel_types) {
+    console.log("Overriding channel_types to "+req.query.channel_types);
+    req.channelParams.types=req.query.channel_types;
+  }
+  req.fileParams={};
+  req.fileParams.types='';
+  if (req.query.file_types) {
+    console.log("Overriding file_types to "+req.query.file_types);
+    req.channelParams.types=req.query.channel_types;
+  }
+  req.stremFacetParams={};
+  req.stremFacetParams.has_oembed_photo=false;
+  req.pageParams={};
+  req.pageParams.since_id=false;
+  if (req.query.since_id) {
+    console.log("Overriding since_id to "+req.query.since_id);
+    req.pageParams.since_id=parseInt(req.query.since_id);
+  }
+  req.pageParams.before_id=false;
+  if (req.query.before_id) {
+    console.log("Overriding before_id to "+req.query.before_id);
+    req.pageParams.before_id=parseInt(req.query.before_id);
+  }
+  req.pageParams.count=20;
+  if (req.query.count) {
+    console.log("Overriding count to "+req.query.count);
+    req.pageParams.count=Math.min(Math.max(req.query.count,-200),200);
+  }
+  // stream marker supported endpoints only
+  req.pageParams.last_read=false;
+  req.pageParams.last_read_inclusive=false;
+  req.pageParams.last_marker=false;
+  req.pageParams.last_marker_inclusive=false;
   // configure response
   res.prettyPrint=req.get('X-ADN-Pretty-JSON') || 0;
+  // non-ADN spec, ryantharp hack
+  if (req.query.prettyPrint) {
+    res.prettyPrint=1;
+  }
   res.JSONP=req.query.callback || '';
   next();
 });
