@@ -1,9 +1,9 @@
-AppDotNetAPI
+AppDotNetAPI (AKA AltAPI)
 ============
 
-An App.net compatible API implemented as an App.net client.
+An alternative implementation of App.net API implemented as an App.net client. This is an attempt to make the App.net API an open standard.
 
-This is a piece of software that you can run to emulate the app.net API that all the existing app.net apps could connect to (if we can convince 3rd party app developers to include a configurable API root in their app.net software).
+This is a piece of software that you can run to emulate the app.net API that all the existing app.net apps could connect to (if we can convince 3rd party app developers to include a configurable API/OAuth root in their app.net software).
 
 This way we can keep the community and software intact.
 
@@ -80,6 +80,22 @@ We'll also need to allow your OAuth endpoints to be configureable. As the users 
 
 We're talking about implementing a JSON data source that will provide a directory of all the available AltAPI servers. This will be for the 3rd party app devs that really want a really nice UI for selecting an AltAPI server.
 
+# Possible network configurations
+##ADNFuture
+We will be creating a new spoke from App.net. Other people that want to run servers can spoke off our hub implementation. This allows app.net to go down and for us to keep the network going. We may introduce a peer to peer mode under our hub to help distribute load as well.
+
+App.net => ADNFuture => Multiple providers
+
+##Local cache
+You can run your own local cache to speed up your app.net network interactions:
+
+ADNFuture => Your local cache
+
+##Standalone
+Start your own social network using this software as the main hub and base. You can allow or deny other spokes from connecting to your hub.
+
+Your Hub => Possible spokes
+
 # Requirements
 
 * Node.js 0.8.xx+
@@ -101,7 +117,7 @@ It's best practice to not have clients directly connect to node.js. We recommend
 
 #Roadmap
 
-##Phase #0 - Public proxy - Regression fixes in progress
+##Phase #0 - Public proxy - Complete 
 This is an easy target to lay out the base foundation. We just need a webserver. We will just proxy app.net data.
 
 + posts
@@ -114,27 +130,71 @@ This is an easy target to lay out the base foundation. We just need a webserver.
   + /channels/1383
   + /channels/1383/messages
   + /channels/1383/messages/3442494
-- configuration
-  - /config
-- text processor
-  - /text/process
-- oEmbed
-  - /oembed?url=https://posts.app.net/1
++ configuration
+  + /config
++ text processor
+  + /text/process
++ oEmbed
+  + /oembed?url=https://posts.app.net/1
 
 ##Phase #1 - Public endpoints - In Progress
 We have added a data store to the project at this point. We will  stream, store and relay app.net data. We're adding a lot of structure here. 
 
 Same endpoints as Phase #0
 
+###Phase #1.1 - Storage structure - Complete
+###Phase #1.2 - Proxy uses DataAccess Chain - Complete
+###Phase #1.3 - Parameters - In progress
+####Paging paramters - In progress
+#####Complete:
++ posts
+  + /posts/stream/global
+
+#####Incomplete:
+- posts
+  - /users/1/posts
+  - /users/1/stars
+  - /posts/tag/jukebox
+- channels/messages
+  - /channels/1383/messages
+  
+#####ids parameter endpoints
+- posts
+  - /posts?ids=
+- channels/messages
+  - /channels
+  - /channels/messages
+
+####channel_types parameter
+#####include_* parameter
+I don't think any app functionality is harmed by having too much data, so we skip the parameters that are on by default. We will initially always return annotations, stream_marker for now. I've prioritize the following include as I find them to be most harmful to applications:
+
+- posts
+  - include_muted
+  - include_machine
+- channel
+  - include_read
+  - include_recent_message
+  - include_inactive
+- messages
+  - include_muted
+  - include_machine
+
+all other include_* parameters will come at a later date.
+
 ##Phase #2 - Authenticated endpoints
-I'm considering a local user database. And then you can authorize official your official ADN account. That way no one has to expose any current password.
+This will have a local user database. And then you can authorize official your official ADN account. That way no one has to expose any current password. Local users will be mapped on to remote users through the authorize process. 
 
-We will need to implement our own o-auth server that follows the App.net process with appropriate scopes.
+We will need to implement our own OAuth server that follows the App.net process with appropriate scopes. 
 
+We will start developing the write endpoints as well as:
 - users
 - files
 - interactions
 - stream marker
+- tokens (app/user)
+- mutes
+- blocks
 
 ##Phase #3 - Streaming
 I feel that not many important app.net clients embrace user or app streaming (outside push notifications). So we can delay this peice until phase #3.
@@ -144,6 +204,13 @@ I feel that not many important app.net clients embrace user or app streaming (ou
 
 ##Phase #4 - API Compatiblitilty Completion
 - Search / Place
+- Explore stream
+- local oEmbed processor
+- WebIntents
+- WebFinger
+- RSS Feeds
+- Password flow authentication
+- identity delegation
 
 ##Phase #5 Beyond app.net
 - what did you want to see in the API?
@@ -197,7 +264,7 @@ these would allow additional pushes of streams.
 8. pump.io
 9. Ident.ca / StatusNet
 10. App.net extensions (what new API features can we add?)
-
+11. Twitter
 
 Potential Issues
 ======
