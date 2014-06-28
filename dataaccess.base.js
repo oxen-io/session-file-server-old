@@ -203,7 +203,7 @@ module.exports = {
       this.next.getGlobal(params, callback);
     } else {
       console.log('dataaccess.base.js::getGlobal - write me!');
-      callback(null, null);
+      callback(null, null, null);
     }
   },
   /** channels */
@@ -301,9 +301,9 @@ module.exports = {
     }
   },
   // more like getHashtagEntities
-  getHashtagEntities: function(hashtag, callback) {
+  getHashtagEntities: function(hashtag, params, callback) {
     if (this.next) {
-      this.next.getHashtagEntities(hashtag, callback);
+      this.next.getHashtagEntities(hashtag, params, callback);
     } else {
       console.log('dataaccess.base.js::getHashtagEntities - write me!');
       callback(null, null);

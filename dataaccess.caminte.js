@@ -294,8 +294,8 @@ function db_get(id, model, callback) {
     //}
   });
 }
-//
 
+// we need to know if we have upstreaming enabled
 module.exports = {
   next: null,
   /*
@@ -514,15 +514,93 @@ module.exports = {
   },
   getGlobal: function(params, callback) {
     var ref=this;
-    var Query=postModel.find().order('id','DESC').limit(20).run({},function(err,posts) {
-      //console.dir(posts);
-      if (err==null && posts==null) {
-        if (ref.next) {
-          ref.next.getGlobal(params, callback);
-          return;
+    //console.dir(params);
+    // make sure count is positive
+    var count=Math.abs(params.count);
+    var maxid=null;
+    postModel.find().order('id','DESC').limit(1).run({},function(err,posts) {
+      maxid=posts[0].id;
+      //console.log('max post id in data store is '+maxid);
+      
+      if (params.before_id) {
+        if (!params.since_id) {
+          params.since_id=Math.max(params.before_id-count,0);
+        }
+      } else if (params.since_id) {
+        // no before but we have since
+        // it's maxid+1 because before_id is exclusive
+        params.before_id=Math.min(params.since_id+count,maxid+1);
+      } else {
+        // if we have upstream enabled
+        // none set
+        params.before_id=maxid;
+        params.since_id=maxid-count;
+        // if we don't have upstream disable
+        // best to proxy global...
+      }
+      var inlist=[];
+      //console.log("from "+params.since_id+' to '+params.before_id);
+      var meta={ code: 200, more: true };
+      // I haven't see params on the global stream that don't include more
+      // unless it's a 404
+      if (params.since_id>maxid) {
+        meta.more=false;
+      }
+      if (params.before_id<1) {
+        meta.more=false;
+      }
+      if (params.count>=0) {
+        // count is positive
+        var apiposts=[];
+        for(var pid=params.before_id-1; pid>params.since_id && inlist.length<count; pid--) {
+          inlist.push(pid);
+        }
+        if (inlist.length) {
+          meta.min_id=inlist[inlist.length-1];
+          meta.max_id=inlist[0];
+        }
+        if (inlist.length==count && pid>params.since_id) {
+          meta.more=true;
+        }
+      } else {
+        // count is negative
+        for(var pid=params.since_id+1; pid<params.before_id && inlist.length<count; pid++) {
+          inlist.push(pid);
+        }
+        if (inlist.length) {
+          meta.min_id=inlist[0];
+          meta.max_id=inlist[inlist.length-1];
+        }
+        if (inlist.length==count && pid<params.before_id) {
+          meta.more=true;
         }
       }
-      callback(posts,err);
+      //console.log(meta);
+      //console.dir(inlist);
+      if (inlist.length) {
+        var posts=[];
+        inlist.map(function(current, idx, Arr) {
+          // get the post
+          ref.getPost(current, function(post, err, postMeta) {
+            posts.push(post);
+            if (posts.length==inlist.length) {
+              // if negative count, we need to reverse the results
+              if (params.count<0) {
+                posts.reverse();
+              }
+              /*
+              for(var i in posts) {
+                var post=posts[i];
+                console.log('got '+post.id);
+              }
+              */
+              callback(posts, null, meta);
+            }
+          });
+        }, ref);
+      } else {
+        callback([], null, meta);
+      }
     });
   },
   /** channels */
@@ -731,11 +809,11 @@ module.exports = {
     });
   },
   // more like getHashtagEntities
-  getHashtagEntities: function(hashtag, callback) {
+  getHashtagEntities: function(hashtag, params, callback) {
     // Todo: implement this.next calling
     /*
     if (this.next) {
-      this.next.getHashtagEntities(hashtag, callback);
+      this.next.getHashtagEntities(hashtag, params, callback);
     }
     */
     // sorted by post created date...., well we have post id we can use

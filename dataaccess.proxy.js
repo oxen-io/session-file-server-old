@@ -252,14 +252,30 @@ module.exports = {
   getGlobal: function(params, callback) {
     //console.log('dataaccess.proxy.js::getGlobal - write me');
     var ref=this;
-    console.log('proxying global');
     proxycalls++;
+    var querystring='';
+    if (params.count || params.since_id || params.before_id) {
+      // convert to array/loop
+      // 0 is ok, where's isset for JS?
+      if (params.count!=20) { // if not equal default
+        querystring+='&count='+params.count;
+      }
+      if (params.since_id) {
+        querystring+='&since_id='+params.since_id;
+      }
+      if (params.before_id) {
+        querystring+='&before_id='+params.before_id;
+      }
+    }
+    console.log('proxying global?'+querystring);
     request.get({
-      url: ref.apiroot+'/posts/stream/global'
+      url: ref.apiroot+'/posts/stream/global?'+querystring
     }, function(e, r, body) {
       var res=JSON.parse(body);
+      //console.dir(res);
       for(var i in res.data) {
         var post=res.data[i];
+        //console.log('Processing post '+post.id);
         ref.dispatcher.setPost(post);
       }
       callback(res.data, null, res.meta);
@@ -393,7 +409,7 @@ module.exports = {
       callback(null, null);
     }
   },
-  getHashtagEntities: function(hashtag, callback) {
+  getHashtagEntities: function(hashtag, params, callback) {
     if (hashtag==undefined) {
       callback(null, 'dataccess.proxy.js::getHashtagEntities - hashtag is undefined');
       return;
