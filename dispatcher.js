@@ -328,23 +328,36 @@ module.exports = {
       }
     });
   },
+  getExplore: function(params, callback) {
+    var ref=this;
+    this.cache.getExplore(params, function(endpoints, err, meta) {
+      //console.log('dispatcher.js::getExplore - returned meta ',meta);
+      callback(endpoints, null, meta);
+    });
+  },
   getUserPosts: function(userid, params, callback) {
+    //console.log('dispatcher.js::getUserPosts - userid: '+userid);
     var ref=this;
     this.cache.getUserPosts(userid, params, function(posts, err, meta) {
       // data is an array of entities
-      var apiposts=[];
+      var apiposts={}, postcounter=0;
       //console.log('dispatcher.js:getUserPosts - mapping '+posts.length);
       if (posts && posts.length) {
         posts.map(function(current, idx, Arr) {
           //console.log('dispatcher.js:getUserPosts - map postid: '+current.id);
           // get the post in API foromat
-          ref.postToAPI(current, function(post, err, meta) {
-            apiposts.push(post);
+          ref.postToAPI(current, function(post, err, postmeta) {
+            apiposts[post.id]=post;
+            postcounter++;
             // join
             //console.log(apiposts.length+'/'+entities.length);
-            if (apiposts.length==posts.length) {
+            if (postcounter==posts.length) {
               //console.log('dispatcher.js::getUserPosts - finishing');
-              callback(apiposts);
+              var res=[];
+              for(var i in posts) {
+                res.push(apiposts[posts[i].id]);
+              }
+              callback(res, null, meta);
             }
           });
         }, ref);
@@ -474,7 +487,7 @@ module.exports = {
       is_deleted: json.is_deleted,
       created_at: json.created_at
     };
-    this.cache(message,function(msg,err) {
+    this.cache.setMessage(message,function(msg,err) {
       // if current, extract annotations too
       if (callback) {
         callback(msg,err);

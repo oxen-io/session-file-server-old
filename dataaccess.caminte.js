@@ -502,6 +502,14 @@ module.exports = {
   },
   getUserPosts: function(userid, params, callback) {
     var ref=this;
+    /*
+    postModel.find({ where: { userid: userid}, order: "id asc", limit: 1}, function(err, posts) {
+      console.log('First User '+userid+' Post '+posts[0].id);
+    });
+    postModel.find({ where: { userid: userid}, order: "id desc", limit: 1}, function(err, posts) {
+      console.log('Last User '+userid+' Post '+posts[0].id);
+    });
+    */
     postModel.find({ where: { userid: userid} }, function(err, posts) {
       if (err==null && posts==null) {
         if (ref.next) {
@@ -602,6 +610,22 @@ module.exports = {
         callback([], null, meta);
       }
     });
+  },
+  getExplore: function(params, callback) {
+    if (this.next) {
+      this.next.getExplore(params, callback);
+    } else {
+      console.log('dataaccess.base.js::getExplore - write me!');
+      var res={"meta":{"code":200},
+        "data":[
+          {"url":"/posts/stream/explore/conversations","description":"New conversations just starting on App.net","slug":"conversations","title":"Conversations"},
+          {"url":"/posts/stream/explore/photos","description":"Photos uploaded to App.net","slug":"photos","title":"Photos"},
+          {"url":"/posts/stream/explore/trending","description":"Posts trending on App.net","slug":"trending","title":"Trending"},
+          {"url":"/posts/stream/explore/checkins","description":"App.net users in interesting places","slug":"checkins","title":"Checkins"}
+        ]
+      };
+      callback(res.data, null, res.meta);
+    }
   },
   /** channels */
   setChannel: function (chnl, ts, callback) {

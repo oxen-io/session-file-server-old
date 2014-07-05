@@ -206,6 +206,14 @@ module.exports = {
       callback(null, null, null);
     }
   },
+  getExplore: function(params, callback) {
+    if (this.next) {
+      this.next.getExplore(params, callback);
+    } else {
+      console.log('dataaccess.base.js::getExplore - write me!');
+      callback(null, null, null);
+    }
+  },
   /** channels */
   setChannel: function (chnl, ts, callback) {
     if (this.next) {

@@ -281,6 +281,32 @@ module.exports = {
       callback(res.data, null, res.meta);
     });
   },
+  getExplore: function(params, callback) {
+    //console.log('dataaccess.proxy.js::getGlobal - write me');
+    var ref=this;
+    proxycalls++;
+    var querystring='';
+    if (params.count || params.since_id || params.before_id) {
+      // convert to array/loop
+      // 0 is ok, where's isset for JS?
+      if (params.count!=20) { // if not equal default
+        querystring+='&count='+params.count;
+      }
+      if (params.since_id) {
+        querystring+='&since_id='+params.since_id;
+      }
+      if (params.before_id) {
+        querystring+='&before_id='+params.before_id;
+      }
+    }
+    console.log('proxying explore?'+querystring);
+    request.get({
+      url: ref.apiroot+'/posts/stream/explore?'+querystring
+    }, function(e, r, body) {
+      var res=JSON.parse(body);
+      callback(res.data, null, res.meta);
+    });
+  },  
   /** channels */
   setChannel: function (chnl, ts, callback) {
     if (this.next) {
