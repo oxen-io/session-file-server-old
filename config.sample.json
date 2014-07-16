@@ -7,7 +7,7 @@
   },
   "web": {
     "port": 7070,
-    "api_client_id": "AreWeConformingToAnySpecificFormatYetQuestionMark"
+    "api_client_id": "AreWeConformingToAnySpecificFormatYetQuestionMark",
     "mounts": [
       {
         "destination": "",
