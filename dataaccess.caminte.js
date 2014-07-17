@@ -13,7 +13,8 @@ var Schema = require('caminte').Schema;
 
 // set up the (eventually configureable) model pools
 // 6379 is default redis port number
-var schemaData = new Schema('redis', {port: 6379}); //port number depends on your configuration
+var schemaDataType = 'memory';
+var schemaData = new Schema(schemaDataType, {port: 6379}); //port number depends on your configuration
 
 // Auth models and accessors can be moved into own file?
 // so that routes.* can access them separately from everything!
@@ -217,7 +218,7 @@ setInterval(function () {
                     // dispatcher's output handles this for now
                     //process.stdout.write("\n");
                     // if using redis
-                    if (1) {
+                    if (schemaDataType=='redis') {
                       //console.dir(schemaAuth.client.server_info);
                       // just need a redis info call to pull memory and keys stats
                       // evicted_keys, expired_keys are interesting, keyspace_hits/misses
@@ -527,7 +528,15 @@ module.exports = {
     var count=Math.abs(params.count);
     var maxid=null;
     postModel.find().order('id','DESC').limit(1).run({},function(err,posts) {
-      maxid=posts[0].id;
+      if (posts.length) {
+        maxid=posts[0].id;
+      }
+      if (maxid<20) {
+        // by default downloads the last 20 posts from the id passed in
+        // so use 20 so we don't go negative
+        // FIXME: change to scoping in params adjustment
+        maxid=20;
+      }
       //console.log('max post id in data store is '+maxid);
       
       if (params.before_id) {
