@@ -17,7 +17,7 @@ module.exports=function(app, prefix) {
   /*
    * Authenticated endpoints
    */
-  // {"meta":{"code":401,"error_message":"Call requires authentication: This Callback requires authentication and no token was provided."}}
+  // {"meta":{"code":401,"error_message":"Call requires authentication: This resource requires authentication and no token was provided."}}
   app.get(prefix+'/posts/stream', function(req, resp) {
     dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));  
   });
