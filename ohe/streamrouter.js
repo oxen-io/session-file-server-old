@@ -177,7 +177,11 @@ StreamRouter.prototype.stream = function (token) {
         stream.on('user', function (msg) {
             //_.each(msg.meta.subscribed_user_ids, function (user_id) {
             // or do we look up everyone that's following this user?
-            self.consumer.dispatch(msg.data.user.id, msg);
+            if (msg.data.user) {
+              self.consumer.dispatch(msg.data.user.id, msg);
+            } else {
+              self.consumer.dispatch(0, msg);
+            }
             //});
         });
 
@@ -189,13 +193,12 @@ StreamRouter.prototype.stream = function (token) {
             } else {
               self.consumer.dispatch(null, msg);
               console.log('ohe:::streamrouter.js::stream:listen_to_endpoint.user_follow - no data in msg',msg);
-/*
-   { timestamp: 1400743370135,
-     is_deleted: true,
-     type: 'user_follow',
-     id: '473123' } }
-
-*/
+              /*
+                 { timestamp: 1400743370135,
+                   is_deleted: true,
+                   type: 'user_follow',
+                   id: '473123' } }
+              */
               self.consumer.dispatch(null, msg);
             }
             //});
