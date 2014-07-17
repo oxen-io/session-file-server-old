@@ -133,7 +133,8 @@ module.exports = {
         }
       });
     }
-    dataPost=post;
+    //console.log('dispatcher.js::setPost post id is '+post.id);
+    var dataPost=post;
     //dataPost.id=post.id; // not needed
     if (post.user) {
       dataPost.userid=post.user.id;
@@ -171,9 +172,11 @@ module.exports = {
         } else {
           dataPost.client_id=client.client_id;
         }
+        //console.log('dispatcher.js::setPost datapost id is '+dataPost.id);
         ref.setPost(dataPost,callback);
       });
     } else {
+      //console.log('dispatcher.js::setPost datapost id is '+dataPost.id);
       ref.setPost(dataPost,callback);
     }
 
@@ -191,6 +194,10 @@ module.exports = {
   },
   // convert DB format to API structure
   postToAPI: function(post, callback, meta) {
+    if (!post) {
+      callback(post,'dispatcher.js::postToAPI - no post data passed in');
+      return;
+    }
     var ref=this;
     //console.log('dispatcher.js::postToAPI - gotPost. post.userid:',post.userid);
     // post.client_id is string(32)
@@ -307,7 +314,11 @@ module.exports = {
           //console.log('dispatcher.js:getGlobal - map postid: '+current.id);
           // get the post in API foromat
           ref.postToAPI(current, function(post, err, postmeta) {
-            apiposts[post.id]=post;
+            // can error out
+            if (post) {
+              apiposts[post.id]=post;
+            }
+            // always increase counter
             postcounter++;
             // join
             //console.log(apiposts.length+'/'+entities.length);
@@ -316,7 +327,9 @@ module.exports = {
               // need to restore original order
               var res=[];
               for(var i in posts) {
-                res.push(apiposts[posts[i].id]);
+                if (posts[i]) {
+                  res.push(apiposts[posts[i].id]);
+                }
               }
               callback(res, null, meta);
             }
@@ -416,12 +429,17 @@ module.exports = {
         }, ref);
       } else {
         // no entities
-        callback(null, 'no entities for '+hashtag, meta);
+        callback([], 'no entities for '+hashtag, meta);
       }
     });
   },
   /** channels */
   setChannel: function(json,ts,callback) {
+    if (!json) {
+      console.log('dispatcher.js::setChannel - no json passed in');
+      callback(null,'no json passed in');
+      return;
+    }
     var ref=this;
     // map API to DB
     // default to most secure
@@ -502,7 +520,7 @@ module.exports = {
   },
   getChannelMessage: function(cid, mids, params, callback) {
     console.log('dispatcher.js::getChannelMessage - write me!');
-    callback(null, null);
+    callback([], null);
   },
   /** channel_subscription */
   setChannelSubscription: function(data, deleted, ts, callback) {
