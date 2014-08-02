@@ -19,7 +19,7 @@ An API server operator can decide whether to allow non-linked app.net accounts t
 
 This client/server relationship actually allows an API server whether it's app.net or other API compliant servers to link up in a hub-spoke topology and distribute the network across additional resources. Though work and planning will need to be put into distributed authentication and authorize.
 
-Users would authorize AltAPI with their app.net accounts, just like they would any other app.net app. We envision users, after authorizing AltAPI, being able to choose between AltAPI nodes to use.
+Users would authorize AltAPI with their app.net accounts, just like they would any other app.net app. We envision users selecting from a list of AltAPI nodes before authorizing with it.
 
 The authorization flow itself would happen via OAuth proxy. This means that OAuth requests propagate up nodes until reaching the top node (usually app.net; otherwise the next connected AltAPI node would take its place). At each successive node, a token is returned, then the request continues upstream. When the subsequent node returns a token, that remote upstream token is mapped to the token that the requesting node returned--the local token.
 
