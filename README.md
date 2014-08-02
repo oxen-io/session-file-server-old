@@ -13,11 +13,15 @@ Compatibility is goal #1.
 
 It can work as a back up to the main app.net. So while app.net is running everything could feel like one network.
 
-A local account can be linked with an App.net account. All local created post can be cross posted to app.net. All app.net created post can be streaming into our data source and out to clients. Ensuring seemless two way posting between the networks on a per user basis.
+A local AltAPI account can be linked with an App.net account. All locally created posts can be cross posted to app.net. All app.net created posts can be streaming into our data source and out to clients, ensuring seemless two way posting between the networks on a per user basis.
 
-An API server operator can decide whether to allow non-linked app.net accounts to be able to posts or not. If not allowed they're be a complete two-way App.net relay and backup. If they're allowed to post then the server operator will end up with content only available on their network.
+An API server operator can decide whether to allow non-linked app.net accounts to be able to post or not. If not allowed, there would be a complete two-way App.net relay and backup; this is because an app.net account posting to that AltAPI would be linked to a local AltAPI account, which means that the data would propagate through the AltAPI network and be preserved. Otherwise, if non-linked app.net accounts are allowed to post then the server operator will end up with content only available on their node.
 
 This client/server relationship actually allows an API server whether it's app.net or other API compliant servers to link up in a hub-spoke topology and distribute the network across additional resources. Though work and planning will need to be put into distributed authentication and authorize.
+
+Users would authorize AltAPI with their app.net accounts, just like they would any other app.net app. We envision users selecting from a list of AltAPI nodes before authorizing with it.
+
+The authorization flow itself would happen via OAuth proxy. This means that OAuth requests propagate up nodes until reaching the top node (usually app.net; otherwise the next connected AltAPI node would take its place). At each successive node, a token is returned, then the request continues upstream. When the subsequent node returns a token, that remote upstream token is mapped to the token that the requesting node returned--the local token.
 
 As well as you can set up your own standalone social network and embrace all the app.net clients that support setting an alternative API root.
 
