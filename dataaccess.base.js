@@ -198,6 +198,22 @@ module.exports = {
       callback(null, null);
     }
   },
+  addRepost: function(postid, token, callback) {
+    if (this.next) {
+      this.next.addRepost(postid, token, callback);
+    } else {
+      console.log('dataaccess.base.js::addRepost - write me!');
+      callback(null, null);
+    }
+  },
+  delRepost: function(postid, token, callback) {
+    if (this.next) {
+      this.next.delRepost(postid, token, callback);
+    } else {
+      console.log('dataaccess.base.js::delRepost - write me!');
+      callback(null, null);
+    }
+  },
   getPost: function(id, callback) {
     if (this.next) {
       this.next.getPost(id, callback);
@@ -378,6 +394,22 @@ module.exports = {
     }
   },
   /** Star/Interactions */
+  addStar: function(postid, token, callback) {
+    if (this.next) {
+      this.next.addStar(postid, token, callback);
+    } else {
+      console.log('dataaccess.base.js::addStar - write me!');
+      callback(null, null);
+    }
+  },
+  delStar: function(postid, token, callback) {
+    if (this.next) {
+      this.next.delStar(postid, token, callback);
+    } else {
+      console.log('dataaccess.base.js::addStar - write me!');
+      callback(null, null);
+    }
+  },
   setInteraction: function(userid, postid, type, metaid, deleted, ts, callback) {
     if (this.next) {
       this.next.setInteraction(userid, postid, type, metaid, deleted, ts, callback);

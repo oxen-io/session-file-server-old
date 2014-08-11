@@ -97,7 +97,19 @@ module.exports=function(app, prefix) {
     if (req.body.annotations) {
       postdata.annotations=req.body.annotations;
     }
-    dispatcher.addPost(postdata, req.token, callbacks.postCallback(resp));
+    dispatcher.addPost(postdata, req.token, callbacks.postCallback(resp, req.token));
+  });
+  app.post(prefix+'/posts/:post_id/star', function(req, resp) {
+    dispatcher.addStar(req.params.post_id, req.token, callbacks.postCallback(resp, req.token));
+  });
+  app.delete(prefix+'/posts/:post_id/star', function(req, resp) {
+    dispatcher.delStar(req.params.post_id, req.token, callbacks.postCallback(resp, req.token));
+  });
+  app.post(prefix+'/posts/:post_id/repost', function(req, resp) {
+    dispatcher.addRepost(req.params.post_id, req.token, callbacks.postCallback(resp, req.token));
+  });
+  app.delete(prefix+'/posts/:post_id/repost', function(req, resp) {
+    dispatcher.delRepost(req.params.post_id, req.token, callbacks.postCallback(resp, req.token));
   });
 
   // {"meta":{"code":401,"error_message":"Call requires authentication: This resource requires authentication and no token was provided."}}

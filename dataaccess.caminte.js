@@ -646,6 +646,22 @@ module.exports = {
     //db_insert(new postModel(ipost), postModel, callback);
     // maybe call to check garbage collection?
   },
+  addRepost: function(postid, token, callback) {
+    if (this.next) {
+      this.next.addRepost(postid, token, callback);
+    } else {
+      console.log('dataaccess.base.js::addRepost - write me!');
+      callback(null, null);
+    }
+  },
+  delRepost: function(postid, token, callback) {
+    if (this.next) {
+      this.next.delRepost(postid, token, callback);
+    } else {
+      console.log('dataaccess.base.js::delRepost - write me!');
+      callback(null, null);
+    }
+  },
   getPost: function(id, callback) {
     //console.log('dataaccess.caminte.js::getPost - id is '+id);
     if (id==undefined) {
@@ -1118,6 +1134,22 @@ module.exports = {
     callback(null, null);
   },
   /** Star/Interactions */
+  addStar: function(postid, token, callback) {
+    if (this.next) {
+      this.next.addStar(postid, token, callback);
+    } else {
+      console.log('dataaccess.base.js::addStar - write me!');
+      callback(null, null);
+    }
+  },
+  delStar: function(postid, token, callback) {
+    if (this.next) {
+      this.next.delStar(postid, token, callback);
+    } else {
+      console.log('dataaccess.base.js::delStar - write me!');
+      callback(null, null);
+    }
+  },
   setInteraction: function(userid, postid, type, metaid, deleted, ts, callback) {
     // is there an existing match for this key (userid,postid,type)
     interactionModel.find({ where: { userid: userid, typeid: postid, type: type } },function(err,foundInteraction) {

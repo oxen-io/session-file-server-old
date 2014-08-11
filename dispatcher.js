@@ -359,6 +359,12 @@ module.exports = {
       }); // getUser
     },1); // getClient
   },
+  addRepost: function(postid, token, callback) {
+    this.cache.addRepost(postid, token, callback);
+  },
+  delRepost: function(postid, token, callback) {
+    this.cache.delRepost(postid, token, callback);
+  },
   /**
    * get single post from data access
    * @param {number} id - the new post object
@@ -778,6 +784,12 @@ module.exports = {
   // star (interaction)
   //
   // id is meta.id, not sure what this is yet
+  addStar: function(postid, token, callback) {
+    this.cache.addStar(postid, token, callback);
+  },
+  delStar: function(postid, token, callback) {
+    this.cache.delStar(postid, token, callback);
+  },
   /**
    * add/update star
    * @param {object} data - stream star object

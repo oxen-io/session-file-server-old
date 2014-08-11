@@ -275,6 +275,92 @@ module.exports = {
       this.next.setPost(ipost, callback);
     }
   },
+  addRepost: function(postid, token, callback) {
+    var ref=this;
+    console.log('proxying posts/repost '+postid);
+    proxywrites++;
+    proxycalls++;
+    request.post({
+      url: ref.apiroot+'/posts/'+postid+'/repost',
+      method: 'POST',
+      headers: {
+        "Authorization": "Bearer "+token,
+      }
+    }, function(e, r, body) {
+      if (!e && r.statusCode == 200) {
+        var data=JSON.parse(body);
+        if (data.meta.code==200) {
+          //console.dir(data.data);
+          console.log('post repost written to network as '+data.data.id+' as '+data.data.user.id);
+          // the response can be setPost'd
+          //ref.setPost(body);
+          // it's formatted as ADN format
+          // callback needs to expect DB format...
+          // mainly the created_at
+          callback(data.data, null);
+        } else {
+          console.log('failure? ',data.meta);
+          callback(null, e);
+        }
+      } else {
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, e);
+      }
+      /*
+      if (this.next) {
+        this.next.addRepost(postid, token, callback);
+      } else {
+        console.log('dataaccess.base.js::addRepost - write me!');
+        callback(null, null);
+      }
+      */
+    });
+  },
+  delRepost: function(postid, token, callback) {
+    var ref=this;
+    console.log('proxying posts/repost '+postid);
+    proxywrites++;
+    proxycalls++;
+    request.del({
+      url: ref.apiroot+'/posts/'+postid+'/repost',
+      method: 'DELETE',
+      headers: {
+        "Authorization": "Bearer "+token,
+      }
+    }, function(e, r, body) {
+      if (!e && r.statusCode == 200) {
+        var data=JSON.parse(body);
+        if (data.meta.code==200) {
+          //console.dir(data.data);
+          console.log('post unrepost written to network as '+data.data.id+' as '+data.data.user.id);
+          // the response can be setPost'd
+          //ref.setPost(body);
+          // it's formatted as ADN format
+          // callback needs to expect DB format...
+          // mainly the created_at
+          callback(data.data, null);
+        } else {
+          console.log('failure? ',data.meta);
+          callback(null, e);
+        }
+      } else {
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, e);
+      }
+      /*
+      if (this.next) {
+        this.next.addRepost(postid, token, callback);
+      } else {
+        console.log('dataaccess.base.js::delRepost - write me!');
+        callback(null, null);
+      }
+      */
+    });
+  },
   getPost: function(id, callback) {
     if (id==undefined) {
       callback(null, 'dataccess.proxy.js::getPost - id is undefined');
@@ -652,6 +738,92 @@ module.exports = {
     }
   },
   /** Star/Interactions */
+  addStar: function(postid, token, callback) {
+    var ref=this;
+    console.log('proxying posts/star '+postid);
+    proxywrites++;
+    proxycalls++;
+    request.post({
+      url: ref.apiroot+'/posts/'+postid+'/star',
+      method: 'POST',
+      headers: {
+        "Authorization": "Bearer "+token,
+      }
+    }, function(e, r, body) {
+      if (!e && r.statusCode == 200) {
+        var data=JSON.parse(body);
+        if (data.meta.code==200) {
+          //console.dir(data.data);
+          console.log('post star written to network as '+data.data.id+' as '+data.data.user.id);
+          // the response can be setPost'd
+          //ref.setPost(body);
+          // it's formatted as ADN format
+          // callback needs to expect DB format...
+          // mainly the created_at
+          callback(data.data, null);
+        } else {
+          console.log('failure? ',data.meta);
+          callback(null, e);
+        }
+      } else {
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, e);
+      }
+      /*
+      if (this.next) {
+        this.next.addStar(postid, token, callback);
+      } else {
+        console.log('dataaccess.base.js::addStar - write me!');
+        callback(null, null);
+      }
+      */
+    });
+  },
+  delStar: function(postid, token, callback) {
+    var ref=this;
+    console.log('proxying posts/unstar '+postid);
+    proxywrites++;
+    proxycalls++;
+    request.del({
+      url: ref.apiroot+'/posts/'+postid+'/star',
+      method: 'DELETE',
+      headers: {
+        "Authorization": "Bearer "+token,
+      }
+    }, function(e, r, body) {
+      if (!e && r.statusCode == 200) {
+        var data=JSON.parse(body);
+        if (data.meta.code==200) {
+          //console.dir(data.data);
+          console.log('post unstar written to network as '+data.data.id+' as '+data.data.user.id);
+          // the response can be setPost'd
+          //ref.setPost(body);
+          // it's formatted as ADN format
+          // callback needs to expect DB format...
+          // mainly the created_at
+          callback(data.data, null);
+        } else {
+          console.log('failure? ',data.meta);
+          callback(null, e);
+        }
+      } else {
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, e);
+      }
+      /*
+      if (this.next) {
+        this.next.addStar(postid, token, callback);
+      } else {
+        console.log('dataaccess.base.js::delStar - write me!');
+        callback(null, null);
+      }
+      */
+    });
+  },
   setInteraction: function(userid, postid, type, metaid, deleted, ts, callback) {
     if (this.next) {
       this.next.setInteraction(userid, postid, type, metaid, deleted, ts, callback);
