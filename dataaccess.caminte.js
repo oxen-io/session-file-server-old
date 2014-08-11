@@ -365,7 +365,7 @@ module.exports = {
           ref.next.getUser(userid, callback);
           return;
         }
-      } 
+      }
       callback(user, err);
     });
   },
@@ -501,7 +501,7 @@ module.exports = {
       callback(post,err);
     });
   },
-  getUserPosts: function(userid, params, callback) {
+  getUserPosts: function(user, params, callback) {
     var ref=this;
     /*
     postModel.find({ where: { userid: userid}, order: "id asc", limit: 1}, function(err, posts) {
@@ -511,7 +511,14 @@ module.exports = {
       console.log('Last User '+userid+' Post '+posts[0].id);
     });
     */
-    postModel.find({ where: { userid: userid} }, function(err, posts) {
+    var search={};
+    if (user[0]=='@') {
+      // uhm I don't think posts has a username field...
+      search.username=user.substr(1);
+    } else {
+      search.userid=user;
+    }
+    postModel.find({ where: search }, function(err, posts) {
       if (err==null && posts==null) {
         if (ref.next) {
           ref.next.getUserPosts(userid, params, callback);
@@ -538,7 +545,7 @@ module.exports = {
         maxid=20;
       }
       //console.log('max post id in data store is '+maxid);
-      
+
       if (params.before_id) {
         if (!params.since_id) {
           params.since_id=Math.max(params.before_id-count,0);
@@ -961,23 +968,33 @@ module.exports = {
   // getUserInteractions, remember reposts are stored here too
   // if we're going to use one table, let's keep the code advantages from that
   // getUserStarPosts
-  getInteractions: function(type, userid, params, callback) {
+  getInteractions: function(type, user, params, callback) {
     //console.log('Getting '+type+' for '+userid);
     var ref=this;
-    interactionModel.find({ where: { userid: userid, type: type, idtype: 'post' } },function(err, interactions) {
-      if (interactions==null && err==null) {
-        // none found
-        //console.log('dataaccess.caminte.js::getStars - check proxy?');
-        // user.stars_updated vs appstream start
-        // if updated>appstream start, we can assume it's up to date
-        if (ref.next) {
-          ref.next.getInteractions(type, userid, params, callback);
-          return;
+    var finishfunc=function(userid) {
+      interactionModel.find({ where: { userid: userid, type: type, idtype: 'post' } }, function(err, interactions) {
+        if (interactions==null && err==null) {
+          // none found
+          //console.log('dataaccess.caminte.js::getStars - check proxy?');
+          // user.stars_updated vs appstream start
+          // if updated>appstream start, we can assume it's up to date
+          if (ref.next) {
+            ref.next.getInteractions(type, userid, params, callback);
+            return;
+          }
         }
-      }
-      //console.dir(interactions);
-      callback(interactions,err);
-    });
+        //console.dir(interactions);
+        callback(interactions, err);
+      });
+    };
+    if (user[0]=='@') {
+      var username=user.substr(1);
+      this.getUserID(username, function(userobj, err) {
+        finishfunc(userobj.id);
+      });
+    } else {
+      finishfunc(user);
+    }
   },
   getOEmbed: function(url, callback) {
     if (this.next) {

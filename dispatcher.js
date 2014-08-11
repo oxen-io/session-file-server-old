@@ -243,7 +243,7 @@ module.exports = {
       } else {
         console.log('dispatcher.js::postToAPI - client is ', client, clientErr);
       }
-      
+
       //console.log('dispatcher.js::postToAPI - is ref this?',ref);
       //console.log('dispatcher.js::postToAPI - getting user '+post.userid);
       ref.getUser(post.userid, null, function(user,err) {
@@ -746,16 +746,27 @@ module.exports = {
       callback(res,null);
     }
   },
-  getUser: function(id, params, callback) {
+  getUser: function(user, params, callback) {
     //console.log('dispatcher.js::getUser - '+id,params,callback);
     if (!callback) {
-      callback(null,'dispatcher.js::userToAPI - no getUser passed in');
+      console.log('dispatcher.js::getUser - no callback passed in');
+      return;
+    }
+    if (!user) {
+      callback(null,'dispatcher.js::getUser - no getUser passed in');
       return;
     }
     var ref=this;
-    this.cache.getUser(id, function(user, userErr, userMeta) {
+    var func='getUser';
+    // make sure we check the cache
+    if (user[0]=='@') {
+      func='getUserID';
+      // strip @ from beginning
+      user=user.substr(1);
+    }
+    this.cache[func](user, function(userobj, userErr, userMeta) {
       //console.log('dispatcher.js::getUser - gotUser', userErr);
-      ref.userToAPI(user, callback, userMeta);
+      ref.userToAPI(userobj, callback, userMeta);
     });
   },
   /** user_follow */
