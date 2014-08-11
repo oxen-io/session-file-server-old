@@ -53,22 +53,30 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/users/@'+username
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      // upload fresh proxy data back into dataSource
-      ref.dispatcher.updateUser(res.data,new Date().getTime(), function(user, err) {
-        if (user==null & err==null) {
-          if (this.next) {
-            this.next.getUserID(username, callback);
-            return;
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        // upload fresh proxy data back into dataSource
+        ref.dispatcher.updateUser(res.data,new Date().getTime(),function(user,err) {
+          if (user==null & err==null) {
+            if (this.next) {
+              this.next.getUserID(username, callback);
+              return;
+            }
+          } else if (err) {
+            console.log("dataccess.proxy.js:getUserID - User get err: ",err);
+          //} else {
+            //console.log("User Updated");
           }
-        } else if (err) {
-          console.log("dataccess.proxy.js - User get err: ", err);
-        //} else {
-          //console.log("User Updated");
-        }
-        // finally reutrn
-        callback(user, err, res.meta);
-      });
+          // finally reutrn
+          callback(user,err,res.meta);
+        });
+      } else {
+        console.log('dataccess.proxy.js:getUserID - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
+      }
     });
   },
   // callback is user,err,meta
@@ -87,22 +95,32 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/users/'+userid
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      // upload fresh proxy data back into dataSource
-      ref.dispatcher.updateUser(res.data, new Date().getTime(), function(user, err) {
-        if (user==null & err==null) {
-          if (this.next) {
-            this.next.getUser(userid, callback);
-            return;
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        // upload fresh proxy data back into dataSource
+        //console.log('dataccess.proxy.js:getUser - writing to user db ',res.data.id);
+        ref.dispatcher.updateUser(res.data, new Date().getTime(), function(user, err) {
+          console.log('dataccess.proxy.js:getUser - proxy response received');
+          if (user==null & err==null) {
+            if (this.next) {
+              this.next.getUser(userid, callback);
+              return;
+            }
+          } else if (err) {
+            console.log("dataccess.proxy.js:getUser - User Update err: ",err);
+          //} else {
+            //console.log("User Updated");
           }
-        } else if (err) {
-          console.log("dataccess.proxy.js - User Update err: ", err);
-        //} else {
-          //console.log("User Updated");
-        }
-        // finally reutrn
-        callback(user, err, res.meta);
-      });
+          // finally reutrn
+          callback(user, err, res.meta);
+        });
+      } else {
+        console.log('dataccess.proxy.js:getUser - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
+      }
     });
   },
   /*
@@ -220,19 +238,27 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/posts/'+id
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      ref.dispatcher.setPost(res.data, function(post, err) {
-        //console.log('dataccess.proxy.js::getPost - setPost: '+post+','+err);
-        if (post==null && err==null) {
-          if (this.next) {
-            this.next.getPost(id, callback);
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        ref.dispatcher.setPost(res.data, function(post, err) {
+          //console.log('dataccess.proxy.js::getPost - setPost: '+post.id+' ['+id+'/'+res.data.id+'],'+err);
+          if (post==null && err==null) {
+            if (this.next) {
+              this.next.getPost(id, callback);
+            } else {
+              callback(res.data, null, res.meta);
+            }
           } else {
-            callback(res.data, null, res.meta);
+            callback(post, err, res.meta);
           }
-        } else {
-          callback(post, err, res.meta);
-        }
-      });
+        });
+      } else {
+        console.log('dataccess.proxy.js:getPost - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
+      }
     });
   },
   // user can be an id or @username
@@ -251,12 +277,22 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/users/'+user+'/posts'
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      for(var i in res.data) {
-        var post=res.data[i];
-        ref.dispatcher.setPost(post);
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        for(var i in res.data) {
+          var post=res.data[i];
+          ref.dispatcher.setPost(post);
+        }
+        callback(res.data, null, res.meta);
+      } else {
+        console.log('dataccess.proxy.js:getUserPosts - request failure');
+        console.log('error', e);
+        if (r) {
+          console.log('statusCode', r.statusCode);
+        }
+        console.log('body', body);
+        callback(null, e, null);
       }
-      callback(res.data, null, res.meta);
     });
   },
   getGlobal: function(params, callback) {
@@ -281,14 +317,22 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/posts/stream/global?'+querystring
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      //console.dir(res);
-      for(var i in res.data) {
-        var post=res.data[i];
-        //console.log('Processing post '+post.id);
-        ref.dispatcher.setPost(post);
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        //console.dir(res);
+        for(var i in res.data) {
+          var post=res.data[i];
+          //console.log('Processing post '+post.id);
+          ref.dispatcher.setPost(post);
+        }
+        callback(res.data, null, res.meta);
+      } else {
+        console.log('dataccess.proxy.js:getGlobal - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
       }
-      callback(res.data, null, res.meta);
     });
   },
   getExplore: function(params, callback) {
@@ -313,8 +357,19 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/posts/stream/explore?'+querystring
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      callback(res.data, null, res.meta);
+      if (!e && r.statusCode == 200) {
+        // this can be undefined...
+        console.log('status',r.statusCode,'e',e,'body',body);
+        var res=JSON.parse(body);
+        console.log('received explore');
+        callback(res.data, null, res.meta);
+      } else {
+        console.log('dataccess.proxy.js:getExplore - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
+      }
     });
   },
   /** channels */
@@ -334,19 +389,27 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/channels/'+id
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      var ts=new Date().getTime();
-      ref.dispatcher.setChannel(res.data, ts, function(chnl,err) {
-        if (chnl==null && err==null) {
-          if (this.next) {
-            this.next.getChannel(id, callback);
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        var ts=new Date().getTime();
+        ref.dispatcher.setChannel(res.data, ts, function(chnl,err) {
+          if (chnl==null && err==null) {
+            if (this.next) {
+              this.next.getChannel(id, callback);
+            } else {
+              callback(res.data,null,res.meta);
+            }
           } else {
-            callback(res.data, null, res.meta);
+            callback(chnl, err, res.meta);
           }
-        } else {
-          callback(chnl, err, res.meta);
-        }
-      });
+        });
+      } else {
+        console.log('dataccess.proxy.js:getChannel - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
+      }
     });
   },
   /** messages */
@@ -366,16 +429,24 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/channels/messages?ids='+id
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      ref.dispatcher.setMessage(res.data, function(msg,err) {
-        if (msg==null && err==null) {
-          if (this.next) {
-            this.next.getMessage(id, callback);
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        ref.dispatcher.setMessage(res.data, function(msg,err) {
+          if (msg==null && err==null) {
+            if (this.next) {
+              this.next.getMessage(id, callback);
+            }
+          } else {
+            callback(msg, err, res.meta);
           }
-        } else {
-          callback(msg, err, res.meta);
-        }
-      });
+        });
+      } else {
+        console.log('dataccess.proxy.js:getMessage - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
+      }
     });
   },
   getChannelMessages: function(channelid, params, callback) {
@@ -389,12 +460,20 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/channels/'+channelid+'/messages'
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      for(var i in res.data) {
-        var msg=res.data[i];
-        ref.dispatcher.setMessage(msg);
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        for(var i in res.data) {
+          var msg=res.data[i];
+          ref.dispatcher.setMessage(msg);
+        }
+        callback(res.data, null, res.meta);
+      } else {
+        console.log('dataccess.proxy.js:getChannelMessages - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
       }
-      callback(res.data, null, res.meta);
     });
 
   },
@@ -460,20 +539,28 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/posts/tag/'+hashtag
     }, function(e, r, body) {
-      var res=JSON.parse(body);
-      var entries=[];
-      for(var i in res.data) {
-        var post=res.data[i];
-        ref.dispatcher.setPost(post);
-        var entry={
-          idtype: 'post',
-          typeid: post.id,
-          type: 'hashtag',
-          text: hashtag
-        };
-        entries.push(entry);
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        var entries=[];
+        for(var i in res.data) {
+          var post=res.data[i];
+          ref.dispatcher.setPost(post);
+          var entry={
+            idtype: 'post',
+            typeid: post.id,
+            type: 'hashtag',
+            text: hashtag
+          };
+          entries.push(entry);
+        }
+        callback(entries, null, res.meta);
+      } else {
+        console.log('dataccess.proxy.js:getHashtagEntities - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
       }
-      callback(entries, null, res.meta);
     });
   },
   /**
@@ -529,25 +616,33 @@ module.exports = {
       request.get({
         url: ref.apiroot+'/users/'+userid+'/stars'
       }, function(e, r, body) {
-        var res=JSON.parse(body);
-        // returns a list of posts but not what this function normally returns
-        // a list of interactions
-        //console.log(res);
-        var actions=[];
-        for(var i in res.data) {
-          var post=res.data[i];
-          ref.dispatcher.setPost(post);
-          var action={
-            userid: userid,
-            type: 'star',
-            datetime: post.created_at,
-            idtype: 'post',
-            typeid: post.id,
-            asthisid: 0, // meta.id
-          };
-          actions.push(action);
+        if (!e && r.statusCode == 200) {
+          var res=JSON.parse(body);
+          // returns a list of posts but not what this function normally returns
+          // a list of interactions
+          //console.log(res);
+          var actions=[];
+          for(var i in res.data) {
+            var post=res.data[i];
+            ref.dispatcher.setPost(post);
+            var action={
+              userid: userid,
+              type: 'star',
+              datetime: post.created_at,
+              idtype: 'post',
+              typeid: post.id,
+              asthisid: 0, // meta.id
+            };
+            actions.push(action);
+          }
+          callback(actions, null, res.meta);
+        } else {
+          console.log('dataccess.proxy.js:getUserStars - request failure');
+          console.log('error', e);
+          console.log('statusCode', r.statusCode);
+          console.log('body', body);
+          callback(null, err, null);
         }
-        callback(actions, null, res.meta);
       });
 
     } else {
@@ -564,9 +659,17 @@ module.exports = {
     request.get({
       url: ref.apiroot+'/oembed?url='+url
     }, function(e, r, body) {
-      var data=JSON.parse(body); // no data container, weird...
-      //console.log('dataccess.proxy.js::getOEmbed - got ',res);
-      callback(data, null);
+      if (!e && r.statusCode == 200) {
+        var data=JSON.parse(body); // no data container, weird...
+        //console.log('dataccess.proxy.js::getOEmbed - got ',res);
+        callback(data, null);
+      } else {
+        console.log('dataccess.proxy.js:getOEmbed - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
+      }
     });
   }
 }
