@@ -8,6 +8,8 @@ var request = require('request');
 require('http').globalAgent.maxSockets = Infinity
 require('https').globalAgent.maxSockets = Infinity
 
+/** @todo make count configureable, low latency=20count, aggressive cache=200count */
+
 var proxycalls=0;
 var lcalls=0;
 // minutely status report

@@ -256,7 +256,7 @@ var fileModel = schemaData.define('file', {
 
 /** minutely status report */
 // @todo name function and call it on startup
-setInterval(function () {
+var statusmonitor=function () {
   var ts=new Date().getTime();
   userModel.count({},function(err, userCount) {
     followModel.count({},function(err, followCount) {
@@ -293,9 +293,9 @@ setInterval(function () {
       });
     });
   });
-},60*1000);
-
-
+};
+statusmonitor();
+setInterval(statusmonitor,60*1000);
 
 // cheat macros
 function db_insert(rec, model, callback) {
@@ -864,13 +864,19 @@ module.exports = {
       for(var i in entities) {
         //console.dir(entities[i]);
         // insert
+        // ok we don't want to copy/reference here, this stomps id
         entity=new entityModel(entities[i]);
+        // well maybe if we clean up well enough
+        entity.id=null;
         entity.typeid=id;
         entity.idtype=type;
         entity.type=entitytype;
         entity.text=entities[i].name?entities[i].name:entities[i].text;
         entity.alt=entities[i].url?entities[i].url:entities[i].id;
         entity.altnum=entities[i].is_leading?entities[i].is_leading:entities[i].amended_len;
+        if (!entity.alt) {
+          entity.alt='';
+        }
         //console.log('Insert entity '+entitytype+' #'+i+' '+type);
         db_insert(entity, entityModel);
       }
