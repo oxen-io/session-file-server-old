@@ -186,12 +186,19 @@ I don't think any app functionality is harmed by having too much data, so we ski
 
 all other include_* parameters will come at a later date.
 
-##Phase #2 - Authenticated endpoints
-This will have a local user database. And then you can authorize official your official ADN account. That way no one has to expose any current password. Local users will be mapped on to remote users through the authorize process. 
-
-We will need to implement our own OAuth server that follows the App.net process with appropriate scopes. 
+##Phase #2 - Authenticated endpoints - In Progress
+The goal is to allow you to authorize your official ADN account with the AltAPI. (This is complete) And with the token authorization start building the token-require API endpoints.
 
 We will start developing the write endpoints as well as:
+
+In Progress:
+
++ post
++ star
++ repost
+
+Incomplete:
+
 - users
 - files
 - interactions
@@ -199,6 +206,36 @@ We will start developing the write endpoints as well as:
 - tokens (app/user)
 - mutes
 - blocks
+- channel//message
+
+And token-only read endpoints:
+
+In Progress:
+
++ user//mentions
++ post//replies
++ post/stream
++ users/me/interactions
++ token
+
+Incomplete:
+
+- user//posts
+- user//following
+- user//followers
+- user//muted
+- user//blocked
+- user//reposts
+- user//stars
+- user/me/channels
+- users/me/channels/pm/num_unread
+- channel//subscribe
+- channel//mute
+- channels/messages
+- users/me/messages
+- files/
+- users/me/files
+- files//content
 
 ##Phase #3 - Streaming
 I feel that not many important app.net clients embrace user or app streaming (outside push notifications). So we can delay this peice until phase #3.
