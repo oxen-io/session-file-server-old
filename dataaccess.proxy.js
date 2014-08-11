@@ -1,6 +1,13 @@
 /** get request http library */
 var request = require('request');
 
+// remove 5 connections to upstream at a time
+// we definitely want to burst when we need it
+// though should set some type of limit, like the max ADN resets
+// for what time period though? one frequency?
+require('http').globalAgent.maxSockets = Infinity
+require('https').globalAgent.maxSockets = Infinity
+
 var proxycalls=0;
 var lcalls=0;
 // minutely status report

@@ -7,6 +7,9 @@ we're responsible for filteirng models to make sure we only return what matches 
 */
 /** get request http library */
 var request = require('request');
+require('http').globalAgent.maxSockets = Infinity
+require('https').globalAgent.maxSockets = Infinity
+
 var callbacks = require('./dialect.appdotnet_official.callbacks.js');
 
 /**
