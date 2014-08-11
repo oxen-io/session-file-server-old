@@ -182,9 +182,9 @@ module.exports = {
   /**
    * posts
    */
-  addPost: function(ipost, callback) {
+  addPost: function(ipost, token, callback) {
     if (this.next) {
-      this.next.addPost(ipost, callback);
+      this.next.addPost(ipost, token, callback);
     } else {
       console.log('dataaccess.base.js::addPost - write me!');
       callback(null, null);

@@ -628,9 +628,10 @@ module.exports = {
   /**
    * posts
    */
-  addPost: function(ipost, callback) {
+  addPost: function(ipost, token, callback) {
+    // if we local commit, do we also want to relay it upstream?
     if (this.next) {
-      this.next.addPost(ipost, callback);
+      this.next.addPost(ipost, token, callback);
     }
   },
   setPost:  function(ipost, callback) {

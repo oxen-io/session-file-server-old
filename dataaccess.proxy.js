@@ -19,7 +19,7 @@ setInterval(function () {
   console.log('data.proxy report '+(proxycalls-lcalls)+' proxy recent calls. '+proxycalls+' overall');
   // just need a redis info call to pull memory and keys stats
   lcalls=proxycalls;
-},60*1000);
+}, 60*1000);
 
 // pass in proxy settings or just conf it?
 module.exports = {
@@ -29,7 +29,7 @@ module.exports = {
    */
   addUser: function(username, password, callback) {
     if (this.next) {
-      this.next.addUser(username,password,callback);
+      this.next.addUser(username, password, callback);
     }
   },
   setUser: function(iuser, ts, callback) {
@@ -213,9 +213,9 @@ module.exports = {
   /**
    * posts
    */
-  addPost: function(ipost, callback) {
+  addPost: function(ipost, token, callback) {
     if (this.next) {
-      this.next.addPost(ipost, callback);
+      this.next.addPost(ipost, token, callback);
     }
   },
   setPost:  function(ipost, callback) {

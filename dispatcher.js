@@ -99,6 +99,9 @@ module.exports = {
   notsilent: true,
   /** posts */
   // difference between stream and api?
+  addPost: function(post, token, callback) {
+    this.cache.addPost(post, token, callback);
+  },
   /**
    * Add/Update post in data store
    * @param {object} post - the new post object
@@ -809,6 +812,36 @@ module.exports = {
     if (this.notsilent) {
       process.stdout.write(deleted?'_':'*');
     }
+  },
+  /**
+   * get interactions from data access
+   * @param {metaCallback} callback - function to call after completion
+   */
+  getInteractions: function(userid, callback) {
+    var interactions=[]; // [ts, {}]
+    // get a list of interactions for this user
+    // interactions are follows = users
+    // stars,reposts,reply = posts
+    // welcome will be empty
+    // broadcast_create, broadcast_subscribe, broadcast_subscribe will be channels
+    // build a list sorted by timestamp
+    var ref=this;
+    this.getUser(userid, null, function(self, err) {
+      ref.getUser(2, null, function(actor, err) {
+        var interaction={
+            "action": "follow",
+            "event_date": "2012-07-16T17:23:34Z",
+            "objects": [
+              self
+            ],
+            "users": [
+              actor
+            ]
+        };
+        // pagination_id
+        callback([interaction],null);
+      });
+    });
   },
   //
   // mute
