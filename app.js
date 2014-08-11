@@ -21,6 +21,8 @@ nconf.argv().env('__').file({file: config_path}).file('model', {file: config_mod
 /** set up express framework */
 var express = require('express');
 var app = express();
+var Cookies = require( "cookies" );
+var bodyParser = require('body-parser');
 /** get file io imported */
 var fs = require('fs');
 
@@ -97,14 +99,48 @@ var pageParams=['since_id','before_id','count','last_read','last_read_inclusive'
 var channelParams=['channel_types'];
 var fileParams=['file_types'];
 
+/** need this for POST parsing */
+// heard this writes to /tmp and doesn't scale.. need to confirm if current versions have this problem
+app.use(bodyParser());
+
 /**
  * Set up middleware to check for prettyPrint
  * This is run on each incoming request
  */
 app.use(function(req, res, next) {
-  if (req.get('Authorization')) {
-    // Authorization Bearer <YOUR ACCESS TOKEN>
-    //console.log('Authorization '+req.get('Authorization'));
+  //console.dir(req); // super express debug
+  if (req.get('Authorization') || req.query.access_token) {
+    if (req.query.access_token) {
+      req.token=req.query.access_token;
+      // probably should validate the token here
+      dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+        if (usertoken==null) {
+          console.log('Invalid query token (Server restarted on clients?...): '+req.query.access_token+' err: '+err);
+          req.token=null;
+          if (req.get('Authorization')) {
+            //console.log('Authorization: '+req.get('Authorization'));
+            // Authorization Bearer <YOUR ACCESS TOKEN>
+            req.token=req.get('Authorization').replace('Bearer ','');
+          }
+        }
+      });
+    } else {
+      if (req.get('Authorization')) {
+        //console.log('Authorization: '+req.get('Authorization'));
+        // Authorization Bearer <YOUR ACCESS TOKEN>
+        req.token=req.get('Authorization').replace('Bearer ','');
+        dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+          if (usertoken==null) {
+            console.log('Invalid header token (Server restarted on clients?...): '+req.token);
+            req.token=null;
+          }
+        });
+      }
+    }
+  }
+  // debug incoming requests
+  if (dispatcher.notsilent && upstream_client_id!='NotSet') {
+    process.stdout.write("\n");
   }
   console.log('Request for '+req.path);
   // set defaults
@@ -181,6 +217,7 @@ app.use(function(req, res, next) {
     res.prettyPrint=1;
   }
   res.JSONP=req.query.callback || '';
+  req.cookies = new Cookies( req, res);
   next();
 });
 
@@ -219,9 +256,15 @@ app.upstream_client_secret=upstream_client_secret;
 app.webport=webport;
 app.apiroot=apiroot;
 
-app.get('/oauth/authenticate',function(req,resp) {
-  resp.redirect(req.query.redirect_uri+'#access_token='+generateToken());
-});
+// only can proxy if we're set up as a client
+if (upstream_client_id!='NotSet') {
+  var oauthproxy=require('./routes.oauth.proxy.js');
+  oauthproxy.setupoauthroutes(app, cache);
+} else {
+  app.get('/oauth/authenticate',function(req,resp) {
+    resp.redirect(req.query.redirect_uri+'#access_token='+generateToken());
+  });
+}
 
 app.get('/signup',function(req,resp) {
   fs.readFile(__dirname+'/templates/signup.html', function(err,data) {

@@ -22,6 +22,38 @@ function ISODateString(d) {
     + pad(parseInt(d.getUTCSeconds()))+'Z';
 }
 
+function formattoken(token) {
+  // TODO: write me
+  if (token.user) {
+    token.user=formatuser(token.user, token);
+  }
+  /*
+    app: {
+      client_id: "m89LnrxQBWt3SgwHaGdDreym2fJuJnvA",
+      link: "http://foo.example.com",
+      name: "Test app",
+    },
+    scopes: [
+      "stream",
+      "messages",
+      "export",
+      "write_post",
+      "follow"
+    ],
+    limits: {
+      "following": 40,
+      "max_file_size": 10000000
+    },
+    "storage": {
+      "available": 8787479688,
+      "used": 1212520312
+    },
+    user: formatuser(user, token),
+    "invite_link": "https://join.app.net/from/notareallink"
+  */
+  return token;
+}
+
 function formatuser(user) {
   if (user) {
     user.id=''+user.id;
@@ -133,6 +165,21 @@ module.exports = {
       }
       if (meta) {
         res.meta=meta;
+      }
+      sendrepsonse(JSON.stringify(res), resp);
+    }
+  },
+
+  'tokenCallback' : function(resp, token) {
+    return function(data, err, meta) {
+      err = typeof err !== 'undefined' ? err : undefined;
+      meta = typeof meta !== 'undefined' ? meta : undefined;
+      var res={
+        meta: meta,
+        data: formattoken(data)
+      };
+      if (res.meta==undefined) {
+        res.meta={ code: 200 };
       }
       sendrepsonse(JSON.stringify(res), resp);
     }
