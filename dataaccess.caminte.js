@@ -276,6 +276,10 @@ var fileModel = schemaData.define('file', {
   last_updated: { type: Date },
 });
 
+//if firstrun (for sqlite3, mysql)
+//schemaData.automigrate(function() {});
+//schemaToken.automigrate(function() {});
+
 // Auth Todo: localUser, localClient
 // Token Todo: userToken, appToken
 // Rate Todo: userTokenLimit, appTokenLimit
@@ -298,6 +302,17 @@ var statusmonitor=function () {
                     // dispatcher's output handles this for now
                     //process.stdout.write("\n");
                     // if using redis
+                    if (schemaDataType=='sqlite3') {
+                      schemaData.client.get('PRAGMA page_count;',function(err, crow) {
+                        //console.log('dataaccess.caminte.js::status sqlite3 page_count', row);
+                        schemaData.client.get('PRAGMA page_size;',function(err, srow) {
+                          var cnt=crow['page_count'];
+                          var psize=srow['page_size'];
+                          var size=cnt*psize;
+                          console.log('dataaccess.caminte.js::status sqlite3 data [',cnt,'x',psize,'] size: ', size);
+                        });
+                      });
+                    }
                     if (schemaDataType=='redis') {
                       //console.dir(schemaAuth.client.server_info);
                       // just need a redis info call to pull memory and keys stats
