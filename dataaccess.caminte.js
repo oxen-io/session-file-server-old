@@ -30,15 +30,42 @@ var Schema = require('caminte').Schema;
 /** schema data backend type */
 var schemaDataType = 'memory';
 /** set up where we're storing the "network data" */
-var schemaData = new Schema(schemaDataType, {port: 6379}); //port number depends on your configuration
+var schemaData = new Schema(schemaDataType, {database: 'data', port: 6379}); //port number depends on your configuration
+/** set up where we're storing the tokens */
+var schemaToken = new Schema(schemaDataType, {database: 'token', port: 6379}); //port number depends on your configuration
 
 // Auth models and accessors can be moved into own file?
 // so that routes.* can access them separately from everything!
 
 // NOTE: all models automically have a default 'id' field that's an AutoIncrement
 
-/*
- * Data Models
+/**
+ * Token Models
+ */
+/** userToken storage model */
+var userTokenModel = schemaToken.define('userToken', {
+  userid: { type: Number, index: true },
+  client_id: { type: String, length: 32, index: true },
+  /** comma separate list of scopes. Available scopes:
+    'basic','stream','write_post','follow','update_profile','public_messages','messages','files' */
+  scopes: { type: String, length: 255 },
+  token: { type: String, length: 98, index: true },
+});
+// scopes 'public_messages','messages','files':*
+// but we can be multiple, not just one...
+//userTokenModel.validatesInclusionOf('scopes', { in: ['basic','stream','write_post','follow','update_profile','public_messages','messages','files']});
+userTokenModel.validatesUniquenessOf('token', { message:'token is not unique'});
+//userTokenModel.validatesUniquenessOf(['userid','client_id'], { message:'user/client is not unique'});
+
+/** appToken storage model */
+var appTokenModel = schemaToken.define('appToken', {
+  client_id: { type: String, length: 32 },
+  token: { type: String, lenghh: 98 },
+});
+appTokenModel.validatesUniquenessOf('token', {message:'token is not unique'});
+
+/**
+ * Network Data Models
  */
 
 // this data needs to not use internal Pks
@@ -281,6 +308,7 @@ var statusmonitor=function () {
                         schemaData.client.on_info_cmd(err, res);
                       });
                       // then pull from counters
+                      console.log("dataaccess.caminte.js::status redis token "+schemaToken.client.server_info.used_memory_human+" "+schemaToken.client.server_info.db0);
                       console.log("dataaccess.caminte.js::status redis data"+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
                     }
                     console.log('dataaccess.caminte.js::status '+userCount+'U '+followCount+'F '+postCount+'P '+channelCount+'C '+messageCount+'M '+subscriptionCount+'s '+interactionCount+'i '+annotationCount+'a '+entityCount+'e');
@@ -296,6 +324,24 @@ var statusmonitor=function () {
 };
 statusmonitor();
 setInterval(statusmonitor,60*1000);
+
+// Not Cryptographically safe
+// FIXME: probably need more of a UUID style generator here...
+function generateUUID(string_length) {
+  var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz';
+  var randomstring = '';
+  for (var x=0;x<string_length;x++) {
+    var letterOrNumber = Math.floor(Math.random() * 2);
+    if (letterOrNumber == 0) {
+      var newNum = Math.floor(Math.random() * 9);
+      randomstring += newNum;
+    } else {
+      var rnum = Math.floor(Math.random() * chars.length);
+      randomstring += chars.substring(rnum,rnum+1);
+    }
+  }
+  return randomstring;
+}
 
 // cheat macros
 function db_insert(rec, model, callback) {
@@ -438,53 +484,108 @@ module.exports = {
   // should we really pass token in? it's cleaner separation if we do
   // even though this is the only implemention of the abstraction
   addAPIUserToken: function(userid, client_id, scopes, token, callback) {
+    // does this user already have a token?
+    userTokenModel.findOne({ where: { userid: userid, client_id: client_id }}, function(err, usertoken) {
+      if (usertoken==null) {
+        var usertoken=new userTokenModel;
+        usertoken.userid=userid;
+        usertoken.client_id=client_id;
+        usertoken.scopes=scopes;
+        usertoken.token=token;
+        // this will call callback if set
+        db_insert(usertoken, userTokenModel, callback);
+      } else {
+        console.log('Already have token');
+        // check scopes
+        // do we auto upgrade scopes?
+        // probably should just fail
+        if (callback) {
+          callback(usertoken, 'Already have token');
+        }
+      }
+    });
+    // if this is local, no need to chain
+    /*
     if (this.next) {
       this.next.addAPIUserToken(userid, client_id, scopes, token, callback);
     }
+    */
   },
   delAPIUserToken: function(token, callback) {
-    if (this.next) {
-      this.next.delAPIUserToken(token, callback);
-    }
+    userTokenModel.findOne({ where: { token: token }}, function(err, usertoken) {
+      db_delete(usertoken.id, userTokenModel, callback);
+    });
   },
   getAPIUserToken: function(token, callback) {
-    if (this.next) {
-      this.next.getAPIUserToken(token, callback);
-    }
+    //console.log('dataaccess.camintejs.js::getAPIUserToken - Token: ',token);
+    userTokenModel.findOne({ where: { token: token }}, function(err, usertoken) {
+      //console.log('dataaccess.camintejs.js::getAPIUserToken - err',err,'usertoken',usertoken);
+      callback(usertoken, err);
+    });
   },
   /*
    * user upstream tokens
    */
   setUpstreamUserToken: function(userid, token, scopes, upstreamUserId, callback) {
-    if (this.next) {
-      this.next.setUpstreamUserToken(userid, token, scopes, upstreamUserId, callback);
-    }
+    // does this user exist
+    userModel.findOne({ where: { userid: userid }}, function(err, user) {
+      if (err) {
+      } else {
+        user.upstream_token=token;
+        user.upstream_scopes=scopes;
+        user.upstream_userid=upstreamUserId;
+        user.save();
+      }
+      if (callback) {
+        callback(user, err);
+      }
+    });
+  },
+  delUpstreamUserToken: function(token) {
+    console.log('dataaccess.camintejs.js::delUpstreamUserToken - write me!');
+  },
+  getUpstreamUserToken: function(userid) {
+    // does this user exist
+    userModel.findOne({ where: { userid: userid }}, function(err, user) {
+      if (err) {
+      } else {
+      }
+      if (callback) {
+        callback(user, err);
+      }
+    });
+
+    console.log('dataaccess.camintejs.js::getUpstreamUserToken - write me!');
   },
   /*
    * local clients
    */
   addLocalClient: function(userid, callback) {
-    if (this.next) {
-      this.next.addLocalClient(userid, callback);
-    }
+    var client=new localClientModel;
+    client.client_id=generateUUID(32);
+    client.secret=generateUUID(32);
+    client.userid=userid;
+    db_insert(client, localClientModel, callback);
   },
   getLocalClient: function(client_id, callback) {
-    if (this.next) {
-      this.next.getLocalClient(client_id, callback);
-    }
+    clientModel.findOne({ where: {client_id: client_id} }, function(err, client) {
+      callback(client, err);
+    });
   },
   delLocalClient: function(client_id,callback) {
-    if (this.next) {
-      this.next.delLocalClient(client_id, callback);
-    }
+    clientModel.findOne({ where: {client_id: client_id} }, function(err, client) {
+      db_delete(client.id, clientModel, callback);
+    });
   },
   /*
    * clients
    */
   addSource: function(client_id, name, link, callback) {
-    if (this.next) {
-      this.next.addSource(client_id, name, link, callback);
-    }
+    var client=new clientModel;
+    client.client_id=client_id;
+    client.name=name;
+    client.link=link;
+    db_insert(client, clientModel, callback);
   },
   getClient: function(client_id, callback) {
     clientModel.findOne({ where: {client_id: client_id} }, function(err, client) {
