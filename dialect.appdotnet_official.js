@@ -22,19 +22,19 @@ module.exports=function(app, prefix) {
    */
   // {"meta":{"code":401,"error_message":"Call requires authentication: This resource requires authentication and no token was provided."}}
   app.get(prefix+'/posts/stream', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp));
   });
   app.get(prefix+'/users/:user_id/mentions', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp));
   });
   app.get(prefix+'/users/:user_id/stars', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp));
   });
   app.get(prefix+'/users/:user_id/following', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.usersCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp));
   });
   app.get(prefix+'/users/:user_id/followers', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.usersCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp));
   });
   /*
    * No token endpoints
@@ -46,30 +46,30 @@ module.exports=function(app, prefix) {
     dispatcher.getUser(req.params.user_id, req.apiParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/users/:user_id/posts', function(req, resp) {
-    dispatcher.getUserPosts(req.params.user_id, req.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getUserPosts(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp));
   });
   app.get(prefix+'/users/:user_id/stars', function(req, resp) {
     //console.log('ADNO::usersStar');
-    dispatcher.getUserStars(req.params.user_id, req.pageParams, callbacks.dataCallback(resp));
+    dispatcher.getUserStars(req.params.user_id, req.apiParams.pageParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/posts/tag/:hashtag', function(req, resp) {
-    dispatcher.getHashtag(req.params.hashtag, req.pageParams, callbacks.dataCallback(resp));
+    dispatcher.getHashtag(req.params.hashtag, req.apiParams.pageParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/posts/stream/global', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.dataCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/posts/stream/explore', function(req, resp) {
-    dispatcher.getExplore(req.pageParams, callbacks.dataCallback(resp));
+    dispatcher.getExplore(req.apiParams.pageParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/posts/stream/explore/:feed', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp));
   });
   // channel_id 1383 is always good for testing
   app.get(prefix+'/channels/:channel_id', function(req, resp) {
     dispatcher.getChannel(req.params.channel_id, req.apiParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/channels/:channel_id/messages', function(req, resp) {
-    dispatcher.getChannelMessages(req.params.channel_id, req.pageParams, callbacks.dataCallback(resp));
+    dispatcher.getChannelMessages(req.params.channel_id, req.apiParams.pageParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/channels/:channel_id/messages/:message_id', function(req, resp) {
     dispatcher.getChannelMessage(req.params.channel_id, req.params.message_id, req.apiParams, callbacks.dataCallback(resp));

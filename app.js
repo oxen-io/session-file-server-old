@@ -33,6 +33,7 @@ var adnstream = require('./ohe/adnstream');
 /** pull configuration from config into variables */
 var apiroot = nconf.get('uplink:apiroot') || 'https://api.app.net';
 var upstream_client_id=nconf.get('uplink:client_id') || 'NotSet';
+var upstream_client_secret=nconf.get('uplink:client_secret') || 'NotSet';
 var webport = nconf.get('web:port') || 7070;
 var api_client_id= nconf.get('web:api_client_id') || '';
 
@@ -105,6 +106,7 @@ app.use(function(req, res, next) {
     // Authorization Bearer <YOUR ACCESS TOKEN>
     //console.log('Authorization '+req.get('Authorization'));
   }
+  console.log('Request for '+req.path);
   // set defaults
   //  Defaults to false except when you specifically request a Post from a muted user or when you specifically request a muted user's stream.
   req.generalParams={};
@@ -165,6 +167,13 @@ app.use(function(req, res, next) {
   req.pageParams.last_read_inclusive=false;
   req.pageParams.last_marker=false;
   req.pageParams.last_marker_inclusive=false;
+  req.apiParams={
+    generalParams: req.generalParams,
+    channelParams: req.channelParams,
+    fileParams: req.fileParams,
+    stremFacetParams: req.stremFacetParams,
+    pageParams: req.pageParams,
+  }
   // configure response
   res.prettyPrint=req.get('X-ADN-Pretty-JSON') || 0;
   // non-ADN spec, ryantharp hack
@@ -203,6 +212,12 @@ for(var i in mounts) {
   console.log('Mounting '+mount.dialect+' at '+mount.destination+'/');
   dialects[mount.dialect](app, mount.destination);
 }
+
+// config app (express framework)
+app.upstream_client_id=upstream_client_id;
+app.upstream_client_secret=upstream_client_secret;
+app.webport=webport;
+app.apiroot=apiroot;
 
 app.get('/oauth/authenticate',function(req,resp) {
   resp.redirect(req.query.redirect_uri+'#access_token='+generateToken());
