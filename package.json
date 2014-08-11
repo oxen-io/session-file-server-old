@@ -13,10 +13,13 @@
     "event-stream": "3.1.5",
     "caminte": "0.0.16",
     "cookies": "0.1.0",
+    "rus-diff": "0.0.8",
+    "setimmediate": "1.0.2",
     "redis": "0.10.1",
-    "rus-diff": "0.0.8"
+    "sqlite3": "2.2.7"
   },
   "devDependencies": {
+    "jsdoc": "3.3.0-alpha9"
   },
   "repository": {
     "type": "git",
