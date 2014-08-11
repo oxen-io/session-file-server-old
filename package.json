@@ -16,6 +16,7 @@
     "rus-diff": "0.0.8",
     "setimmediate": "1.0.2",
     "redis": "0.10.1",
+    "qs": "1.2.1",
     "sqlite3": "2.2.7"
   },
   "devDependencies": {
