@@ -73,7 +73,7 @@ module.exports=function(app, prefix) {
     });
   });
   app.get(prefix+'/posts/:post_id/replies', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    dispatcher.getReplies(req.params.post_id, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp, req.token));
   });
   app.post(prefix+'/posts', function(req, resp) {
     /*
@@ -114,13 +114,32 @@ module.exports=function(app, prefix) {
 
   // {"meta":{"code":401,"error_message":"Call requires authentication: This resource requires authentication and no token was provided."}}
   app.get(prefix+'/posts/stream', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('usertoken',usertoken);
+      if (usertoken==null) {
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        //dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp));
+        dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams, req.token, function(posts, err, meta) {
+          var func=callbacks.postsCallback(resp, req.token);
+          //console.log('getUserStream',posts);
+          func(posts, err, meta);
+        });
+      }
+    });
   });
   app.get(prefix+'/users/:user_id/mentions', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    dispatcher.getMentions(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id/stars', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    dispatcher.getUserStars(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id/following', function(req, resp) {
     // req.params.user_id,
