@@ -10,7 +10,7 @@ function sendrepsonse(json, resp) {
 
 function ISODateString(d) {
   if (!d.getUTCFullYear) {
-    console.log('created_at is type (!date): ',d);
+    console.log('created_at is type (!date): ',d,typeof(d));
     return d;
   }
   function pad(n){return n<10 ? '0'+n : n}
@@ -52,9 +52,6 @@ function formatpost(post) {
     if (post.reply_to) {
       post.reply_to=''+post.reply_to; // cast to String (Number is too big for js?)
     }
-    if (post.repost_of) {
-      post.repost_of=''+post.repost_of; // cast to String (Number is too big for js?)
-    }
     // remove microtime
     post.created_at=ISODateString(post.created_at);
   }
@@ -66,8 +63,19 @@ module.exports = {
     return function(posts, err, meta) {
       for(var i in posts) {
         var post=posts[i];
+        posts[i]=formatpost(post);
+        if (post.repost_of) {
+          // this is an object...
+          post.repost_of.user=formatuser(post.repost_of.user);
+          post.repost_of=formatpost(post.repost_of)
+        }
         posts[i].you_reposted=false;
         posts[i].you_starred=false;
+        if (typeof(post.user)=='undefined') {
+          console.log('dialect.appdotnet_official.callback.js::postsCallback - missing user for post '+i);
+          posts[i].user={};
+        }
+        posts[i].user=formatuser(post.user);
         posts[i].user.follows_you=false;
         posts[i].user.you_blocked=false;
         posts[i].user.you_follow=false;
@@ -88,19 +96,19 @@ module.exports = {
   },
 
   'usersCallback' : function(resp) {
+    // posts is a hack, we're converting things like global to user lists
+    // we need to not do this...
     return function(posts, err, meta) {
       var users=[];
       for(var i in posts) {
         var post=posts[i];
-        posts[i].you_reposted=false;
-        posts[i].you_starred=false;
         posts[i].user.follows_you=false;
         posts[i].user.you_blocked=false;
         posts[i].user.you_follow=false;
         posts[i].user.you_muted=false;
         posts[i].user.you_can_subscribe=false;
         posts[i].user.you_can_follow=true;
-        users.push(post.user);
+        users.push(formatuser(posts[i].user));
       }
       // meta order: min_id, code, max_id, more
       var res={

@@ -189,8 +189,8 @@ module.exports = {
       */
     }
     dataPost.created_at=new Date(post.created_at); // fix incoming created_at iso date to Date
-    var ref=this.cache;
     if (post.source) {
+      var ref=this;
       this.cache.setSource(post.source, function(client, err) {
         // param order is correct
         //console.log('addPost setSource returned ',client,err);
@@ -200,11 +200,11 @@ module.exports = {
           dataPost.client_id=client.client_id;
         }
         //console.log('dispatcher.js::setPost datapost id is '+dataPost.id);
-        ref.setPost(dataPost, callback);
+        ref.cache.setPost(dataPost, callback);
       });
     } else {
       //console.log('dispatcher.js::setPost datapost id is '+dataPost.id);
-      ref.setPost(dataPost, callback);
+      this.cache.setPost(dataPost, callback);
     }
 
     if (post.annotations) {
@@ -219,7 +219,12 @@ module.exports = {
       process.stdout.write('P');
     }
   },
-  // convert DB format to API structure
+  /**
+   * convert DB format to API structure
+   * @param {object} post - the new post object
+   * @param {setPostCallback} callback - function to call after completion
+   * @param {object} meta - the meta data
+   */
   postToAPI: function(post, callback, meta) {
     if (!post) {
       callback(post,'dispatcher.js::postToAPI - no post data passed in');
@@ -241,6 +246,8 @@ module.exports = {
         var f=postFields[i];
         data[f]=post[f];
       }
+      // convert TS to date object
+      data.created_at=new Date(data.created_at);
       //console.log(post.num_replies+' vs '+data.num_replies);
       var postFieldOnlySetIfValue=['repost_of','reply_to'];
       for(var i in postFieldOnlySetIfValue) {
@@ -251,7 +258,17 @@ module.exports = {
       }
       data.user=user;
       //console.log('dispatcher.js::postToAPI - Done, calling callback');
-      callback(data,err,meta);
+      // now fix up reposts
+      if (post.repost_of) {
+        //console.log('converting repost_of from ',post.repost_of);
+        ref.getPost(post.repost_of, null, function(repost, err, meta) {
+          //console.log('converting repost_of to ',repostapi.id);
+          data.repost_of=repost;
+          callback(data,err,meta);
+        })
+      } else {
+        callback(data,err,meta);
+      }
     }
 
     // we need post,entities,annotations
@@ -370,7 +387,7 @@ module.exports = {
         }, ref);
       } else {
         // no posts
-        callback(null, 'no posts for global', meta);
+        callback([], 'no posts for global', meta);
       }
     });
   },
@@ -726,9 +743,16 @@ module.exports = {
       callback(null,'data is missing');
       return;
     }
+    if (!data.id) {
+      console.log('dispatcher.js:updateUser - id is missing',data);
+      callback(null,'id is missing');
+      return;
+    }
 
     // fix api/stream record in db format
-    var userData=data; // this creates a reference, not a copy
+    // this creates a reference, not a copy
+    // we really need a copy otherwise we're destroying original data
+    var userData=JSON.parse(JSON.stringify(data));
     userData.username=data.username.toLowerCase(); // so we can find it
     userData.created_at=new Date(data.created_at); // fix incoming created_at iso date to Date
     // if there isn't counts probably a bad input
@@ -795,7 +819,7 @@ module.exports = {
     var res={
       id: user.id,
       username: user.username,
-      created_at: user.created_at,
+      created_at: new Date(user.created_at),
       canonical_url: user.canonical_url,
       type: user.type,
       timezone: user.timezone,
