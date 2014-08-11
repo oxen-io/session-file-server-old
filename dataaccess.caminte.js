@@ -682,6 +682,72 @@ module.exports = {
       callback(post, err);
     });
   },
+  getReplies: function(postid, params, token, callback) {
+    //console.log('dataaccess.caminte.js::getReplies - id is '+postid);
+    var ref=this;
+    // thread_id or reply_to?
+    postModel.find({ where: { thread_id: postid} }, function(err, posts) {
+      //console.log('found '+posts.length,'err',err);
+      if ((posts==null || posts.length==0) && err==null) {
+        if (ref.next) {
+          //console.log('dataaccess.caminte.js::getPost - next');
+          ref.next.getReplies(postid, params, token, callback);
+          return;
+        }
+      }
+      callback(posts, err);
+    });
+  },
+  getUserStream: function(user, params, token, callback) {
+    var ref=this;
+    var finalfunc=function(userid) {
+      // get a list of followers
+      followModel.find({ where: { active: 1, userid: user } }, function(err, follows) {
+        //console.log('dataaccess.caminte.js::getUserStream - got '+follows.length+' for user '+user);
+        if (err==null && follows!=null && follows.length==0) {
+          //console.log('User follows no one?');
+          if (ref.next) {
+            //console.log('check upstream');
+            ref.next.getUserStream(user, params, token, callback);
+            return;
+          }
+          callback([], null);
+        } else {
+          // we have some followers
+          // for each follower
+          var userids=[];
+          for(var i in follows) {
+            // follow.followsid
+            userids.push(follows[i].followsid);
+          }
+          // get a list of their posts
+          //console.log('dataaccess.caminte.js::getUserStream - getting posts for '+userids.length+' users');
+          // could use this to proxy missing posts
+          postModel.find({ where: { userid: { in: userids } }, order: 'created_at DESC', limit: 20 }, function(err, posts) {
+            if (err) {
+              console.log('dataaccess.caminte.js::getUserStream - post find err',err);
+              callback([], err);
+            } else {
+              //console.log('Found '+posts.length+' posts',err);
+              callback(posts, null);
+            }
+          })
+        }
+      });
+    };
+    if (user=='me') {
+      this.getAPIUserToken(token, function(tokenobj, err) {
+        finalfunc(tokenobj.userid);
+      })
+    } else if (user[0]=='@') {
+      // uhm I don't think posts has a username field...
+      this.getUserID(user.substr(1), function(userobj, err) {
+        finalfunc(userobj.id);
+      });
+    } else {
+      finalfunc(user);
+    }
+  },
   getUserPosts: function(user, params, callback) {
     var ref=this;
     /*
@@ -707,6 +773,19 @@ module.exports = {
         }
       }
       callback(posts, err);
+    });
+  },
+  getMentions: function(user, params, callback) {
+    var ref=this;
+    var search={ idtype: 'post', type: 'mention' };
+    if (user[0]=='@') {
+      search.text=user.substr(1);
+    } else {
+      search.alt=user;
+    }
+    //console.log('mention/entity search for ',search);
+    entityModel.find({ where: search }, function(err, entities) {
+      callback(entities, err);
     });
   },
   getGlobal: function(params, callback) {

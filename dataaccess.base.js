@@ -222,11 +222,36 @@ module.exports = {
       callback(null, null);
     }
   },
-  getUserPosts: function(userid, params, callback) {
+  getReplies: function(postid, params, token, callback) {
     if (this.next) {
-      this.next.getUserPosts(userid, params, callback);
+      this.next.getReplies(postid, params, token, callback);
+    } else {
+      console.log('dataaccess.base.js::getReplies - write me!');
+      callback(null, null);
+    }
+  },
+  getUserStream: function(user, params, token, callback) {
+    if (this.next) {
+      this.next.getUserStream(user, params, token, callback);
+    } else {
+      console.log('dataaccess.base.js::getUserStream - write me!');
+      callback(null, null);
+    }
+  },
+  // user can be an id or @username
+  getUserPosts: function(user, params, callback) {
+    if (this.next) {
+      this.next.getUserPosts(user, params, callback);
     } else {
       console.log('dataaccess.base.js::getUserPosts - write me!');
+      callback(null, null);
+    }
+  },
+  getMentions: function(user, params, callback) {
+    if (this.next) {
+      this.next.getMentions(user, params, callback);
+    } else {
+      console.log('dataaccess.base.js::getMentions - write me!');
       callback(null, null);
     }
   },

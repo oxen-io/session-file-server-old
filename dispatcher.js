@@ -389,6 +389,76 @@ module.exports = {
       }
     });
   },
+  getReplies: function(postid, params, token, callback) {
+    var ref=this;
+    // userid can't be me without a token
+    // userid could be a username though
+    this.cache.getReplies(postid, params, token, function(posts, err, meta) {
+      //console.log('dispatcher.js::getReplies - returned meta ',meta);
+      // data is an array of entities
+      var apiposts={}, postcounter=0;
+      //console.log('dispatcher.js:getReplies - mapping '+posts.length);
+      if (posts && posts.length) {
+        posts.map(function(current, idx, Arr) {
+          //console.log('dispatcher.js:getReplies - map postid: '+current.id);
+          // get the post in API foromat
+          ref.postToAPI(current, function(post, err, postmeta) {
+            // can error out
+            if (post) {
+              apiposts[post.id]=post;
+            }
+            // always increase counter
+            postcounter++;
+            // join
+            //console.log(apiposts.length+'/'+entities.length);
+            if (postcounter==posts.length) {
+              //console.log('dispatcher.js::getReplies - finishing');
+              // need to restore original order
+              var res=[];
+              for(var i in posts) {
+                if (posts[i]) {
+                  res.push(apiposts[posts[i].id]);
+                }
+              }
+              //console.log('dispatcher.js::getReplies - result ',res);
+              callback(res, null, meta);
+            }
+          });
+        }, ref);
+      } else {
+        // no posts
+        console.log('dispatcher.js:getReplies - no replies ');
+        callback([], 'no posts for replies', meta);
+      }
+    });
+  },
+  getMentions: function(userid, params, callback) {
+    var ref=this;
+    // userid can't be me without a token
+    // userid could be a username though
+    this.cache.getMentions(userid, params, function(entities, err, meta) {
+      // data is an array of entities
+      var apiposts=[];
+      //console.log('dispatcher.js:getHashtag - mapping '+entities.length);
+      if (entities.length) {
+        entities.map(function(current, idx, Arr) {
+          // get the post in API foromat
+          ref.getPost(current.typeid, null, function(post, err, meta) {
+            apiposts.push(post);
+            // join
+            //console.log(apiposts.length+'/'+entities.length);
+            if (apiposts.length==entities.length) {
+              //console.log('dispatcher.js::getHashtag - finishing');
+              callback(apiposts);
+            }
+          });
+        }, ref);
+      } else {
+        // no entities
+        callback([], 'no mentions/entities for '+userid, meta);
+      }
+    });
+  },
   /**
    * get range of posts from data access
    * @param {object} params - the pagination context
@@ -443,6 +513,37 @@ module.exports = {
     this.cache.getExplore(params, function(endpoints, err, meta) {
       //console.log('dispatcher.js::getExplore - returned meta ',meta);
       callback(endpoints, null, meta);
+    });
+  },
+  getUserStream: function(user, params, token, callback) {
+    var ref=this;
+    this.cache.getUserStream(user, params, token, function(posts, err, meta) {
+      // data is an array of entities
+      var apiposts={}, postcounter=0;
+      //console.log('dispatcher.js:getUserPosts - mapping '+posts.length);
+      if (posts && posts.length) {
+        posts.map(function(current, idx, Arr) {
+          //console.log('dispatcher.js:getUserPosts - map postid: '+current.id);
+          // get the post in API foromat
+          ref.postToAPI(current, function(post, err, postmeta) {
+            apiposts[post.id]=post;
+            postcounter++;
+            // join
+            //console.log(apiposts.length+'/'+entities.length);
+            if (postcounter==posts.length) {
+              //console.log('dispatcher.js::getUserPosts - finishing');
+              var res=[];
+              for(var i in posts) {
+                res.push(apiposts[posts[i].id]);
+              }
+              callback(res, null, meta);
+            }
+          });
+        }, ref);
+      } else {
+        // no posts
+        callback([], 'no posts for global', meta);
+      }
     });
   },
   /**

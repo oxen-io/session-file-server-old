@@ -1,5 +1,11 @@
 /** get request http library */
 var request = require('request');
+var qs = require('qs');
+
+// backwards compatibility to allow us to do the right thing
+// this doesn't give us QoS but does allow us to say put in the background
+// does defer to immediate IO
+require("setimmediate");
 
 // remove 5 connections to upstream at a time
 // we definitely want to burst when we need it
@@ -399,6 +405,294 @@ module.exports = {
       }
     });
   },
+  getReplies: function(postid, params, token, callback) {
+    var ref=this;
+    console.log('proxying posts replies '+postid);
+    proxycalls++;
+    /*
+    request.post({
+      url: ref.apiroot+'/posts',
+      method: 'POST',
+      headers: {
+        "Authorization": "Bearer "+token,
+        // two modes, JSON is more comprehensive...
+        //"Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(postdata)
+    }, function(e, r, body) {
+    */
+    request.get({
+      url: ref.apiroot+'/posts/'+postid+'/replies',
+      headers: {
+        "Authorization": "Bearer "+token,
+      }
+    }, function(e, r, body) {
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        for(var i in res.data) {
+          var post=res.data[i];
+          ref.dispatcher.setPost(post);
+        }
+        callback(res.data, null, res.meta);
+      } else {
+        console.log('dataccess.proxy.js:getReplies - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
+      }
+    });
+  },
+  getUserStream: function(user, params, token, callback) {
+    /*
+    if (this.next) {
+      this.next.getUserStream(user, params, token, callback);
+      return;
+    }
+    */
+    //console.log('dataaccess.proxy.js::getUserStream - write me!');
+    var ref=this;
+    var ts=new Date().getTime();
+    proxycalls++;
+    console.log('proxying user posts stream '+user);
+    request.get({
+      url: ref.apiroot+'/posts/stream',
+      headers: {
+        "Authorization": "Bearer "+token,
+      }
+    }, function(e, r, body) {
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        console.log('user posts stream retrieved');
+        // return data immediately
+        // all posts are ADN format, we need to convert to semi-ADN format
+        // shouldn't it be our internal format? yes as that's what expected
+        // from all dataaccess calls...
+
+        var dbposts={}, postcounter=0, usercounter=0;
+        //console.log('dispatcher.js:getReplies - mapping '+posts.length);
+        if (res.data && res.data.length) {
+          res.data.map(function(current, idx, Arr) {
+            // if we don't upload user objects then it'll proxy them when postToAPI is called
+            ref.dispatcher.updateUser(current.user, ts, function(userobj, err) {
+              usercounter++;
+              if (usercounter==res.data.length) {
+                // still finishes after posts converted (sometimes)
+                console.log('user posts user upload complete');
+              }
+            });
+            // get the post in DB foromat
+            ref.dispatcher.apiToPost(current, res.meta, function(post, err, meta) {
+              // can error out
+              if (post) {
+                dbposts[post.id]=post;
+              }
+              // always increase counter
+              postcounter++;
+              // join
+              //console.log(apiposts.length+'/'+entities.length);
+              if (postcounter==res.data.length) {
+                //console.log('dispatcher.js::getReplies - finishing');
+                // need to restore original order
+                var postsres=[];
+                for(var i in res.data) {
+                  if (res.data[i]) {
+                    postsres.push(dbposts[res.data[i].id]);
+                  }
+                }
+                //console.log('dispatcher.js::getReplies - result ',res);
+                console.log('user posts converted (users updated), sending data');
+                callback(postsres, null, meta);
+              }
+            });
+          }, ref);
+        } else {
+          // no posts
+          console.log('dispatcher.js:getReplies - no replies ');
+          callback([], 'no posts for replies', meta);
+        }
+
+        /*
+        for(var i in res.data) {
+          res.data[i]=ref.dispatcher.apiToPost(res.data[i]);
+          // if we don't upload user objects then it'll proxy them when postToAPI is called
+          ref.dispatcher.updateUser(res.data[i].user, ts);
+          //res.data[i].created_at=new Date(res.data[i].created_at);
+          //res.data[i].user.created_at=new Date(res.data[i].user.created_at);
+          //res.data[i].userid=res.data[i].user.id;
+          // repost_of?
+          //console.log('test',res.data[i].created_at);
+        }
+        */
+        // low priority (makes the respone return so much faster, well sometimes?)
+        setImmediate(function() {
+          // save data we have into cache
+          console.log('preping posts/follow upload');
+          // dispatcher will fetch it in ADN API format
+          ref.dispatcher.getUser(user, null, function(self, err) {
+            //console.log('self',self);
+            // post process after the fact
+            for(var i in res.data) {
+              var post=res.data[i];
+              //console.log('test',post.created_at);
+              //console.log('postuser',post.user.avatar_image);
+              // is this mutating user? not likely
+              ref.dispatcher.setPost(post);
+              // could build a fake follow structure here to bridge gaps
+              // since this is one of the few calls that implies follows
+              // this isn't that important for now, lower priority it
+              setImmediate(function() {
+                var follow={
+                  follows_user: post.user,
+                  user: self
+                };
+                // we could set ts to 0, since we don't know when they followed
+                // but we need to stomp any deleted follows for this pair
+                // not deleted, no id...
+                //console.log('setFollow', follow.user.avatar_image, follow.follows_user.avatar_image);
+                if (typeof(follow.follows_user.avatar_image.width)=='undefined' || typeof(follow.user.avatar_image.width)=='undefined') {
+                  console.log('failure on '+i);
+                }
+                ref.dispatcher.setFollows(follow, 0, 0, ts);
+              });
+            }
+            console.log('uploaded scraps');
+          });
+        });
+      } else {
+        console.log('dataccess.proxy.js:getUserStream - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, err, null);
+      }
+    });
+    /** @todo async processing needed, so we don't lock the API. This all could be sent to a background thread*/
+    // after the fact processing
+    // assuming this proxy trigger means we don't have any followers for user
+    // let's get some users
+    var downloadfollowers=function(start, ts, self) {
+      console.log('proxying user '+user+' following before '+start);
+      proxycalls++;
+      var str='';
+      if (start) {
+        str+='&before_id='+start;
+      }
+      var startdelay=0;
+      var startdelay2=0;
+      var counter=0;
+      // if we lower the count, we maybe more responsive...
+      request.get({
+        url: ref.apiroot+'/users/'+user+'/following?count=200'+str,
+        headers: {
+          "Authorization": "Bearer "+token,
+        }
+      }, function(e, r, body) {
+        if (!e && r.statusCode == 200) {
+          var res=JSON.parse(body);
+          console.log('retrieved followings '+res.data.length);
+          // post process
+          // 200 setFollow subprocess takes a huge toll on node
+          // really slows the whole thing down...
+          // this can lock for more than 35s
+          // and then events/triggers really pile up
+          for(var i in res.data) {
+            var follow={
+              follows_user: res.data[i],
+              user: self
+            };
+            //console.log('follow is ',follow);
+            //ref.dispatcher.setPost(post);
+            // ok, let's not spam our workers, we'll slowly deal out this work.
+            // 100 is too slow on my machine
+            // 200 is fine
+            // at 150, we can sync 900 users & follows in under 60s
+            // probably can be an issue if multiple users are calling this...
+            // though at 150 starting to see hangs towards the end
+            startdelay2+=200;
+            var func2=function(follow) {
+              // this put it high on the QoS list but delayed...
+              // so we get some what of a medium priority (not current but not low)
+              // doesn't the delay cancel whether it's high or low?
+              // probably...
+              setTimeout(function() {
+                // if we can skip the self update, that may help performance
+                ref.dispatcher.setFollows(follow, 0, 0, ts);
+                counter++;
+                if (counter==res.data.length) {
+                  console.log('Following batch complete',counter);
+                }
+              }, startdelay2);
+            };
+            func2(follow);
+            /** @todo we need to track usage rate/limits on each token */
+            // we could also queue up their last 20 posts too...
+            // it's a little agressive, we have want we need for the user stream
+            // burns through our token limits and puts unneeded stress on the network
+            // well as long as we have an upstream we don't need this
+            // even if we didn't, we'd have to poll global anyways to get all new posts efficently
+            /*
+            startdelay+=10*1000; // we get about 20 reads/minute
+            // 10*200=over 20 minutes to d/l everything
+            var userid=res.data[i].id;
+            //console.log('at '+startdelay+'s get user\'s '+userid+' posts');
+            // scope hacks...
+            var func=function(userid) {
+              setTimeout(function() {
+                ref.getUserPosts(userid, null, function() {});
+              }, startdelay);
+            };
+            func(userid);
+            */
+          }
+          console.log('Processed all '+res.data.length+' followings');
+
+          // dispatcher next io call asap
+          // need to page results too...
+          if (res.meta && res.meta.more) {
+            // in 1s
+            console.log('dataccess.proxy.js::getUserStream - getting more followings',res.meta.min_id,res.meta.max_id);
+            // in one second continue
+            //setTimeout(function() {
+            // should help the stack, right? we don't need to return any faster here
+            // lets block until we're done
+            // but it does yeild for a second
+            // doesn't work like that in v10
+            // we don't want to yeild, it's a high priority we get all these
+            //setImmediate(function() {
+              downloadfollowers(res.meta.min_id, ts, self);
+            //});
+            //}, 1000);
+          } else {
+            console.log('dataccess.proxy.js::getUserStream - retrieved all followings',res.meta);
+          }
+        } else {
+          console.log('dataccess.proxy.js:getUserStream followings download - request failure');
+          // e can be { [Error: socket hang up] code: 'ECONNRESET' }
+          console.log('error');
+          console.dir(e);
+          if (r) {
+            console.log('statusCode', r.statusCode);
+          }
+          console.log('body', body);
+        }
+      });
+    }
+    // background but at top of queue
+    // so we get a tick of yeild in there, let's not starve other's requests
+    // uhm there is no rush to download all the followers
+    // we've already served the stream
+    // ah but you can't update the stream until we know everyone that you're following
+    // so there is a rush
+    setTimeout(function() {
+      ref.dispatcher.getUser(user, null, function(self, err) {
+        //console.log('self',self);
+        downloadfollowers(0, ts, self);
+      });
+    }, 0);
+    //callback([], null);
+  },
   // user can be an id or @username
   getUserPosts: function(user, params, callback) {
     if (user==undefined) {
@@ -432,6 +726,14 @@ module.exports = {
         callback(null, e, null);
       }
     });
+  },
+  getMentions: function(user, params, callback) {
+    if (this.next) {
+      this.next.getMentions(user, params, callback);
+    } else {
+      console.log('dataaccess.proxy.js::getMentions - write me!');
+      callback(null, null);
+    }
   },
   getGlobal: function(params, callback) {
     //console.log('dataaccess.proxy.js::getGlobal - write me');
