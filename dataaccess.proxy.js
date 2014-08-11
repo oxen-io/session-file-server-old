@@ -11,6 +11,7 @@ require('https').globalAgent.maxSockets = Infinity
 /** @todo make count configureable, low latency=20count, aggressive cache=200count */
 
 var proxycalls=0;
+var proxywrites=0;
 var lcalls=0;
 // minutely status report
 setInterval(function () {
@@ -214,9 +215,60 @@ module.exports = {
    * posts
    */
   addPost: function(ipost, token, callback) {
+    var ref=this;
+    proxywrites++;
+    proxycalls++;
+    var postdata={
+      text: ipost.text,
+      reply_to: ipost.reply_to
+    };
+    if (ipost.entities) {
+      postdata.entities=ipost.entities;
+    }
+    if (ipost.annotations) {
+      postdata.annotations=ipost.annotations;
+    }
+    console.log('proxying post write');
+    // Authorization: Bearer ?
+    // or ?access_token=xxx...
+    request.post({
+      url: ref.apiroot+'/posts',
+      method: 'POST',
+      headers: {
+        "Authorization": "Bearer "+token,
+        // two modes, JSON is more comprehensive...
+        //"Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(postdata)
+    }, function(e, r, body) {
+      if (!e && r.statusCode == 200) {
+        var data=JSON.parse(body);
+        if (data.meta.code==200) {
+          //console.dir(data.data);
+          console.log('post written to network as '+data.data.id+' as '+data.data.user.id);
+          // the response can be setPost'd
+          //ref.setPost(body);
+          // it's formatted as ADN format
+          // callback needs to expect DB format...
+          // mainly the created_at
+          callback(data.data, null);
+        } else {
+          console.log('failure? ',data.meta);
+          callback(null, e);
+        }
+      } else {
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, e);
+      }
+    });
+    /*
     if (this.next) {
       this.next.addPost(ipost, token, callback);
     }
+    */
   },
   setPost:  function(ipost, callback) {
     if (this.next) {

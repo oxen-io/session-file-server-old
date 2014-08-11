@@ -187,7 +187,7 @@ module.exports = {
       this.next.addPost(ipost, token, callback);
     } else {
       console.log('dataaccess.base.js::addPost - write me!');
-      callback(null, null);
+      callback(null, null, null);
     }
   },
   setPost:  function(ipost, callback) {

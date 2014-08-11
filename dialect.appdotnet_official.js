@@ -75,6 +75,30 @@ module.exports=function(app, prefix) {
   app.get(prefix+'/posts/:post_id/replies', function(req, resp) {
     dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
+  app.post(prefix+'/posts', function(req, resp) {
+    /*
+    {
+      reply_to: null,
+      text: 'adsf',
+      entities: {
+        parse_links: true,
+        parse_markdown_links: true,
+        links: []
+      }
+    }
+    */
+    var postdata={
+      text: req.body.text,
+      reply_to: req.body.reply_to
+    };
+    if (req.body.entities) {
+      postdata.entities=req.body.entities;
+    }
+    if (req.body.annotations) {
+      postdata.annotations=req.body.annotations;
+    }
+    dispatcher.addPost(postdata, req.token, callbacks.postCallback(resp));
+  });
 
   // {"meta":{"code":401,"error_message":"Call requires authentication: This resource requires authentication and no token was provided."}}
   app.get(prefix+'/posts/stream', function(req, resp) {
