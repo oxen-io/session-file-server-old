@@ -1,19 +1,35 @@
-// http://www.camintejs.com / https://github.com/biggora/caminte
+/**
+ * real long term persistence
+ * @module dataaccess_camintejs
+ */
+
+/**
+ * http://www.camintejs.com / https://github.com/biggora/caminte
+ * @type {Object}
+ */
 var Schema = require('caminte').Schema;
 
 // caminte can support:  mysql, sqlite3, riak, postgres, couchdb, mongodb, redis, neo4j, firebird, rethinkdb, tingodb
 // however AltAPI will officially support: sqlite, Redis or MySQL for long term storage
 //
 // @duerig wants Redis for long term storage
-// however it requires the entire dataset to be in memory, so not all the network data
-// could be store in it, unless you have 128gb+ of memory
+// however it requires the entire dataset to be in memory,
+// so not all the network data could be store in it, unless you have 128gb+ of memory
+// 1gb of memory in redis right now (with Jun 2014 data models) holds roughly:
+// ~200k posts (204k annotations, 246k entities) ~10k users (6k follows) 2.4k interactions
 //
 // so MySQL is good alternative if you want a large dataset
 // SQLite is a good incase the user doesn't want to install any extra software
 
+// in memory mode, 400mb holds about 6690U 2694F 84890P 0C 0M 0s 770i 83977a 126741e
+// memory mode is only good for dev, after buckets get big the API stops responding
+// in sqlite3 mode, 50mb of diskspace holds 3736U 1582F 15437P 0C 0M 0s 175i 14239a 29922e
+
 // set up the (eventually configureable) model pools
 // 6379 is default redis port number
+/** schema data backend type */
 var schemaDataType = 'memory';
+/** set up where we're storing the "network data" */
 var schemaData = new Schema(schemaDataType, {port: 6379}); //port number depends on your configuration
 
 // Auth models and accessors can be moved into own file?
@@ -29,6 +45,7 @@ var schemaData = new Schema(schemaDataType, {port: 6379}); //port number depends
 // I'd like to be able to copy random tables from one server to another
 // to help bootstrap caches
 
+/** client storage model */
 var clientModel = schemaData.define('Client', {
   client_id: { type: String, limit: 32, index: true }, // probably should be client_id
   secret: { type: String, limit: 32 },
@@ -38,6 +55,7 @@ var clientModel = schemaData.define('Client', {
 });
 clientModel.validatesUniquenessOf('client_id', {message:'client_id is not unique'});
 
+/** user storage model */
 var userModel = schemaData.define('User', {
   /* API START */
   username: { type: String, length: 21, index: true },
@@ -73,25 +91,50 @@ var userModel = schemaData.define('User', {
 });
 userModel.validatesUniquenessOf('username', {message:'username is not unique'});
 
-var postModel = schemaData.define('post', {
+/** post storage model
+ * @constructs postModel
+ */
+var postModel = schemaData.define('post',
+  /** @lends postModel */
+  {
+  /** id of user */
   userid: { type: Number, index: true },
+  /** text of post */
   text: { type: schemaData.Text },
+  /** html of post */
   html: { type: schemaData.Text }, /* cache */
+  /** post flagged as machine_only
+   * @type boolean */
   machine_only: { type: Boolean, default: false, index: true },
+  /** id of post that it's a reply to
+   * @type {postid} */
   reply_to: { type: Number }, // kind of want to index this
+  /** root id of post all replies are children of
+   * @type {postid} */
   thread_id: { type: Number, index: true },
+  /** post flagged as deleted
+   * @type boolean */
   is_deleted: { type: Boolean, default: false, index: true },
+  /** date/time post was created at
+   * @type Date */
   created_at: { type: Date, index: true },
   client_id: { type: String, length: 32, index: true },
+  /** id of post it is a repost of
+   * @type {postid} */
   repost_of: { type: Number, default: 0, index: true },
+  /** posts.app.net url */
   canonical_url: { type: String },
+  /** num of replies */
   num_replies: { type: Number, default: 0 },
+  /** num of reposts */
   num_reposts: { type: Number, default: 0 },
+  /** num of stars */
   num_stars: { type: Number, default: 0 }
 });
 
 // total cache table, we'll have an option to omitted its use
 // though we need it for hashtag look ups
+/** entity storage model */
 var entityModel = schemaData.define('entity', {
   idtype: { type: String, length: 16, index: true }, // user, post, channel, message
   typeid: { type: Number, index: true }, // causing problems?
@@ -103,6 +146,7 @@ var entityModel = schemaData.define('entity', {
   altnum: { type: Number },
 });
 
+/** annotation storage model */
 var annotationModel = schemaData.define('annotation', {
   idtype: { type: String, index: true }, // user, post, channel, message
   typeid: { type: Number, index: true }, // causing problems?
@@ -111,6 +155,7 @@ var annotationModel = schemaData.define('annotation', {
 });
 
 // maybe not needed with JSON type
+/** annotation values storage model */
 var annotationValuesModel = schemaData.define('annotationvalues', {
   annotationid: { type: Number, index: true },
   key: { type: String, length: 255, index: true },
@@ -118,6 +163,7 @@ var annotationValuesModel = schemaData.define('annotationvalues', {
   memberof: { type: Number, index: true }
 });
 
+/** channel storage model */
 var channelModel = schemaData.define('channel', {
   ownerid: { type: Number, index: true },
   type: { type: String, length: 255, index: true },
@@ -135,6 +181,7 @@ var channelModel = schemaData.define('channel', {
   last_updated: { type: Date },
 });
 
+/** message storage model */
 var messageModel = schemaData.define('message', {
   channel_id: { type: Number, index: true },
   html: { type: schemaData.Text }, /* cache */
@@ -148,6 +195,7 @@ var messageModel = schemaData.define('message', {
   created_at: { type: Date, index: true },
 });
 
+/** subscription storage model */
 var subscriptionModel = schemaData.define('subscriptions', {
   channelid: { type: Number, index: true },
   userid: { type: Number, index: true },
@@ -156,6 +204,7 @@ var subscriptionModel = schemaData.define('subscriptions', {
   last_updated: { type: Date },
 });
 
+/** follow storage model */
 var followModel = schemaData.define('follow', {
   userid: { type: Number, index: true },
   followsid: { type: Number, index: true }, // maybe not index this
@@ -170,6 +219,8 @@ var followModel = schemaData.define('follow', {
 // we don't need reposts here becauses have all that info with a repost_of column
 // since an entire post is created on repost
 // though repost could also write here in the future, making it easier to pull
+// stars are recorded only here
+/** interaction storage model */
 var interactionModel = schemaData.define('interaction', {
   userid: { type: Number, index: true },
   type: { type: String, length: 8, index: true }, // star,unstar,repost,unrepost
@@ -179,6 +230,7 @@ var interactionModel = schemaData.define('interaction', {
   asthisid: { type: Number } // meta.id
 });
 
+/** file storage model */
 var fileModel = schemaData.define('file', {
   /* API START */
   userid: { type: Number, index: true },
@@ -202,18 +254,19 @@ var fileModel = schemaData.define('file', {
 // Rate Todo: userTokenLimit, appTokenLimit
 // Data Todo: mutes, blocks, upstream_tokens
 
-// minutely status report
+/** minutely status report */
+// @todo name function and call it on startup
 setInterval(function () {
   var ts=new Date().getTime();
-  userModel.count({},function(err,userCount) {
-    followModel.count({},function(err,followCount) {
-      postModel.count({},function(err,postCount) {
-        channelModel.count({},function(err,channelCount) {
-          messageModel.count({},function(err,messageCount) {
-            subscriptionModel.count({},function(err,subscriptionCount) {
-              interactionModel.count({},function(err,interactionCount) {
-                annotationModel.count({},function(err,annotationCount) {
-                  entityModel.count({},function(err,entityCount) {
+  userModel.count({},function(err, userCount) {
+    followModel.count({},function(err, followCount) {
+      postModel.count({},function(err, postCount) {
+        channelModel.count({},function(err, channelCount) {
+          messageModel.count({},function(err, messageCount) {
+            subscriptionModel.count({},function(err, subscriptionCount) {
+              interactionModel.count({},function(err, interactionCount) {
+                annotationModel.count({},function(err, annotationCount) {
+                  entityModel.count({},function(err, entityCount) {
                     // break so the line stands out from the instant updates
                     // dispatcher's output handles this for now
                     //process.stdout.write("\n");
@@ -224,13 +277,13 @@ setInterval(function () {
                       // evicted_keys, expired_keys are interesting, keyspace_hits/misses
                       // total_commands_proccesed, total_connections_received, connected_clients
                       // update internal counters
-                      schemaData.client.info(function(err,res) {
-                        schemaData.client.on_info_cmd(err,res);
+                      schemaData.client.info(function(err, res) {
+                        schemaData.client.on_info_cmd(err, res);
                       });
                       // then pull from counters
-                      console.log("persistence redis "+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
+                      console.log("dataaccess.caminte.js::status redis data"+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
                     }
-                    console.log('persistence '+userCount+'U '+followCount+'F '+postCount+'P '+channelCount+'C '+messageCount+'M '+subscriptionCount+'s '+interactionCount+'i '+annotationCount+'a '+entityCount+'e');
+                    console.log('dataaccess.caminte.js::status '+userCount+'U '+followCount+'F '+postCount+'P '+channelCount+'C '+messageCount+'M '+subscriptionCount+'s '+interactionCount+'i '+annotationCount+'a '+entityCount+'e');
                   });
                 });
               });
@@ -245,21 +298,21 @@ setInterval(function () {
 
 
 // cheat macros
-function db_insert(rec,model,callback) {
+function db_insert(rec, model, callback) {
   rec.isValid(function(valid) {
     if (valid) {
       model.create(rec, function(err) {
         if (err) {
-          console.log(typeof(model)+" insert Error ",err);
+          console.log(typeof(model)+" insert Error ", err);
         }
         if (callback) {
           if (rec.id) {
             // why don't we just return the entire record
             // that way we can get access to fields we don't have a getter for
             // or are generated on insert
-            callback(rec,err);
+            callback(rec, err);
           } else {
-            callback(null,err);
+            callback(null, err);
           }
         }
       });
@@ -268,16 +321,16 @@ function db_insert(rec,model,callback) {
       console.dir(rec.errors);
       if (callback) {
         // can we tell the different between string and array?
-        callback(null,rec.errors);
+        callback(null, rec.errors);
       }
     }
   });
 }
 // these macros mainly flip the callback to be consistent
-function db_delete(id,model,callback) {
-  model.destroyById(id,function(err,rec) {
+function db_delete(id, model, callback) {
+  model.destroyById(id, function(err, rec) {
     if (err) {
-      console.log("delUser Error ",err);
+      console.log("delUser Error ", err);
     }
     if (callback) {
       callback(rec,err);
@@ -287,7 +340,7 @@ function db_delete(id,model,callback) {
 function db_get(id, model, callback) {
   model.findById(id, function(err, rec) {
     if (err) {
-      console.log("db_get Error ",err);
+      console.log("db_get Error ", err);
     }
     // this one is likely not optional...
     //if (callback) {
@@ -297,14 +350,24 @@ function db_get(id, model, callback) {
 }
 
 // we need to know if we have upstreaming enabled
+/**
+ * @constructs dataaccess
+ * @variation camtinejs
+ */
 module.exports = {
   next: null,
   /*
    * users
    */
+  /**
+   * add User camintejs
+   * @param {string} username - name of user
+   * @param {string} password - unencrypted password of user
+   * @param {metaCallback} callback - function to call after completion
+   */
   addUser: function(username, password, callback) {
     if (this.next) {
-      this.next.addUser(username,password,callback);
+      this.next.addUser(username, password, callback);
     } else {
       if (callback) {
         callback(null, null);
@@ -314,7 +377,7 @@ module.exports = {
   setUser: function(iuser, ts, callback) {
     // FIXME: check ts against last_update to make sure it's newer info than we have
     // since we have cached fields
-    userModel.findOrCreate({ id: iuser.id }, iuser, function(err,user) {
+    userModel.findOrCreate({ id: iuser.id }, iuser, function(err, user) {
       if (callback) callback(user,err);
     });
   },
@@ -341,21 +404,21 @@ module.exports = {
           return;
         }
       }
-      callback(user,err);
+      callback(user, err);
     });
   },
   // callback is user,err,meta
   getUser: function(userid, callback) {
     if (userid==undefined) {
-      callback(null,'dataaccess.caminte.js:getUser - userid is undefined');
+      callback(null, 'dataaccess.caminte.js:getUser - userid is undefined');
       return;
     }
     if (!userid) {
-      callback(null,'dataaccess.caminte.js:getUser - userid isn\'t set');
+      callback(null, 'dataaccess.caminte.js:getUser - userid isn\'t set');
       return;
     }
     if (callback==undefined) {
-      callback(null,'dataaccess.caminte.js:getUser - callback is undefined');
+      callback(null, 'dataaccess.caminte.js:getUser - callback is undefined');
       return;
     }
     var ref=this;
@@ -473,9 +536,9 @@ module.exports = {
     // oh these suck the worst!
     postModel.findOrCreate({
       id: ipost.id
-    }, ipost, function(err,post) {
+    }, ipost, function(err, post) {
       if (callback) {
-        callback(post,err);
+        callback(post, err);
       }
     });
     //db_insert(new postModel(ipost), postModel, callback);
@@ -484,11 +547,11 @@ module.exports = {
   getPost: function(id, callback) {
     //console.log('dataaccess.caminte.js::getPost - id is '+id);
     if (id==undefined) {
-      callback(null,'dataaccess.caminte.js::getPost - id is undefined');
+      callback(null, 'dataaccess.caminte.js::getPost - id is undefined');
       return;
     }
     var ref=this;
-    db_get(id, postModel, function(post,err) {
+    db_get(id, postModel, function(post, err) {
       //console.log('dataaccess.caminte.js::getPost - post, err',post,err);
       if (post==null && err==null) {
         //console.log('dataaccess.caminte.js::getPost - next?',ref.next);
@@ -498,7 +561,7 @@ module.exports = {
           return;
         }
       }
-      callback(post,err);
+      callback(post, err);
     });
   },
   getUserPosts: function(user, params, callback) {
@@ -521,11 +584,11 @@ module.exports = {
     postModel.find({ where: search }, function(err, posts) {
       if (err==null && posts==null) {
         if (ref.next) {
-          ref.next.getUserPosts(userid, params, callback);
+          ref.next.getUserPosts(user, params, callback);
           return;
         }
       }
-      callback(posts,err);
+      callback(posts, err);
     });
   },
   getGlobal: function(params, callback) {
@@ -534,7 +597,7 @@ module.exports = {
     // make sure count is positive
     var count=Math.abs(params.count);
     var maxid=null;
-    postModel.find().order('id','DESC').limit(1).run({},function(err,posts) {
+    postModel.find().order('id','DESC').limit(1).run({},function(err, posts) {
       if (posts.length) {
         maxid=posts[0].id;
       }
@@ -648,9 +711,9 @@ module.exports = {
     // created_at vs last_update
     channelModel.findOrCreate({
       id: chnl.id
-    }, chnl, function(err,ochnl) {
+    }, chnl, function(err, ochnl) {
       if (callback) {
-        callback(ochnl,err);
+        callback(ochnl, err);
       }
     });
   },
@@ -667,16 +730,16 @@ module.exports = {
           return;
         }
       }
-      callback(channel,err);
+      callback(channel, err);
     });  },
   /** messages */
   setMessage: function (msg, callback) {
     // If a Message has been deleted, the text, html, and entities properties will be empty and may be omitted.
     messageModel.findOrCreate({
       id: msg.id
-    }, msg, function(err,omsg) {
+    }, msg, function(err, omsg) {
       if (callback) {
-        callback(omsg,err);
+        callback(omsg, err);
       }
     });
   },
@@ -686,14 +749,14 @@ module.exports = {
       return;
     }
     var ref=this;
-    db_get(id,messageModel,function(message,err) {
+    db_get(id,messageModel,function(message, err) {
       if (message==null && err==null) {
         if (ref.next) {
           ref.next.getMessage(id, callback);
           return;
         }
       }
-      callback(message,err);
+      callback(message, err);
     });
   },
   getChannelMessages: function(channelid, params, callback) {
@@ -712,9 +775,9 @@ module.exports = {
   setSubscription: function (chnlid, userid, del, ts, callback) {
     subscriptionModel.findOrCreate({
       id: msg.id
-    }, msg, function(err,omsg) {
+    }, msg, function(err, omsg) {
       if (callback) {
-        callback(omsg,err);
+        callback(omsg, err);
       }
     });
   },
@@ -743,13 +806,13 @@ module.exports = {
   /** files */
   setFile: function(file, del, ts, callback) {
     if (del) {
-      db_delete(file.id,fileModel,callback);
+      db_delete(file.id, fileModel, callback);
     } else {
       fileModel.findOrCreate({
         id: file.id
-      },file, function(err,ofile) {
+      },file, function(err, ofile) {
         if (callback) {
-          callback(ofile,err);
+          callback(ofile, err);
         }
       });
     }
@@ -765,7 +828,7 @@ module.exports = {
     }
     */
     // delete (type & idtype & id)
-    entityModel.find({where: { idtype: type, typeid: id, type: entitytype }},function(err,oldEntities) {
+    entityModel.find({where: { idtype: type, typeid: id, type: entitytype }},function(err, oldEntities) {
       //console.dir(oldEntities);
 
       // why do we have empty entity records in the DB?
@@ -786,7 +849,7 @@ module.exports = {
       for(var i in oldEntities) {
         var oldEntity=oldEntities[i];
         if (oldEntity.id) {
-          entityModel.destroyById(oldEntity.id,function(err) {
+          entityModel.destroyById(oldEntity.id, function(err) {
             if (err) {
               console.log('couldn\'t destory old entity ',err);
             }
@@ -809,10 +872,10 @@ module.exports = {
         entity.alt=entities[i].url?entities[i].url:entities[i].id;
         entity.altnum=entities[i].is_leading?entities[i].is_leading:entities[i].amended_len;
         //console.log('Insert entity '+entitytype+' #'+i+' '+type);
-        db_insert(entity,entityModel);
+        db_insert(entity, entityModel);
       }
       if (callback) {
-        callback(null,null);
+        callback(null, null);
       }
     });
 
@@ -870,7 +933,7 @@ module.exports = {
     note.typeid=id;
     note.type=type;
     note.value=value;
-    db_insert(note,annotationModel,callback);
+    db_insert(note, annotationModel, callback);
   },
   clearAnnotations: function(idtype, id, callback) {
     annotationModel.find({where: { idtype: idtype, typeid: id }},function(err,oldAnnotations) {
@@ -900,8 +963,8 @@ module.exports = {
       this.next.getAnnotations(idtype, id, callback);
     }
     */
-    annotationModel.find({where: { idtype: idtype, typeid: id }},function(err,annotations) {
-      callback(annotations,err);
+    annotationModel.find({where: { idtype: idtype, typeid: id }},function(err, annotations) {
+      callback(annotations, err);
     });
   },
   /** follow */
@@ -919,9 +982,9 @@ module.exports = {
         referenceid: id,
         //created_at: ts,
         last_updated: ts
-      }, function(err,users) {
+      }, function(err, users) {
         if (callback) {
-          callback(users,err);
+          callback(users, err);
         }
       });
     } else {
@@ -929,7 +992,7 @@ module.exports = {
       // search by referenceid, likely delete it
       console.log('dataaccess.caminte.js::setFollow - no data, write me... deleted? '+del);
       if (callback) {
-        callback(null,null);
+        callback(null, null);
       }
     }
     // find (id and status, dates)
@@ -959,9 +1022,9 @@ module.exports = {
       interaction.typeid=postid;
       interaction.asthisid=metaid;
       if (foundInteraction.id==null) {
-        db_insert(interaction,interactionModel,callback);
+        db_insert(interaction, interactionModel, callback);
       } else {
-        console.log('setInteraction found dupe',foundInteraction,interaction);
+        console.log('setInteraction found dupe', foundInteraction, interaction);
       }
     });
   },

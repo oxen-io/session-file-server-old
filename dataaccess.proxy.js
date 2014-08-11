@@ -39,26 +39,26 @@ module.exports = {
       return;
     }
     var ref=this;
-    console.log('proxying user @'+username);
+    console.log('dataccess.proxy.js:getUserID - proxying user @'+username);
     proxycalls++;
     request.get({
       url: ref.apiroot+'/users/@'+username
     }, function(e, r, body) {
       var res=JSON.parse(body);
       // upload fresh proxy data back into dataSource
-      ref.dispatcher.updateUser(res.data,new Date().getTime(),function(user,err) {
+      ref.dispatcher.updateUser(res.data,new Date().getTime(), function(user, err) {
         if (user==null & err==null) {
           if (this.next) {
             this.next.getUserID(username, callback);
             return;
           }
         } else if (err) {
-          console.log("dataccess.proxy.js - User get err: ",err);
+          console.log("dataccess.proxy.js - User get err: ", err);
         //} else {
           //console.log("User Updated");
         }
         // finally reutrn
-        callback(user,err,res.meta);
+        callback(user, err, res.meta);
       });
     });
   },
@@ -73,26 +73,26 @@ module.exports = {
       return;
     }
     var ref=this;
-    console.log('proxying user '+userid);
+    console.log('dataccess.proxy.js:getUser - proxying user '+userid);
     proxycalls++;
     request.get({
       url: ref.apiroot+'/users/'+userid
     }, function(e, r, body) {
       var res=JSON.parse(body);
       // upload fresh proxy data back into dataSource
-      ref.dispatcher.updateUser(res.data, new Date().getTime(), function(user,err) {
+      ref.dispatcher.updateUser(res.data, new Date().getTime(), function(user, err) {
         if (user==null & err==null) {
           if (this.next) {
             this.next.getUser(userid, callback);
             return;
           }
         } else if (err) {
-          console.log("dataccess.proxy.js - User Update err: ",err);
+          console.log("dataccess.proxy.js - User Update err: ", err);
         //} else {
           //console.log("User Updated");
         }
         // finally reutrn
-        callback(user,err,res.meta);
+        callback(user, err, res.meta);
       });
     });
   },
@@ -212,7 +212,7 @@ module.exports = {
       url: ref.apiroot+'/posts/'+id
     }, function(e, r, body) {
       var res=JSON.parse(body);
-      ref.dispatcher.setPost(res.data, function(post,err) {
+      ref.dispatcher.setPost(res.data, function(post, err) {
         //console.log('dataccess.proxy.js::getPost - setPost: '+post+','+err);
         if (post==null && err==null) {
           if (this.next) {
@@ -226,20 +226,21 @@ module.exports = {
       });
     });
   },
-  getUserPosts: function(userid, params, callback) {
-    if (userid==undefined) {
-      callback(null, 'dataccess.proxy.js::getUserPosts - userid is undefined');
+  // user can be an id or @username
+  getUserPosts: function(user, params, callback) {
+    if (user==undefined) {
+      callback(null, 'dataccess.proxy.js::getUserPosts - user is undefined');
       return;
     }
-    if (userid==='') {
-      callback(null, 'dataccess.proxy.js::getUserPosts - userid is empty');
+    if (user==='') {
+      callback(null, 'dataccess.proxy.js::getUserPosts - user is empty');
       return;
     }
     var ref=this;
-    console.log('proxying user posts '+userid);
+    console.log('proxying user posts '+user);
     proxycalls++;
     request.get({
-      url: ref.apiroot+'/users/'+userid+'/posts'
+      url: ref.apiroot+'/users/'+user+'/posts'
     }, function(e, r, body) {
       var res=JSON.parse(body);
       for(var i in res.data) {
@@ -306,7 +307,7 @@ module.exports = {
       var res=JSON.parse(body);
       callback(res.data, null, res.meta);
     });
-  },  
+  },
   /** channels */
   setChannel: function (chnl, ts, callback) {
     if (this.next) {
@@ -331,10 +332,10 @@ module.exports = {
           if (this.next) {
             this.next.getChannel(id, callback);
           } else {
-            callback(res.data,null,res.meta);
+            callback(res.data, null, res.meta);
           }
         } else {
-          callback(chnl,err,res.meta);
+          callback(chnl, err, res.meta);
         }
       });
     });
@@ -357,13 +358,13 @@ module.exports = {
       url: ref.apiroot+'/channels/messages?ids='+id
     }, function(e, r, body) {
       var res=JSON.parse(body);
-      ref.dispatcher.setMessage(res.data,function(msg,err) {
+      ref.dispatcher.setMessage(res.data, function(msg,err) {
         if (msg==null && err==null) {
           if (this.next) {
             this.next.getMessage(id, callback);
           }
         } else {
-          callback(msg,err,res.meta);
+          callback(msg, err, res.meta);
         }
       });
     });

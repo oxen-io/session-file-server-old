@@ -1,9 +1,25 @@
+/**
+ * interface for dataaccess
+ * serves as base class as well as end in chain
+ * @module dataaccess_base
+ */
 // if next object is set, pass it through to next object
 // otherwise end chain
+/** @constructs dataaccess */
 module.exports = {
+  /**
+   * if not found locally, what data access object to query next
+   * @type {dataaccess}
+   */
   next: null,
   /*
    * users
+   */
+  /**
+   * add User base
+   * @param {string} username - name of user
+   * @param {string} password - unencrypted password of user
+   * @param {metaCallback} callback - function to call after completion
    */
   addUser: function(username, password, callback) {
     if (this.next) {
@@ -37,7 +53,7 @@ module.exports = {
       callback(null, null);
     }
   },
-  // callback is user,err,meta
+  // callback is user, err, meta
   getUser: function(userid, callback) {
     if (this.next) {
       this.next.getUser(userid, callback);

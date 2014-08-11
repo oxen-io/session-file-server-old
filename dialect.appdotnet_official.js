@@ -19,19 +19,19 @@ module.exports=function(app, prefix) {
    */
   // {"meta":{"code":401,"error_message":"Call requires authentication: This resource requires authentication and no token was provided."}}
   app.get(prefix+'/posts/stream', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));  
+    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));
   });
   app.get(prefix+'/users/:user_id/mentions', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));  
+    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));
   });
   app.get(prefix+'/users/:user_id/stars', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));  
+    dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));
   });
   app.get(prefix+'/users/:user_id/following', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.usersCallback(resp));  
+    dispatcher.getGlobal(req.pageParams, callbacks.usersCallback(resp));
   });
   app.get(prefix+'/users/:user_id/followers', function(req, resp) {
-    dispatcher.getGlobal(req.pageParams, callbacks.usersCallback(resp));  
+    dispatcher.getGlobal(req.pageParams, callbacks.usersCallback(resp));
   });
   /*
    * No token endpoints
@@ -56,7 +56,7 @@ module.exports=function(app, prefix) {
     dispatcher.getGlobal(req.pageParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/posts/stream/explore', function(req, resp) {
-    dispatcher.getExplore(req.pageParams, callbacks.dataCallback(resp));  
+    dispatcher.getExplore(req.pageParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/posts/stream/explore/:feed', function(req, resp) {
     dispatcher.getGlobal(req.pageParams, callbacks.postsCallback(resp));

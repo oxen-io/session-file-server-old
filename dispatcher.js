@@ -3,14 +3,23 @@
  *
  * "Dialects" will call these functions to the data-access chain to store/retrieve data and format
  * responses in standard way.
+ *
+ * @module dispatcher
  */
 
 var first_post_id;
 var last_post_id;
 
-// for status reports
+/** for status reports */
 var lmem={ heapUser: 0 };
 
+/**
+ * Helper function for copying entities around
+ * @param {string} type - type of entity (mentions, hashtags, links)
+ * @param {object} src - source entities array
+ * @param {object} dest - destination entities array
+ * @param {boolean} postcontext - are we a in a post context (versus user context)
+ */
 function copyentities(type, src, dest, postcontext) {
   if (!dest) {
     console.log('dispatcher.js::copyentities - dest not set ',dest);
@@ -49,7 +58,7 @@ function copyentities(type, src, dest, postcontext) {
   }
 }
 
-// minutely status report
+/** minutely status report */
 setInterval(function () {
   var ts=new Date().getTime();
   var mem=process.memoryUsage();
@@ -71,24 +80,42 @@ setInterval(function () {
 // we get from DB format to API
 // how much error checking do we need in the get callback?
 // should we stop the callback on failure? probably not...
+/** @constructs dispatcher */
 module.exports = {
+  /**
+   * cache object for accessing the data store
+   * @type {object}
+   */
   cache: null,
+  /**
+   * config object for accessing the config files
+   * @type {object}
+   */
   config: null,
+  /**
+   * boolean option for controlling streaming output
+   * @type {boolean}
+   */
   notsilent: true,
   /** posts */
   // difference between stream and api?
+  /**
+   * Add/Update post in data store
+   * @param {object} post - the new post object
+   * @param {setPostCallback} callback - function to call after completion
+   */
   setPost: function(post, callback) {
     if (!post) {
       console.log('dispatcher.js::setPost - post is not set!');
       if (callback) {
-        callback(null,'setPost - post is not set!');
+        callback(null, 'setPost - post is not set!');
       }
       return;
     }
     if (!post.id) {
       console.log('dispatcher.js::setPost - no id in post',post);
       if (callback) {
-        callback(null,'setPost - no id in post');
+        callback(null, 'setPost - no id in post');
       }
       return;
     }
@@ -173,11 +200,11 @@ module.exports = {
           dataPost.client_id=client.client_id;
         }
         //console.log('dispatcher.js::setPost datapost id is '+dataPost.id);
-        ref.setPost(dataPost,callback);
+        ref.setPost(dataPost, callback);
       });
     } else {
       //console.log('dispatcher.js::setPost datapost id is '+dataPost.id);
-      ref.setPost(dataPost,callback);
+      ref.setPost(dataPost, callback);
     }
 
     if (post.annotations) {
@@ -284,6 +311,12 @@ module.exports = {
       }); // getUser
     },1); // getClient
   },
+  /**
+   * get single post from data access
+   * @param {number} id - the new post object
+   * @param {object} params - the options context
+   * @param {metaCallback} callback - function to call after completion
+   */
   getPost: function(id, params, callback) {
     // probably should just exception and backtrace
     if (callback==undefined) {
@@ -341,6 +374,11 @@ module.exports = {
       }
     });
   },
+  /**
+   * get explore streams
+   * @param {object} params - the pagination context
+   * @param {metaCallback} callback - function to call after completion
+   */
   getExplore: function(params, callback) {
     var ref=this;
     this.cache.getExplore(params, function(endpoints, err, meta) {
@@ -380,6 +418,12 @@ module.exports = {
       }
     });
   },
+  /**
+   * get range of stared posts for user id userid from data access
+   * @param {number} userid - the user id to get posts for
+   * @param {object} params - the pagination context
+   * @param {metaCallback} callback - function to call after completion
+   */
   getUserStars: function(userid, params, callback) {
     //console.log('dispatcher.js::getUserStars start');
     var ref=this;
@@ -407,6 +451,12 @@ module.exports = {
       }
     });
   },
+  /**
+   * get range of hashtagged posts from data access
+   * @param {string} hashtag - the hashtag to get posts for
+   * @param {object} params - the pagination context
+   * @param {metaCallback} callback - function to call after completion
+   */
   getHashtag: function(hashtag, params, callback) {
     var ref=this;
     //console.log('dispatcher.js:getHashtag - start #'+hashtag);
@@ -434,10 +484,16 @@ module.exports = {
     });
   },
   /** channels */
-  setChannel: function(json,ts,callback) {
+  /**
+   * add/update channel
+   * @param {object} json - channel object data
+   * @param {number} ts - the timestamp of this event
+   * @param {metaCallback} callback - function to call after completion
+   */
+  setChannel: function(json, ts, callback) {
     if (!json) {
       console.log('dispatcher.js::setChannel - no json passed in');
-      callback(null,'no json passed in');
+      callback(null, 'no json passed in');
       return;
     }
     var ref=this;
@@ -477,11 +533,25 @@ module.exports = {
       process.stdout.write('C');
     }
   },
+  /**
+   * get channel data for specified channel id
+   * @param {number} id - the id of channel you're requesting
+   * @param {object} param - channel formatting options
+   * @param {metaCallback} callback - function to call after completion
+   */
   getChannel: function(id, params, callback) {
     this.cache.getChannel(id, callback);
   },
-  /** messages */
-  setMessage: function(json,ts) {
+  //
+  // messages
+  //
+  /**
+   * add/update message
+   * @param {object} json - message object data
+   * @param {number} ts - the timestamp of this event
+   * @param {metaCallback} callback - function to call after completion
+   */
+  setMessage: function(json, ts, callback) {
     //console.log('dispatcher.js::setMessage - write me!');
     // update user object
     // if the app gets behind (and/or we have mutliple stream)
@@ -505,24 +575,46 @@ module.exports = {
       is_deleted: json.is_deleted,
       created_at: json.created_at
     };
-    this.cache.setMessage(message,function(msg,err) {
+    this.cache.setMessage(message, function(msg, err) {
       // if current, extract annotations too
       if (callback) {
-        callback(msg,err);
+        callback(msg, err);
       }
     });
     if (this.notsilent) {
       process.stdout.write('M');
     }
   },
+  /**
+   * get messages for specified channel id
+   * @param {number} cid - the id of channel you're requesting
+   * @param {object} param - message formatting options
+   * @param {metaCallback} callback - function to call after completion
+   */
   getChannelMessages: function(cid, params, callback) {
     this.cache.getChannelMessages(cid, params, callback);
   },
+  /**
+   * get messages for specified message ids on specified channel
+   * @param {number} cid - the id of channel you're requesting
+   * @param {array} mids - the ids of messaes you're requesting
+   * @param {object} param - message formatting options
+   * @param {metaCallback} callback - function to call after completion
+   */
   getChannelMessage: function(cid, mids, params, callback) {
     console.log('dispatcher.js::getChannelMessage - write me!');
     callback([], null);
   },
-  /** channel_subscription */
+  //
+  // channel_subscription
+  //
+  /**
+   * add/update channel subscription
+   * @param {object} data - subscription data
+   * @param {boolean} deleted - subscribe/unscribe
+   * @param {number} ts - the timestamp of the event
+   * @param {metaCallback} callback - function to call after completion
+   */
   setChannelSubscription: function(data, deleted, ts, callback) {
     // update user object
     if (data.user) {
@@ -536,22 +628,53 @@ module.exports = {
       process.stdout.write(deleted?'s':'S');
     }
   },
+  /**
+   * get subscriptions for specified user id
+   * @param {number} userid - the id of user you're requesting
+   * @param {object} param - channel formatting options
+   * @param {metaCallback} callback - function to call after completion
+   */
   getUserSubscriptions: function(userid, params, callback) {
     this.cache.getUserSubscriptions(userid, params, callback);
   },
+  /**
+   * get subscriptions for specified channel id
+   * @param {number} channelid - the id of channel you're requesting
+   * @param {object} param - user formatting options
+   * @param {metaCallback} callback - function to call after completion
+   */
   getChannelSubscriptions: function(channelid, params, callback) {
     this.cache.getChannelSubscriptions(channelid, params, callback);
   },
-  /** stream_marker */
+  //
+  // stream_marker
+  //
+  /**
+   * add/update stream marker
+   * @todo spec out proper prototype
+   * @todo implement function
+   * @param {object} data - stream marker data object
+   */
   setStreamMakerdata: function(data) {
     console.log('dispatcher.js::setStreamMakerdata - write me!');
     if (callback) {
       callback(null, null);
     }
   },
-  /** token */
-  /** star (interaction) */
+  //
+  // user token
+  //
+  //
+  // star (interaction)
+  //
   // id is meta.id, not sure what this is yet
+  /**
+   * add/update star
+   * @param {object} data - stream star object
+   * @param {boolean} deleted - star/unstar
+   * @param {number} ts - timestamp of event
+   * @param {metaCallback} callback - function to call after completion
+   */
   setStar: function(data, deleted, id, ts, callback) {
     // and what if the posts doesn't exist in our cache?
     // update post
@@ -580,9 +703,23 @@ module.exports = {
       process.stdout.write(deleted?'_':'*');
     }
   },
-  /** mute */
-  /** block */
-  /** user */
+  //
+  // mute
+  //
+  /** @todo mute */
+  //
+  // block
+  //
+  /** @todo block */
+  //
+  // user
+  //
+  /**
+   * add/update user object
+   * @param {object} data - user stream object
+   * @param {number} ts - timestamp of event
+   * @param {metaCallback} callback - function to call after completion
+   */
   updateUser: function(data, ts, callback) {
     if (!data) {
       console.log('dispatcher.js:updateUser - data is missing',data);
@@ -613,7 +750,7 @@ module.exports = {
       //console.log('user '+data.id+' has description',data.description.entities);
       if (data.description.entities) {
         //console.log('user '+data.id+' has entities');
-        this.setEntities('user',data.id,data.description.entities,function(entities, err) {
+        this.setEntities('user', data.id, data.description.entities, function(entities, err) {
           if (err) {
             console.log("entities Update err: "+err);
           //} else {
@@ -629,7 +766,7 @@ module.exports = {
     var ref=this;
     //console.log('made '+data.created_at+' become '+userData.created_at);
     // can we tell the difference between an add or update?
-    this.cache.setUser(userData,ts,function(user,err,meta) {
+    this.cache.setUser(userData, ts, function(user, err, meta) {
       // only updated annotation if the timestamp is newer than we have
       // TODO: define signal if ts is old
       if (data.annotations) {
@@ -772,26 +909,25 @@ module.exports = {
   /** user_follow */
   setFollows: function(data, deleted, id, ts) {
     // data can be null
-    // update user object
     if (data) {
+      // update user object
       if (data.user) {
         this.updateUser(data.user,ts);
       } else {
-        console.log('dispatcher.js::setFollows - no user',data);
+        console.log('dispatcher.js::setFollows - no user', data);
       }
       // update user object
       if (data.follows_user) {
         this.updateUser(data.follows_user,ts);
       } else {
-        console.log('dispatcher.js::setFollows - no follows_user',data);
+        console.log('dispatcher.js::setFollows - no follows_user', data);
       }
       // set relationship status
-      this.cache.setFollow(data.user.id,data.follows_user.id,id,deleted,ts);
+      this.cache.setFollow(data.user.id, data.follows_user.id, id, deleted, ts);
     } else {
       // likely deleted is true in this path
       this.cache.setFollow(0,0,id,deleted,ts);
     }
-    // too bad we're throwing out this id... could be something
     if (this.notsilent) {
       process.stdout.write(deleted?'f':'F');
     }
@@ -1152,4 +1288,19 @@ module.exports = {
       break;
     }
   }
+  /**
+   * This callback is displayed as part of Dispatcher class
+   * @callback setPostCallback
+   * @param {object} post object
+   * @param {string} error
+   */
+  /**
+   * This is a callback that passes back the meta data as well
+   * @callback metaCallback
+   * @param {object} post post data object
+   * @param {?string} error null if no errors, otherwise string
+   * @param {object} meta meta object
+   */
+
 }
+
