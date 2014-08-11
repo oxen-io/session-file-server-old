@@ -219,6 +219,34 @@ module.exports = {
       process.stdout.write('P');
     }
   },
+  apiToPost: function(api, meta, callback) {
+    var post=JSON.parse(JSON.stringify(api));
+    post.date=new Date(api.created_at);
+    post.ts=post.date.getTime();
+    post.user.created_at=new Date(api.user.created_at);
+    post.userid=api.user.id;
+    // repost_of?
+    // it's an object in api and an numericid in DB
+    if (api.repost_of) {
+      post.repost_of=api.repost_of.id
+    }
+    // source
+    if (post.source) {
+      var ref=this;
+      // find it (or create it for caching later)
+      this.cache.setSource(post.source, function(client, err) {
+        if (err) {
+          console.log('can\'t setSource ',err);
+        } else {
+          post.client_id=client.client_id;
+        }
+        callback(post, err, meta);
+      });
+    } else {
+      callback(post, null, meta);
+    }
+    //return post;
+  },
   /**
    * convert DB format to API structure
    * @param {object} post - the new post object
@@ -352,6 +380,11 @@ module.exports = {
       }
     });
   },
+  /**
+   * get range of posts from data access
+   * @param {object} params - the pagination context
+   * @param {metaCallback} callback - function to call after completion
+   */
   getGlobal: function(params, callback) {
     var ref=this;
     this.cache.getGlobal(params, function(posts, err, meta) {
@@ -403,6 +436,12 @@ module.exports = {
       callback(endpoints, null, meta);
     });
   },
+  /**
+   * get range of posts for user id userid from data access
+   * @param {number} userid - the user id to get posts for
+   * @param {object} params - the pagination context
+   * @param {metaCallback} callback - function to call after completion
+   */
   getUserPosts: function(userid, params, callback) {
     //console.log('dispatcher.js::getUserPosts - userid: '+userid);
     var ref=this;
@@ -681,6 +720,57 @@ module.exports = {
   //
   // user token
   //
+  // so we need access to the session store
+  // or some way to get context
+  /**
+   * get current context user token
+   * @param {metaCallback} callback - function to call after completion
+   */
+  getToken: function(userid, client_id, callback) {
+    // we could lookup unique token by userid/client_id
+    // dummy token
+    this.getUser(userid, null, function(user, err) {
+      var token={
+        app: {
+          client_id: client_id,
+          link: "http://foo.example.com",
+          name: "Test app",
+        },
+        scopes: [
+          "stream",
+          "messages",
+          "export",
+          "write_post",
+          "follow"
+        ],
+        limits: {
+          "following": 40,
+          "max_file_size": 10000000
+        },
+        "storage": {
+          "available": 8787479688,
+          "used": 1212520312
+        },
+        user: user,
+        "invite_link": "https://join.app.net/from/notareallink"
+      };
+      callback(token, null);
+    });
+  },
+  getUserClientByToken: function(token, callback) {
+    this.cache.getAPIUserToken(token, callback);
+  },
+  /**
+   * add/update user token
+   * @param {number} userid - owner of token
+   * @param {string} client_id - client token is for
+   * @param {array} scopes - token scope
+   * @param {string} token - upstream token
+   */
+  setToken: function(userid, client_id, scopes, token, callback) {
+    // function(userid, client_id, scopes, token, callback)
+    this.cache.addAPIUserToken(userid, client_id, scopes, token, callback);
+  },
   //
   // star (interaction)
   //
