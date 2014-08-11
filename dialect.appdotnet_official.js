@@ -73,36 +73,38 @@ module.exports=function(app, prefix) {
     });
   });
   app.get(prefix+'/posts/:post_id/replies', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
 
   // {"meta":{"code":401,"error_message":"Call requires authentication: This resource requires authentication and no token was provided."}}
   app.get(prefix+'/posts/stream', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id/mentions', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id/stars', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id/following', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp));
+    // req.params.user_id,
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id/followers', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp));
+    // req.params.user_id,
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp, req.token));
   });
   /*
    * No token endpoints
    */
   app.get(prefix+'/posts/:id', function(req, resp) {
-    dispatcher.getPost(req.params.id, req.apiParams, callbacks.postCallback(resp));
+    dispatcher.getPost(req.params.id, req.apiParams, callbacks.postCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id', function(req, resp) {
     dispatcher.getUser(req.params.user_id, req.apiParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/users/:user_id/posts', function(req, resp) {
-    dispatcher.getUserPosts(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp));
+    dispatcher.getUserPosts(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id/stars', function(req, resp) {
     //console.log('ADNO::usersStar');
@@ -112,13 +114,15 @@ module.exports=function(app, prefix) {
     dispatcher.getHashtag(req.params.hashtag, req.apiParams.pageParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/posts/stream/global', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.dataCallback(resp));
+    // why data instead of posts?
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
   app.get(prefix+'/posts/stream/explore', function(req, resp) {
     dispatcher.getExplore(req.apiParams.pageParams, callbacks.dataCallback(resp));
   });
   app.get(prefix+'/posts/stream/explore/:feed', function(req, resp) {
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp));
+    // this is just a stub hack
+    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
   // channel_id 1383 is always good for testing
   app.get(prefix+'/channels/:channel_id', function(req, resp) {

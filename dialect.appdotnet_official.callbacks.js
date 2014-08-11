@@ -54,7 +54,7 @@ function formattoken(token) {
   return token;
 }
 
-function formatuser(user) {
+function formatuser(user, token) {
   if (user) {
     user.id=''+user.id;
     user.username=''+user.username; // 530 was cast as an int
@@ -66,11 +66,20 @@ function formatuser(user) {
     if (user.name) {
       user.name=''+user.name;
     }
+    if (token) {
+      // boolean (and what about the non-existent state?)
+      user.follows_you=user.follows_you?true:false;
+      user.you_blocked=user.you_blocked?true:false;
+      user.you_follow=user.you_follow?true:false;
+      user.you_muted=user.you_muted?true:false;
+      user.you_can_subscribe=user.you_can_subscribe?true:false;
+      user.you_can_follow=user.you_can_follow?true:true;
+    }
   }
   return user;
 }
 
-function formatpost(post) {
+function formatpost(post, token) {
   // cast fields to make sure they're the correct type
 
   // Now to cast
@@ -86,34 +95,31 @@ function formatpost(post) {
     }
     // remove microtime
     post.created_at=ISODateString(post.created_at);
+    if (token) {
+      // boolean (and what about the non-existent state?)
+      post.you_reposted=post.you_reposted?true:false;
+      post.you_starred=post.you_starred?true:false;
+    }
   }
   return post;
 }
 
 module.exports = {
-  'postsCallback' : function(resp) {
+  'postsCallback' : function(resp, token) {
     return function(posts, err, meta) {
       for(var i in posts) {
         var post=posts[i];
-        posts[i]=formatpost(post);
+        posts[i]=formatpost(post, token);
         if (post.repost_of) {
           // this is an object...
-          post.repost_of.user=formatuser(post.repost_of.user);
-          post.repost_of=formatpost(post.repost_of)
+          post.repost_of.user=formatuser(post.repost_of.user, token);
+          post.repost_of=formatpost(post.repost_of, token)
         }
-        posts[i].you_reposted=false;
-        posts[i].you_starred=false;
         if (typeof(post.user)=='undefined') {
           console.log('dialect.appdotnet_official.callback.js::postsCallback - missing user for post '+i);
           posts[i].user={};
         }
-        posts[i].user=formatuser(post.user);
-        posts[i].user.follows_you=false;
-        posts[i].user.you_blocked=false;
-        posts[i].user.you_follow=false;
-        posts[i].user.you_muted=false;
-        posts[i].user.you_can_subscribe=false;
-        posts[i].user.you_can_follow=true;
+        posts[i].user=formatuser(post.user, token);
       }
       // meta order: min_id, code, max_id, more
       var res={
@@ -127,20 +133,13 @@ module.exports = {
     }
   },
 
-  'usersCallback' : function(resp) {
+  'usersCallback' : function(resp, token) {
     // posts is a hack, we're converting things like global to user lists
     // we need to not do this...
     return function(posts, err, meta) {
       var users=[];
       for(var i in posts) {
-        var post=posts[i];
-        posts[i].user.follows_you=false;
-        posts[i].user.you_blocked=false;
-        posts[i].user.you_follow=false;
-        posts[i].user.you_muted=false;
-        posts[i].user.you_can_subscribe=false;
-        posts[i].user.you_can_follow=true;
-        users.push(formatuser(posts[i].user));
+        users.push(formatuser(posts[i].user, token));
       }
       // meta order: min_id, code, max_id, more
       var res={
@@ -154,14 +153,14 @@ module.exports = {
     }
   },
 
-  'postCallback' : function(resp) {
+  'postCallback' : function(resp, token) {
     return function(post, err, meta) {
       var res={
         meta: { code: 200 },
-        data: formatpost(post)
+        data: formatpost(post, token)
       };
       if (post && post.user) {
-        res.data.user=formatuser(post.user);
+        res.data.user=formatuser(post.user, token);
       }
       if (meta) {
         res.meta=meta;
