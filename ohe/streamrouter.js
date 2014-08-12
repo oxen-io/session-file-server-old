@@ -13,6 +13,7 @@ var key = nconf.get('adn:stream_key') || 'uplink_stream';
 // this number has to be in quotes otherwise it won't match
 var filter_id = nconf.get('adn:stream_filter_id') || '859';
 
+// Constructor
 function StreamRouter(app, consumer) {
     this.app = app;
     this.consumer = consumer;
@@ -90,12 +91,16 @@ StreamRouter.prototype.get_or_create_stream = function (app_access_token, cb) {
     });
 };
 
+// handle stream method
 StreamRouter.prototype.stream = function (token) {
     var self = this;
 
     var listen_to_endpoint = function (app_token, endpoint) {
         var stream = new ADNStream(endpoint);
 
+        // by using events, the main event loop is not blocked
+
+        // set up all event emitter event listener
         stream.on('channel', function (msg) {
             _.each(msg.meta.subscribed_user_ids, function (user_id) {
                 self.consumer.dispatch(user_id, msg);
@@ -205,11 +210,11 @@ StreamRouter.prototype.stream = function (token) {
         });
 
         stream.on('stream_marker', function (msg) {
-            self.consumer.consumer(msg.meta.user_id, msg);
+            self.consumer.dispatch(msg.meta.user_id, msg);
         });
 
         stream.on('channel_subscription', function (msg) {
-            self.consumer.consumer(msg.data.user.id, msg);
+            self.consumer.dispatch(msg.data.user.id, msg);
         });
 
         stream.on('error', function (error) {

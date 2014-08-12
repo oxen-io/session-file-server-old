@@ -8,8 +8,9 @@ var nconf = require('nconf');
 
 var stream_url_override = nconf.get('adn:stream_url_override');
 
+// Constructor
 function ADNStream(endpoint) {
-    EventEmitter.call(this);
+    EventEmitter.call(this); // call EventEmitter constructor
 
     this.headers = {};
 
@@ -25,9 +26,10 @@ function ADNStream(endpoint) {
 
     this.endpoint = endpoint;
 }
-
+// Extend EventEmitter
 util.inherits(ADNStream, EventEmitter);
 
+// process method
 ADNStream.prototype.process = function (purge) {
     var self = this;
     var qs = {};
@@ -82,9 +84,11 @@ ADNStream.prototype.process = function (purge) {
 
         //console.log("Processing "+obj.meta.type);
 
+        // dispatch event
         self.emit(obj.meta.type, obj);
     });
 
+    // execute request and pipe each command separated by \r\n into processor
     this.request.pipe(es.pipeline(es.split('\r\n'), processor));
 };
 
