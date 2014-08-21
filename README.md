@@ -1,7 +1,7 @@
 AppDotNetAPI (AKA AltAPI)
 ============
 
-An alternative implementation of App.net API implemented as an App.net client. This is an attempt to make the App.net API an open standard.
+An alternative implementation of the App.net API implemented as an App.net client. This is an attempt to make the App.net API an open standard.
 
 This is a piece of software that you can run to emulate the App.net API that all the existing App.net apps could connect to (if we can convince 3rd party app developers to include a configurable API/OAuth root in their App.net software).
 
@@ -11,7 +11,7 @@ Compatibility is goal #1.
 
 #Upstream integration
 
-It can work as a back up to the main App.net. So while App.net is running everything could feel like one network. In the worst-case scenario where App.net goes away forever, altapi would serve as a backup for preserving the community and allowing people to use former App.net apps, now with altapi.
+It can work as a back up to the main App.net. So while App.net is running everything could feel like one network. In the worst-case scenario where App.net goes away forever, AltAPI would serve as a backup for preserving the community and allowing people to use former App.net apps, now with altapi.
 
 A local AltAPI account can be linked with an App.net account. All locally created posts can be cross posted to App.net. All App.net created posts can be streaming into our data source and out to clients, ensuring seemless two way posting between the networks on a per user basis.
 
@@ -29,7 +29,7 @@ As well, one could set up their own standalone social network and embrace all th
 
 ## Daemons
 We'd need a web daemon for serving web requests.
-Then a background daemon for upstream streaming (connects to App.net using an app streaming), maintenance or background processing.
+Then a background daemon for upstream streaming (connects to App.net using app streaming), maintenance or background processing.
 And then a websocket daemon for user streaming.
 
 The web and background daemon will be written in NodeJS as they'll need to share code for creating posts. 
@@ -38,7 +38,7 @@ The websocket daemon will be written in Go since it'll just be reading and no wr
 
 
 ##OAuth and sign up
-We will need to implement our own oauth server and sign up process, since we don't want users using their real App.net username and password.
+We will need to implement our own OAuth server and sign up process, since we don't want users using their real App.net username and password.
 
 ##Data flow
 
@@ -48,39 +48,39 @@ The server will support different "dialects" of the API. The first one will be "
 New dialects will be able to extend the App.net API without breaking existing clients. A server is able to run multiple dialects at once.
 
 ###Dispatcher (dispatcher.js)
-This mainly translate internal API calls to DataAccess Chain. Dispatcher talks to the configured "cache". The upstream app stream and the DataAccess chain will feed data through the dispatcher for transformation and to be stored in the DataStore.
+This mainly translates internal API calls to DataAccess Chain. Dispatcher talks to the configured "cache". The upstream app stream and the DataAccess chain will feed data through the dispatcher for transformation and future storage in the DataStore.
 
 ###DataAccess Chain (dataaccess.*.js)
 The DataAccess chain is a list of DataAccess objects. Each objects in the chain will have the same exact API. If a query is not in current DataAccess layer, it will send the request to the next DataAccess layer in the chain until the request is served. Writes can cascade up too in case there are mulitple upstream providers to post to each one individually.
 
 ####DataAccess: Cache
-This is just a pass-through at the moment (dataaccess.base.js). Eventually hand crafted modules will be created. These modules will have more performant data structures than the data store can provide and can be used to optimize slower API paths.
+This is just a pass-through at the moment (dataaccess.base.js). Eventually hand-crafted modules will be created. These modules will have more performant data structures than the data store can provide and can be used to optimize slower API paths.
 
 ####DataAccess: Data store
 This contains the models for the caminte ORM (dataaccess.caminte.js) and the API to get and set data in the Data store. 
 
-This will be segmented in to 4 backing stores: Auth, Token, Rate limiting, and Data. You will be able to configure each backing store to use a different storage backend (memory, SQLite, Redis, MySQL). 
+This will be segmented into 4 backing stores: Auth, Token, Rate limiting, and Data. You will be able to configure each backing store to use a different storage backend (memory, SQLite, Redis, MySQL). 
 
 This layer will be responsible for managing expiration and size of the data set. 
 
 ####DataAccess: Upstream Proxy
-Reqeusts will be turned into requests that can be proxied from an upstream server. 
+Requests will be turned into requests that can be proxied from an upstream server. 
 
 ###Upstream streaming
-If configured, the NodeJS web server will create an app token with an upstream network (App.net at the moment) and use app streaming to receive network updates and populate it's cache/data store through the dispatcher.
+If configured, the NodeJS web server will create an app token with an upstream network (App.net at the moment) and use app streaming to receive network updates and populate its cache/data store through the dispatcher.
 
 ##Current Performance
-I'm finding (with taking in account network latency) the performance of the NodeJS web server is 10-20 faster than the official App.net API (Using memory or Redis data stores). This is likely due to the small datasets I'm testing with. Only time will tell with the larger datasets to see if the performance will hold steady.
+I'm finding (with taking in account network latency) that the performance of the NodeJS web server is 10-20 faster than the official App.net API (Using memory or Redis data stores). This is likely due to the small datasets I'm testing with. Only time will tell with the larger datasets if the performance will hold steady.
 
 ##Potential Scalability
-Using Ohe's lightPoll model; I believe with a message queue, we can have multiple web worker nodes (only one master node with upstream connection). This will allow for additional scalability if you wish to do a large scale deployment or just to use all the cpu cores in one server.
+Using Ohe's lightPoll model; I believe with a message queue, we can have multiple web worker nodes (only one master node with upstream connection). This will allow for additional scalability if you wish to do a large scale deployment or just use all the cpu cores in one server.
 
 #I'm an App.net 3rd party developer how can I get my app ready for an alternative API server?
 We just need you to have the root of the API request to be configureable.
 
 So if you have "`https://api.App.net/`" or "`https://alpha-api.App.net/stream/0/`" are your API root right now, you just need an UI for your users to be able to enter an alternate root. This will allows users to select what API to connect to and use.
 
-We'll also need to allow your OAuth endpoints to be configureable. As the users will have different usernames and passwords than their App.net counter parts.
+We'll also need to allow your OAuth endpoints to be configurable, as the users will have different usernames and passwords than their App.net counter parts.
 
 We're talking about implementing a JSON data source that will provide a directory of all the available AltAPI servers. This will be for the 3rd party app devs that really want a really nice UI for selecting an AltAPI server.
 
@@ -142,7 +142,7 @@ This is an easy target to lay out the base foundation. We just need a webserver.
   + /oembed?url=https://posts.App.net/1
 
 ##Phase #1 - Public endpoints - In Progress
-We have added a data store to the project at this point. We will  stream, store and relay App.net data. We're adding a lot of structure here. 
+We have added a data store to the project at this point. We will stream, store and relay App.net data. We're adding a lot of structure here. 
 
 Same endpoints as Phase #0
 
@@ -262,7 +262,7 @@ Config Roadmap
 ======
 
 ######Standalone mode:
-Disables any App.net connectivity. Serves it's only social network to any
+Disables any App.net connectivity. Serves its only social network to any
 App.net API supported client
 1. Participate in the App.net social network
 2. Standalone social network
@@ -313,8 +313,8 @@ Potential Issues
 Each user in each spoke needs to authenticate with the parent network. For a more p2p system, we really should look at tent.io, pond, or maidsafe.net to see how they handle auth. I'm sure UUIDs are used somewhere.
 
 - Client Secrets & IDs -
-To make a client compatible to the real App.net and our API, they will not likely change their client ID. This is not a big deal since apps like patter or vidcast have to expose these in their source that's publicly viewable but we should take care to make sure we don't expose anything unecessarily.
+To make a client compatible to the real App.net and our API, they will not likely change their client ID. This is not a big deal since apps like patter or vidcast have to expose these in their source that's publicly viewable but we should take care to make sure we don't expose anything unnecessarily.
 
 - Location services - 
 While factual has an API, each instances would need their own license.
-This maybe feature we cannot easily support
+This feature we may not be able to easily support.
