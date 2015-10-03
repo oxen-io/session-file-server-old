@@ -3,6 +3,8 @@
  * serves as base class as well as end in chain
  * @module dataaccess_base
  */
+// TODO: convert to prototype
+//
 // if next object is set, pass it through to next object
 // otherwise end chain
 /** @constructs dataaccess */
@@ -222,6 +224,14 @@ module.exports = {
       callback(null, null);
     }
   },
+  getReposts: function(postid, params, token, callback) {
+    if (this.next) {
+      this.next.getReposts(postid, params, token, callback);
+    } else {
+      console.log('dataaccess.base.js::getReposts - write me!');
+      callback(null, null);
+    }
+  },
   getReplies: function(postid, params, token, callback) {
     if (this.next) {
       this.next.getReplies(postid, params, token, callback);
@@ -235,6 +245,14 @@ module.exports = {
       this.next.getUserStream(user, params, token, callback);
     } else {
       console.log('dataaccess.base.js::getUserStream - write me!');
+      callback(null, null);
+    }
+  },
+  getUnifiedStream: function(user, params, token, callback) {
+    if (this.next) {
+      this.next.getUnifiedStream(user, params, token, callback);
+    } else {
+      console.log('dataaccess.base.js::getUnifiedStream - write me!');
       callback(null, null);
     }
   },
@@ -268,6 +286,14 @@ module.exports = {
       this.next.getExplore(params, callback);
     } else {
       console.log('dataaccess.base.js::getExplore - write me!');
+      callback(null, null, null);
+    }
+  },
+  getExploreFeed: function(feed, params, callback) {
+    if (this.next) {
+      this.next.getExploreFeed(feed, params, callback);
+    } else {
+      console.log('dataaccess.base.js::getExploreFeed - write me!');
       callback(null, null, null);
     }
   },
@@ -410,6 +436,14 @@ module.exports = {
       callback(null, null);
     }
   },
+  getFollowing: function(userid, params, callback) {
+    if (this.next) {
+      this.next.getFollowing(userid, params, callback);
+    } else {
+      console.log('dataaccess.base.js::getFollowing - write me!');
+      callback(null, null);
+    }
+  },
   getFollows: function(userid, params, callback) {
     if (this.next) {
       this.next.getFollows(userid, params, callback);
@@ -440,6 +474,22 @@ module.exports = {
       this.next.setInteraction(userid, postid, type, metaid, deleted, ts, callback);
     } else {
       console.log('dataaccess.base.js::setInteraction - write me!');
+      callback(null, null);
+    }
+  },
+  getPostStars: function(postid, params, callback) {
+    if (this.next) {
+      this.next.getPostStars(postid, params, callback);
+    } else {
+      console.log('dataaccess.base.js::getPostStars - write me!');
+      callback(null, null);
+    }
+  },
+  getNotices: function(userid, params, callback) {
+    if (this.next) {
+      this.next.getNotices(userid, params, callback);
+    } else {
+      console.log('dataaccess.base.js::getNotices - write me!');
       callback(null, null);
     }
   },

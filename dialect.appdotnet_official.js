@@ -50,7 +50,7 @@ module.exports=function(app, prefix) {
     if (req.token!==null && req.token!==undefined && req.token!='') {
       // need to translate token...
       dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-        //console.log('usertoken',usertoken);
+        //console.log('usertoken', usertoken);
         //console.log('dialect.*.js::/token  - got usertoken');
         if (usertoken==null) {
           console.log('dialect.*.js::No valid token passed in to /token', req.token);
@@ -226,4 +226,3 @@ module.exports=function(app, prefix) {
     dispatcher.textProcess(req.body.text, null, null, callbacks.dataCallback(resp));
   });
 }
- 

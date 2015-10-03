@@ -159,7 +159,8 @@ var postModel = schemaData.define('post',
   num_stars: { type: Number, default: 0 }
 });
 
-// total cache table, we'll have an option to omitted its use
+// total cache table (since I think we can extract from text),
+// we'll have an option to omitted its use
 // though we need it for hashtag look ups
 /** entity storage model */
 var entityModel = schemaData.define('entity', {
@@ -257,6 +258,27 @@ var interactionModel = schemaData.define('interaction', {
   asthisid: { type: Number } // meta.id
 });
 
+/** star storage model */
+var starModel = schemaData.define('star', {
+  userid: { type: Number, index: true },
+  created_at: { type: Date, index: true },
+  postid: { type: Number, index: true },
+  // I don't think we need soft delets for fars
+  //is_deleted: { type: Boolean, default: false, index: true },
+});
+
+// intermediate cache table for querying (a view of interactionModel)
+// we have to denormalize this for performance
+// takes more memory/storage but required if you want responsive interactions
+var noticeModel = schemaData.define('notice', {
+  event_date: { type: Date, index: true },
+  notifyuserid: { type: Number, index: true }, // who should be notified
+  actionuserid: { type: Number }, // who took an action (star)
+  type: { type: String, length: 18 }, // welcome,star,repost,reply,follow,broadcast_create,broadcast_subscribe,broadcast_unsubscribe
+  typeid: { type: Number }, // postid(star,respot,reply),userid(follow)
+});
+
+
 /** file storage model */
 var fileModel = schemaData.define('file', {
   /* API START */
@@ -276,9 +298,26 @@ var fileModel = schemaData.define('file', {
   last_updated: { type: Date },
 });
 
+// kind of a proxy cache
+// we'll it's valid to check the upstream
+// maybe a time out
+// actually downloader is in charge of refreshing, as long as we kick that off
+// we can still use this
+// we know there's no data for this
+var emptyModel = schemaData.define('empty', {
+  type: { type: String, length: 16, index: true }, // repost, replies
+  typeid: { type: Number, index: true }, // postid
+  last_updated: { type: Date },
+});
+
 //if firstrun (for sqlite3, mysql)
-//schemaData.automigrate(function() {});
-//schemaToken.automigrate(function() {});
+if (schemaDataType=='mysql' || schemaDataType=='sqlite3') {
+  //schemaData.automigrate(function() {});
+  //schemaToken.automigrate(function() {});
+  // don't lose data
+  schemaData.autoupdate(function() {});
+  schemaToken.autoupdate(function() {});
+}
 
 // Auth Todo: localUser, localClient
 // Token Todo: userToken, appToken
@@ -289,44 +328,46 @@ var fileModel = schemaData.define('file', {
 // @todo name function and call it on startup
 var statusmonitor=function () {
   var ts=new Date().getTime();
-  userModel.count({},function(err, userCount) {
-    followModel.count({},function(err, followCount) {
-      postModel.count({},function(err, postCount) {
-        channelModel.count({},function(err, channelCount) {
-          messageModel.count({},function(err, messageCount) {
-            subscriptionModel.count({},function(err, subscriptionCount) {
-              interactionModel.count({},function(err, interactionCount) {
-                annotationModel.count({},function(err, annotationCount) {
-                  entityModel.count({},function(err, entityCount) {
-                    // break so the line stands out from the instant updates
-                    // dispatcher's output handles this for now
-                    //process.stdout.write("\n");
-                    // if using redis
-                    if (schemaDataType=='sqlite3') {
-                      schemaData.client.get('PRAGMA page_count;',function(err, crow) {
-                        //console.log('dataaccess.caminte.js::status sqlite3 page_count', row);
-                        schemaData.client.get('PRAGMA page_size;',function(err, srow) {
-                          var cnt=crow['page_count'];
-                          var psize=srow['page_size'];
-                          var size=cnt*psize;
-                          console.log('dataaccess.caminte.js::status sqlite3 data [',cnt,'x',psize,'] size: ', size);
+  userModel.count({}, function(err, userCount) {
+    followModel.count({}, function(err, followCount) {
+      postModel.count({}, function(err, postCount) {
+        channelModel.count({}, function(err, channelCount) {
+          messageModel.count({}, function(err, messageCount) {
+            subscriptionModel.count({}, function(err, subscriptionCount) {
+              interactionModel.count({}, function(err, interactionCount) {
+                annotationModel.count({}, function(err, annotationCount) {
+                  entityModel.count({}, function(err, entityCount) {
+                    noticeModel.count({}, function(err, noticeCount) {
+                      // break so the line stands out from the instant updates
+                      // dispatcher's output handles this for now
+                      //process.stdout.write("\n");
+                      // if using redis
+                      if (schemaDataType=='sqlite3') {
+                        schemaData.client.get('PRAGMA page_count;', function(err, crow) {
+                          //console.log('dataaccess.caminte.js::status sqlite3 page_count', row);
+                          schemaData.client.get('PRAGMA page_size;', function(err, srow) {
+                            var cnt=crow['page_count'];
+                            var psize=srow['page_size'];
+                            var size=cnt*psize;
+                            console.log('dataaccess.caminte.js::status sqlite3 data [',cnt,'x',psize,'] size: ', size);
+                          });
                         });
-                      });
-                    }
-                    if (schemaDataType=='redis') {
-                      //console.dir(schemaAuth.client.server_info);
-                      // just need a redis info call to pull memory and keys stats
-                      // evicted_keys, expired_keys are interesting, keyspace_hits/misses
-                      // total_commands_proccesed, total_connections_received, connected_clients
-                      // update internal counters
-                      schemaData.client.info(function(err, res) {
-                        schemaData.client.on_info_cmd(err, res);
-                      });
-                      // then pull from counters
-                      console.log("dataaccess.caminte.js::status redis token "+schemaToken.client.server_info.used_memory_human+" "+schemaToken.client.server_info.db0);
-                      console.log("dataaccess.caminte.js::status redis data"+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
-                    }
-                    console.log('dataaccess.caminte.js::status '+userCount+'U '+followCount+'F '+postCount+'P '+channelCount+'C '+messageCount+'M '+subscriptionCount+'s '+interactionCount+'i '+annotationCount+'a '+entityCount+'e');
+                      }
+                      if (schemaDataType=='redis') {
+                        //console.dir(schemaAuth.client.server_info);
+                        // just need a redis info call to pull memory and keys stats
+                        // evicted_keys, expired_keys are interesting, keyspace_hits/misses
+                        // total_commands_proccesed, total_connections_received, connected_clients
+                        // update internal counters
+                        schemaData.client.info(function(err, res) {
+                          schemaData.client.on_info_cmd(err, res);
+                        });
+                        // then pull from counters
+                        console.log("dataaccess.caminte.js::status redis token "+schemaToken.client.server_info.used_memory_human+" "+schemaToken.client.server_info.db0);
+                        console.log("dataaccess.caminte.js::status redis data "+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
+                      }
+                      console.log('dataaccess.caminte.js::status '+userCount+'U '+followCount+'F '+postCount+'P '+channelCount+'C '+messageCount+'M '+subscriptionCount+'s '+interactionCount+'/'+noticeCount+'i '+annotationCount+'a '+entityCount+'e');
+                    });
                   });
                 });
               });
@@ -338,7 +379,7 @@ var statusmonitor=function () {
   });
 };
 statusmonitor();
-setInterval(statusmonitor,60*1000);
+setInterval(statusmonitor, 60*1000);
 
 // Not Cryptographically safe
 // FIXME: probably need more of a UUID style generator here...
@@ -352,7 +393,7 @@ function generateUUID(string_length) {
       randomstring += newNum;
     } else {
       var rnum = Math.floor(Math.random() * chars.length);
-      randomstring += chars.substring(rnum,rnum+1);
+      randomstring += chars.substring(rnum, rnum+1);
     }
   }
   return randomstring;
@@ -394,7 +435,7 @@ function db_delete(id, model, callback) {
       console.log("delUser Error ", err);
     }
     if (callback) {
-      callback(rec,err);
+      callback(rec, err);
     }
   });
 }
@@ -407,6 +448,130 @@ function db_get(id, model, callback) {
     //if (callback) {
     callback(rec, err);
     //}
+  });
+}
+function setparams(query, params, maxid, callback) {
+  // what if we want all, how do we ask for that if not zero?
+  //if (!params.count) params.count=20;
+  // can't set API defaults here because the dispatch may operate outside the API limits
+  // i.e. the dispatch may want all records (Need example, well was getUserPosts of getInteractions)
+  console.log('into setparams from',params.since_id,'to',params.before_id,'for',params.count);
+
+  // general guard
+  if (maxid<20) {
+    // by default downloads the last 20 posts from the id passed in
+    // so use 20 so we don't go negative
+    // FIXME: change to scoping in params adjustment
+    maxid=20;
+  }
+  // create a range it will exist in
+  // redis should be able to decisions about how to best optimize this
+  // rules out less optimal gambles
+  // and since it can't use less optimal gambles on failure
+  // uses the 68s system, ugh
+  /*
+  if (!params.since_id) {
+    params.since_id=0;
+  }
+  */
+  // well if we have a where on a field, and we ad in id
+  // then we can't optimize, let's try without this
+  /*
+  if (!params.before_id) {
+    params.before_id=maxid;
+  }
+  */
+
+  // bullet 5: Remember, items are always returned from newest to oldest even If count is negative
+  // if we do our math right, we won't need .limit(params.count);
+  // redis maybe need the limit to be performant
+  //console.log('test',query.model.modelName);
+  // not all objects have id linked to their chronology
+  var idfield='id';
+  if (query.model.modelName==='entity') {
+    // typeid is usually the post
+    //query=query.order('typeid', 'DESC').limit(params.count);
+    idfield='typeid';
+  }
+  query=query.order(idfield, 'DESC').limit(params.count);
+
+  // this count system only works if we're asking for global
+  // and there's not garuntee we have all the global data locally
+  /*
+  if (params.before_id) {
+    if (!params.since_id) {
+      // only asking for before this ID, this only works for global
+      //params.since_id=Math.max(params.before_id-params.count, 0);
+    }
+  } else if (params.since_id) {
+    // no before but we have since
+    // it's maxid+1 because before_id is exclusive
+    // params.count was just count
+    //params.before_id=Math.min(params.since_id+params.count, maxid+1);
+  } else {
+    // none set
+    // if we have upstream enabled
+    params.before_id=maxid;
+    // count only works if contigeous (global)
+    //params.since_id=maxid-params.count;
+    // if we don't have upstream disable
+    // best to proxy global...
+  }
+  */
+  console.log('from',params.since_id,'to',params.before_id,'should be a count of',params.count,'test',params.before_id-params.since_id);
+  // really won't limit or offset
+
+  // count shouldn't exceed the difference between since and before
+  // using Redis, querying by id range isn't fast enough (60 secs)
+  //
+  // I think between is broken in redis:caminte (helper::parseCond doesn't test for indexes right)
+  // yea now we're only getting a CondIndex of 22
+  // sunionstore - condIndex 22
+  // with between we'd get
+  // sunionstore - condIndex 518656
+  // both are still around 68s though
+  /*
+  if (params.since_id && params.before_id) {
+    query=query.between('id', [params.since_id, params.before_id]);
+  } else {
+  */
+  // 0 or 1 of these will be true
+  if (params.since_id) {
+    query=query.gte(idfield, params.since_id);
+  }
+  if (params.before_id) {
+    query=query.lte(idfield, params.before_id);
+  }
+  //}
+  /*
+  if (params.since_id && params.before_id) {
+  } else if (params.since_id) {
+    query=query.gt(params.since_id);
+  } else if (params.before_id) {
+    query=query.lt(params.before_id);
+  }
+  */
+  var min_id=maxid+200,max_id=0;
+  query.run({},function(err, objects) {
+    //console.log('got',posts.length);
+    // generate meta, find min/max in set
+    for(var i in objects) {
+      var obj=objects[i];
+      if (obj[idfield]) {
+        min_id=Math.min(min_id,obj[idfield]);
+        max_id=Math.max(max_id,obj[idfield]);
+      }
+    }
+    // if got less than what we requested, we may not have it cached
+    console.log('dataaccess.caminte.js::setparams query got',objects.length,'range:',min_id,'to',max_id,'more:',objects.length==params.count);
+    var imeta={
+      code: 200,
+      min_id: min_id,
+      max_id: max_id,
+      more: objects.length==params.count
+    };
+    // was .reverse on posts, but I don't think that's right for id DESC
+    callback(objects, err, imeta);
   });
 }
 
@@ -468,7 +633,7 @@ module.exports = {
       callback(user, err);
     });
   },
-  // callback is user,err,meta
+  // callback is user, err, meta
   getUser: function(userid, callback) {
     if (userid==undefined) {
       callback(null, 'dataaccess.caminte.js:getUser - userid is undefined');
@@ -533,6 +698,13 @@ module.exports = {
   },
   getAPIUserToken: function(token, callback) {
     //console.log('dataaccess.camintejs.js::getAPIUserToken - Token: ',token);
+    if (token==undefined) {
+      console.log('dataaccess.camintejs.js::getAPIUserToken - Token not defined');
+      // we shouldn't need to return here
+      // why doesn't mysql handle this right? bad driver
+      callback(null, 'token undefined');
+      return;
+    }
     userTokenModel.findOne({ where: { token: token }}, function(err, usertoken) {
       //console.log('dataaccess.camintejs.js::getAPIUserToken - err',err,'usertoken',usertoken);
       callback(usertoken, err);
@@ -587,7 +759,7 @@ module.exports = {
       callback(client, err);
     });
   },
-  delLocalClient: function(client_id,callback) {
+  delLocalClient: function(client_id, callback) {
     clientModel.findOne({ where: {client_id: client_id} }, function(err, client) {
       db_delete(client.id, clientModel, callback);
     });
@@ -610,11 +782,11 @@ module.exports = {
   setSource: function(source, callback) {
     clientModel.findOrCreate({
       client_id: source.client_id
-    },{
+    }, {
       name: source.name,
       link: source.link
-    },function(err,client) {
-      callback(client,err);
+    }, function(err, client) {
+      callback(client, err);
     });
   },
   /* client (app) tokens */
@@ -643,13 +815,47 @@ module.exports = {
   /**
    * posts
    */
+  // doesn't require an id
   addPost: function(ipost, token, callback) {
     // if we local commit, do we also want to relay it upstream?
     if (this.next) {
       this.next.addPost(ipost, token, callback);
     }
   },
+  // requires that we have an id
   setPost:  function(ipost, callback) {
+    /*
+    delete ipost.source;
+    delete ipost.user;
+    delete ipost.annotations;
+    delete ipost.entities;
+    */
+    if (ipost.repost_of) {
+      // look up the parent post
+      this.getPost(ipost.repost_of, function(post, err) {
+        notice=new noticeModel();
+        notice.event_date=ipost.created_at;
+        notice.notifyuserid=post.userid; // who should be notified
+        notice.actionuserid=ipost.userid; // who took an action
+        notice.type='repost'; // star,repost,reply,follow
+        notice.typeid=ipost.id; // postid(star,respot,reply),userid(follow)
+        db_insert(notice, noticeModel);
+      });
+    }
+    if (ipost.reply_to) {
+      // look up the parent post
+      this.getPost(ipost.reply_to, function(post, err) {
+        notice=new noticeModel();
+        notice.event_date=ipost.created_at;
+        notice.notifyuserid=post.userid; // who should be notified
+        notice.actionuserid=ipost.userid; // // who took an action
+        notice.type='reply'; // star,repost,reply,follow
+        // riposte is showing the original post
+        notice.typeid=ipost.id; // postid(star,respot,reply),userid(follow)
+        db_insert(notice, noticeModel);
+      });
+    }
+
     // oh these suck the worst!
     postModel.findOrCreate({
       id: ipost.id
@@ -697,23 +903,161 @@ module.exports = {
       callback(post, err);
     });
   },
+  getReposts: function(postid, params, token, callback) {
+    var ref=this;
+    // needs to also to see if we definitely don't have any
+    postModel.all({ where: { repost_of: postid } }, function(err, posts) {
+      // what if it just doesn't have any, how do we store that?
+      if ((posts==null || posts.length==0) && err==null) {
+        // before we hit proxy, check empties
+        // if there is one, there should only ever be one
+        emptyModel.findOne({ where: { type: 'repost', typeid: postid } }, function(err, empties) {
+          //console.log('dataaccess.caminte.js::getPost - empties got',empties);
+          if (empties===null) {
+            // if empties turns up not set
+            if (ref.next) {
+              //console.log('dataaccess.caminte.js::getPost - next');
+              ref.next.getReposts(postid, params, token, function(pdata, err, meta) {
+                // set empties
+                //console.log('dataaccess.caminte.js::getPost - proxy.getReposts got',pdata);
+                if (pdata.length==0) {
+                  // no reposts
+                  //console.log('dataaccess.caminte.js::getPost - proxy.getReposts got none');
+                  // createOrUpdate? upsert?
+                  var empty=new emptyModel;
+                  empty.type='repost';
+                  empty.typeid=postid;
+                  // .getTime();
+                  empty.last_updated=new Date();
+                  db_insert(empty, emptyModel);
+                }
+                callback(pdata, err, meta);
+              });
+              return;
+            } else {
+              // no way to get data
+              callback(null, null);
+            }
+          } else {
+            //console.log('dataaccess.caminte.js::getPost - used empty cache');
+            // we know it's empty
+            callback([], null);
+          }
+        });
+      } else {
+        callback(posts, err);
+      }
+    });
+  },
   getReplies: function(postid, params, token, callback) {
     //console.log('dataaccess.caminte.js::getReplies - id is '+postid);
     var ref=this;
     // thread_id or reply_to?
-    postModel.find({ where: { thread_id: postid} }, function(err, posts) {
+    postModel.find({ where: { thread_id: postid}, limit: params.count }, function(err, posts) {
       //console.log('found '+posts.length,'err',err);
       if ((posts==null || posts.length==0) && err==null) {
-        if (ref.next) {
-          //console.log('dataaccess.caminte.js::getPost - next');
-          ref.next.getReplies(postid, params, token, callback);
-          return;
-        }
+        // before we hit proxy, check empties
+        // if there is one, there should only ever be one
+        emptyModel.findOne({ where: { type: 'replies', typeid: postid } }, function(err, empties) {
+          //console.log('dataaccess.caminte.js::getReplies - empties got',empties);
+          if (empties===null) {
+
+            if (ref.next) {
+              //console.log('dataaccess.caminte.js::getReplies - next');
+              ref.next.getReplies(postid, params, token, function(pdata, err, meta) {
+                // set empties
+                console.log('dataaccess.caminte.js::getReplies - proxy.getReposts got length',pdata.length,'postid',postid);
+                // 0 or the original post
+                if (pdata.length<2) {
+                  // no reposts
+                  console.log('dataaccess.caminte.js::getReplies - proxy.getReposts got none');
+                  // createOrUpdate? upsert?
+                  var empty=new emptyModel;
+                  empty.type='replies';
+                  empty.typeid=postid;
+                  // .getTime();
+                  empty.last_updated=new Date();
+                  db_insert(empty, emptyModel);
+                }
+                callback(pdata, err, meta);
+              });
+              return;
+            } else {
+              // no way to get data
+              callback(null, null);
+            }
+          } else {
+            console.log('dataaccess.caminte.js::getReplies - used empty cache');
+            // we know it's empty
+            callback([], null);
+          }
+        });
+      } else {
+        callback(posts, err);
       }
-      callback(posts, err);
     });
   },
   getUserStream: function(user, params, token, callback) {
+    var ref=this;
+    var finalfunc=function(userid) {
+      // get a list of followings
+      followModel.find({ where: { active: 1, userid: user } }, function(err, follows) {
+        //console.log('dataaccess.caminte.js::getUserStream - got '+follows.length+' for user '+user);
+        if (err==null && follows!=null && follows.length==0) {
+          //console.log('User follows no one?');
+          if (ref.next) {
+            //console.log('check upstream');
+            ref.next.getUserStream(user, params, token, callback);
+            return;
+          }
+          callback([], null);
+        } else {
+          // we have some followings
+          // for each following
+          var userids=[];
+          for(var i in follows) {
+            // follow.followsid
+            userids.push(follows[i].followsid);
+          }
+          // get a list of their posts
+          console.log('dataaccess.caminte.js::getUserStream - getting posts for '+userids.length+' users');
+          // could use this to proxy missing posts
+          // what about since_id??
+          var maxid=0;
+          postModel.all({ order: 'id DESC', limit: 1}, function(err, posts) {
+            if (posts.length) {
+              maxid=posts[0].id;
+            }
+            setparams(postModel.find().where('userid',{ in: userids }), params, maxid, callback);
+          });
+          /*
+          postModel.find({ where: { userid: { in: userids } }, order: 'created_at DESC', limit: params.count, offset: params.before_id }, function(err, posts) {
+            if (err) {
+              console.log('dataaccess.caminte.js::getUserStream - post find err',err);
+              callback([], err);
+            } else {
+              console.log('dataaccess.caminte.js::getUserStream - Found '+posts.length+' posts',err);
+              callback(posts, null);
+            }
+          })
+          */
+        }
+      });
+    };
+    if (user=='me') {
+      this.getAPIUserToken(token, function(tokenobj, err) {
+        finalfunc(tokenobj.userid);
+      })
+    } else if (user[0]=='@') {
+      // uhm I don't think posts has a username field...
+      this.getUserID(user.substr(1), function(userobj, err) {
+        finalfunc(userobj.id);
+      });
+    } else {
+      finalfunc(user);
+    }
+  },
+  getUnifiedStream: function(user, params, token, callback) {
     var ref=this;
     var finalfunc=function(userid) {
       // get a list of followers
@@ -728,19 +1072,22 @@ module.exports = {
           }
           callback([], null);
         } else {
-          // we have some followers
+          // we have some followings
           // for each follower
           var userids=[];
           for(var i in follows) {
             // follow.followsid
             userids.push(follows[i].followsid);
           }
-          // get a list of their posts
+          // get list of mention posts
+          // WRITE ME
+          console.log('dataaccess.caminte.js::getUnifiedStream - write me, mention posts');
+          // get the list of posts from followings and mentions
           //console.log('dataaccess.caminte.js::getUserStream - getting posts for '+userids.length+' users');
           // could use this to proxy missing posts
           postModel.find({ where: { userid: { in: userids } }, order: 'created_at DESC', limit: 20 }, function(err, posts) {
             if (err) {
-              console.log('dataaccess.caminte.js::getUserStream - post find err',err);
+              console.log('dataaccess.caminte.js::getUnifiedStream - post find err',err);
               callback([], err);
             } else {
               //console.log('Found '+posts.length+' posts',err);
@@ -780,7 +1127,7 @@ module.exports = {
     } else {
       search.userid=user;
     }
-    postModel.find({ where: search }, function(err, posts) {
+    postModel.find({ where: search, limit: params.count }, function(err, posts) {
       if (err==null && posts==null) {
         if (ref.next) {
           ref.next.getUserPosts(user, params, callback);
@@ -793,23 +1140,67 @@ module.exports = {
   getMentions: function(user, params, callback) {
     var ref=this;
     var search={ idtype: 'post', type: 'mention' };
+    var k='',v='';
     if (user[0]=='@') {
       search.text=user.substr(1);
+      k='text'; v=user.substr(1);
     } else {
       search.alt=user;
+      k='alt'; v=user;
     }
-    //console.log('mention/entity search for ',search);
-    entityModel.find({ where: search }, function(err, entities) {
-      callback(entities, err);
+    var count=params.count;
+    console.log('mention/entity search for ',search);
+    // , limit: count, order: 'id desc'
+    // 41,681,824
+    // to
+    // 41,686,219
+    // faster?? nope
+    //postModel.findOne({ where: {}, order: 'id DESC'}, function(err, post) {
+    //postModel.find().order('id', 'DESC').limit(1).run({},function(err, posts) {
+    //postModel.all().order('id', 'DESC').limit(1).run({},function(err, posts) {
+    //console.log('dataaccess.caminte.js::getMentions - start');
+    var maxid=0;
+    // get the highest post id in entities
+    entityModel.all({ order: 'typeid DESC', limit: 1}, function(err, entities) {
+      //console.log('dataaccess.caminte.js::getMentions - back',posts);
+      if (entities.length) {
+        maxid=entities[0].typeid;
+      }
+      //maxid=post.id;
+      //if (maxid<20) {
+        // by default downloads the last 20 posts from the id passed in
+        // so use 20 so we don't go negative
+        // FIXME: change to scoping in params adjustment
+        //maxid=20;
+      //}
+      //console.log('maxid',maxid);
+      // this didn't work
+      //setparams(entityModel.find().where(search), params, maxid, callback);
+      // this gave error
+      setparams(entityModel.find(search), params, maxid, callback);
     });
+    /*
+    entityModel.find({ where: search, limit: count, order: 'id DESC' }, function(err, entities) {
+      callback(entities.reverse(), err);
+    });
+    */
   },
   getGlobal: function(params, callback) {
     var ref=this;
     //console.dir(params);
     // make sure count is positive
-    var count=Math.abs(params.count);
+    //var count=Math.abs(params.count);
     var maxid=null;
-    postModel.find().order('id','DESC').limit(1).run({},function(err, posts) {
+    //postModel.find().order('id', 'DESC').limit(1).run({},function(err, posts) {
+    postModel.all({ order: 'id DESC', limit: 1 }, function(err, posts) {
+      //console.log('getGlobal - posts',posts);
+      if (posts.length) {
+        maxid=posts[0].id;
+        //console.log('getGlobal - maxid becomes',maxid);
+      }
+      setparams(postModel.all(), params, maxid, callback);
+      // this optimized gets a range
+      /*
       if (posts.length) {
         maxid=posts[0].id;
       }
@@ -819,16 +1210,16 @@ module.exports = {
         // FIXME: change to scoping in params adjustment
         maxid=20;
       }
-      //console.log('max post id in data store is '+maxid);
+      //console.log('getGlobal - max post id in data store is '+maxid);
 
       if (params.before_id) {
         if (!params.since_id) {
-          params.since_id=Math.max(params.before_id-count,0);
+          params.since_id=Math.max(params.before_id-count, 0);
         }
       } else if (params.since_id) {
         // no before but we have since
         // it's maxid+1 because before_id is exclusive
-        params.before_id=Math.min(params.since_id+count,maxid+1);
+        params.before_id=Math.min(params.since_id+count, maxid+1);
       } else {
         // if we have upstream enabled
         // none set
@@ -882,17 +1273,17 @@ module.exports = {
           // get the post
           ref.getPost(current, function(post, err, postMeta) {
             posts.push(post);
+            //console.log('posts',posts.length,'inlist',inlist.length);
             if (posts.length==inlist.length) {
               // if negative count, we need to reverse the results
               if (params.count<0) {
                 posts.reverse();
               }
-              /*
-              for(var i in posts) {
-                var post=posts[i];
-                console.log('got '+post.id);
-              }
-              */
+              //for(var i in posts) {
+                //var post=posts[i];
+                //console.log('got '+post.id);
+              //}
+              //console.log('sending',posts.length);
               callback(posts, null, meta);
             }
           });
@@ -900,22 +1291,31 @@ module.exports = {
       } else {
         callback([], null, meta);
       }
+      */
     });
   },
   getExplore: function(params, callback) {
     if (this.next) {
       this.next.getExplore(params, callback);
     } else {
-      console.log('dataaccess.base.js::getExplore - write me!');
+      //console.log('dataaccess.base.js::getExplore - write me!');
       var res={"meta":{"code":200},
         "data":[
-          {"url":"/posts/stream/explore/conversations","description":"New conversations just starting on App.net","slug":"conversations","title":"Conversations"},
-          {"url":"/posts/stream/explore/photos","description":"Photos uploaded to App.net","slug":"photos","title":"Photos"},
-          {"url":"/posts/stream/explore/trending","description":"Posts trending on App.net","slug":"trending","title":"Trending"},
-          {"url":"/posts/stream/explore/checkins","description":"App.net users in interesting places","slug":"checkins","title":"Checkins"}
+          {"url":"/posts/stream/explore/conversations", "description":"New conversations just starting on App.net", "slug":"conversations", "title":"Conversations"},
+          {"url":"/posts/stream/explore/photos", "description":"Photos uploaded to App.net", "slug":"photos", "title":"Photos"},
+          {"url":"/posts/stream/explore/trending", "description":"Posts trending on App.net", "slug":"trending", "title":"Trending"},
+          {"url":"/posts/stream/explore/checkins", "description":"App.net users in interesting places", "slug":"checkins", "title":"Checkins"}
         ]
       };
       callback(res.data, null, res.meta);
+    }
+  },
+  getExploreFeed: function(feed, params, callback) {
+    if (this.next) {
+      this.next.getExploreFeed(feed, params, callback);
+    } else {
+      console.log('dataaccess.caminte.js::getExploreFeed - write me!');
+      callback(null, null, null);
     }
   },
   /** channels */
@@ -931,11 +1331,11 @@ module.exports = {
   },
   getChannel: function(id, callback) {
     if (id==undefined) {
-      callback(null,'dataaccess.caminte.js::getChannel - id is undefined');
+      callback(null, 'dataaccess.caminte.js::getChannel - id is undefined');
       return;
     }
     var ref=this;
-    db_get(id,channelModel,function(channel,err) {
+    db_get(id, channelModel, function(channel, err) {
       if (channel==null && err==null) {
         if (ref.next) {
           ref.next.getChannel(id, callback);
@@ -961,7 +1361,7 @@ module.exports = {
       return;
     }
     var ref=this;
-    db_get(id,messageModel,function(message, err) {
+    db_get(id, messageModel, function(message, err) {
       if (message==null && err==null) {
         if (ref.next) {
           ref.next.getMessage(id, callback);
@@ -1002,18 +1402,18 @@ module.exports = {
       this.next.getUserSubscriptions(userid, params, callback);
       return;
     }
-    callback(null,null);
+    callback(null, null);
   },
   getChannelSubscriptions: function(channelid, params, callback) {
     if (id==undefined) {
-      callback(null,'dataaccess.caminte.js::getChannelSubscriptions - id is undefined');
+      callback(null, 'dataaccess.caminte.js::getChannelSubscriptions - id is undefined');
       return;
     }
     if (this.next) {
       this.next.getChannelSubscriptions(channelid, params, callback);
       return;
     }
-    callback(null,null);
+    callback(null, null);
   },
   /** files */
   setFile: function(file, del, ts, callback) {
@@ -1039,6 +1439,12 @@ module.exports = {
       this.next.extractEntities(type, id, entities, entitytype, callback);
     }
     */
+    if (type===null) {
+      // don't let it write type nulls
+      console.log('dataaccess.caminte.js::extractEntities - extracted bad entity type',type);
+      callback(null,'badtype');
+      return;
+    }
     // delete (type & idtype & id)
     entityModel.find({where: { idtype: type, typeid: id, type: entitytype }},function(err, oldEntities) {
       //console.dir(oldEntities);
@@ -1063,7 +1469,7 @@ module.exports = {
         if (oldEntity.id) {
           entityModel.destroyById(oldEntity.id, function(err) {
             if (err) {
-              console.log('couldn\'t destory old entity ',err);
+              console.log('couldn\'t destroy old entity ',err);
             }
           });
         } else {
@@ -1089,7 +1495,10 @@ module.exports = {
         if (!entity.alt) {
           entity.alt='';
         }
-        //console.log('Insert entity '+entitytype+' #'+i+' '+type);
+        if (!entity.altnum) {
+          entity.altnum=0;
+        }
+        //console.log('Insert entity '+entitytype+' #'+i+' '+type,'alt',entity.alt,'userid',entities[i].id);
         db_insert(entity, entityModel);
       }
       if (callback) {
@@ -1118,15 +1527,24 @@ module.exports = {
         //console.log('dataaccess.caminte.js::getEntities '+type+' '+id+' - count ',entities.length);
         for(var i in entities) {
           var entity=entities[i];
+          // why is find returning empty sets...
+          if (entity.id===null) continue;
+          //console.log('entity',entity,'i',i);
           //console.log('et '+entity.type);
           if (res[entity.type+'s']) {
             res[entity.type+'s'].push(entities[i]);
           } else {
-            console.log('getEntities unknown type '+entity.type+' for '+type+' '+id);
+            // temp disabled, just makes debugging other things harder
+            // you're data is bad I get it
+            console.log('getEntities unknown type ['+entity.type+'] for ['+type+'] ['+id+'] test['+entity.id+']');
+            // we need to delete it
+            //entity.destroy();
+            //entityModel.destroy(entity);
+            entityModel.destroyById(entity.id);
           }
         }
       }
-      callback(res,null);
+      callback(res, null);
     });
   },
   // more like getHashtagEntities
@@ -1139,7 +1557,7 @@ module.exports = {
     */
     // sorted by post created date...., well we have post id we can use
     entityModel.find({ where: { type: 'hashtag', text: hashtag }, order: 'typeid' }, function(err, entities) {
-      callback(entities,err);
+      callback(entities, err);
     });
   },
   /**
@@ -1160,9 +1578,9 @@ module.exports = {
         // causes TypeError: Cannot read property 'constructor' of null
         // when using by id... ah I see wrong type of id...
         if (oldNote.id) {
-          annotationModel.destroyById(oldNote.id,function(err) {
+          annotationModel.destroyById(oldNote.id, function(err) {
             if (err) {
-              console.log('couldn\'t destory old annotation ',err);
+              console.log('couldn\'t destory old annotation ', err);
             }
           });
         } else {
@@ -1190,6 +1608,21 @@ module.exports = {
     // FIXME: ORM issues here...
     // create vs update fields?
     if (srcid && trgid) {
+
+      // do notify
+      // could guard but then we'd need more indexes
+      // i think we'll be ok if we don't guard for now
+      //noticeModel.noticeModel( { where: { created_at: ts, type: type } }, function(err, notify)
+      //
+      notice=new noticeModel();
+      notice.event_date=ts;
+      notice.notifyuserid=trgid; // who should be notified
+      notice.actionuserid=srcid; // who took an action
+      notice.type='follow'; // star,repost,reply,follow
+      notice.typeid=srcid; // postid(star,respot,reply),userid(follow)
+      db_insert(notice, noticeModel);
+
+      console.log('setFollow active test',del?0:1,'del',del);
       followModel.updateOrCreate({
         userid: srcid,
         followsid: trgid
@@ -1216,23 +1649,47 @@ module.exports = {
     // find (id and status, dates)
     // update or insert
   },
+  getFollowing: function(userid, params, callback) {
+    if (userid==undefined) {
+      callback(null, 'dataaccess.caminte.js::getFollowing - userid is undefined');
+      return;
+    }
+    followModel.find({ where: { userid: userid } }, function(err, followings) {
+      //console.dir(followings);
+      if (followings==undefined) {
+        if (this.next) {
+          this.next.getFollowing(userid, params, callback);
+          return;
+        }
+      } else {
+        //console.log('got', followings.length, 'followings for', userid);
+        callback(followings, err);
+      }
+    })
+  },
+  // who is following this user
   getFollows: function(userid, params, callback) {
-    if (id==undefined) {
-      callback(null,'dataaccess.caminte.js::getFollows - userid is undefined');
+    if (userid==undefined) {
+      callback(null, 'dataaccess.caminte.js::getFollows - userid is undefined');
       return;
     }
-    if (this.next) {
-      this.next.getFollows(userid, params, callback);
-      return;
-    }
-    callback(null, null);
+    followModel.find({ where: { followsid: userid }, limit: params.count, order: "last_updated DESC" }, function(err, followers) {
+      if (followers==undefined) {
+        if (this.next) {
+          this.next.getFollows(userid, params, callback);
+          return;
+        }
+      } else {
+        callback(followers, null);
+      }
+    });
   },
   /** Star/Interactions */
   addStar: function(postid, token, callback) {
     if (this.next) {
       this.next.addStar(postid, token, callback);
     } else {
-      console.log('dataaccess.base.js::addStar - write me!');
+      console.log('dataaccess.caminte.js::addStar - write me!');
       callback(null, null);
     }
   },
@@ -1240,13 +1697,39 @@ module.exports = {
     if (this.next) {
       this.next.delStar(postid, token, callback);
     } else {
-      console.log('dataaccess.base.js::delStar - write me!');
+      console.log('dataaccess.caminte.js::delStar - write me!');
       callback(null, null);
     }
   },
   setInteraction: function(userid, postid, type, metaid, deleted, ts, callback) {
-    // is there an existing match for this key (userid,postid,type)
-    interactionModel.find({ where: { userid: userid, typeid: postid, type: type } },function(err,foundInteraction) {
+    // is there an existing match for this key (userid, postid, type)
+    // wouldn't find or create be better here?
+    var ref=this;
+    interactionModel.find({ where: { userid: userid, typeid: postid, type: type } }, function(err,foundInteraction) {
+
+      // ok star,repost
+      //console.log('setInteraction - type',type);
+      if (type=='star') {
+        // is this the src or trg?
+        //console.log('setInteraction - userid',userid);
+        // do notify
+        // could guard but then we'd need more indexes
+        // i think we'll be ok if we don't guard for now
+        //noticeModel.noticeModel( { where: { created_at: ts, type: type } }, function(err, notify)
+
+        // first who's object did we interact with
+        ref.getPost(postid, function(post, err, meta) {
+          notice=new noticeModel();
+          notice.event_date=ts;
+          notice.notifyuserid=post.userid; // who should be notified
+          notice.actionuserid=userid; // who took an action
+          notice.type=type; // star,repost,reply,follow
+          notice.typeid=postid; // postid(star,respot,reply),userid(follow)
+          //notice.asthisid=metaid;
+          db_insert(notice, noticeModel);
+        });
+      }
+
       // is this new action newer
       interaction=new interactionModel();
       interaction.userid=userid;
@@ -1262,14 +1745,48 @@ module.exports = {
       }
     });
   },
+  // get a list of posts starred by this user (Retrieve Posts starred by a User)
+  // https://api.app.net/users/{user_id}/stars
+  // getUserStarPosts
+  //
+  // get a list of users that have starred this post
+  // getPostStars
+  getPostStars: function(postid, params, callback) {
+    interactionModel.find({ where: { type: 'star', typeid: postid, idtype: 'post' }, limit: params.count }, function(err, interactions) {
+      /*
+      if (interactions==null && err==null) {
+        callback(interactions, err);
+      } else {
+        callback(interactions, err);
+      }
+      */
+      callback(interactions, err);
+    });
+  },
+  getNotices: function(userid, params, callback) {
+    //console.log('dataaccess.caminte.js::getNotices');
+    noticeModel.find({ where: { notifyuserid: userid }, limit: params.count, order: "event_date DESC" }, function(err, notices) {
+      //console.log('dataaccess.caminte.js::gotNotices');
+      callback(notices, err);
+    });
+  },
+  // USERS DONT INTERACT WITH EACH OTHER (except follows)
+  // THEY (mostly) INTERACT WITH POSTS
+  // and we'll need to deference the post.user as a user can have 10k posts
+  // and we need to be able to query by user without looking up 10k and joining that set
+  //
   // getUserInteractions, remember reposts are stored here too
   // if we're going to use one table, let's keep the code advantages from that
-  // getUserStarPosts
+  //
+  // this isn't good enough
+  // we will rarely query by user
+  // idtype and type are highly likely
+  // can be in context of token/user
   getInteractions: function(type, user, params, callback) {
     //console.log('Getting '+type+' for '+userid);
     var ref=this;
     var finishfunc=function(userid) {
-      interactionModel.find({ where: { userid: userid, type: type, idtype: 'post' } }, function(err, interactions) {
+      interactionModel.find({ where: { userid: userid, type: type, idtype: 'post' }, limit: params.count }, function(err, interactions) {
         if (interactions==null && err==null) {
           // none found
           //console.log('dataaccess.caminte.js::getStars - check proxy?');
