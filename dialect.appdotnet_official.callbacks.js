@@ -1,15 +1,18 @@
 
 function sendrepsonse(json, resp) {
+  var ts=new Date().getTime();
+  console.log(resp.path+' served in '+(ts-resp.start)+'ms');
   if (resp.prettyPrint) {
     json=JSON.stringify(JSON.parse(json),null,4);
   }
   //resp.set('Content-Type', 'text/javascript');
   resp.type('application/json');
+  resp.setHeader("Access-Control-Allow-Origin", "*");
   resp.send(json);
 }
 
 function ISODateString(d) {
-  if (!d.getUTCFullYear) {
+  if (!d || !d.getUTCFullYear) {
     console.log('created_at is type (!date): ',d,typeof(d));
     return d;
   }
@@ -118,8 +121,9 @@ module.exports = {
         if (typeof(post.user)=='undefined') {
           console.log('dialect.appdotnet_official.callback.js::postsCallback - missing user for post '+i);
           posts[i].user={};
+        } else {
+          posts[i].user=formatuser(post.user, token);
         }
-        posts[i].user=formatuser(post.user, token);
       }
       // meta order: min_id, code, max_id, more
       var res={
