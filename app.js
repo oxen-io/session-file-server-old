@@ -108,7 +108,10 @@ app.use(bodyParser());
  * This is run on each incoming request
  */
 app.use(function(req, res, next) {
+  res.start=new Date().getTime();
+  res.path=req.path;
   //console.dir(req); // super express debug
+  var token=null;
   if (req.get('Authorization') || req.query.access_token) {
     if (req.query.access_token) {
       req.token=req.query.access_token;
@@ -120,19 +123,24 @@ app.use(function(req, res, next) {
           if (req.get('Authorization')) {
             //console.log('Authorization: '+req.get('Authorization'));
             // Authorization Bearer <YOUR ACCESS TOKEN>
-            req.token=req.get('Authorization').replace('Bearer ','');
+            req.token=req.get('Authorization').replace('Bearer ', '');
           }
+        } else {
+          token=usertoken;
+          console.log('token marked valid');
         }
       });
     } else {
       if (req.get('Authorization')) {
         //console.log('Authorization: '+req.get('Authorization'));
         // Authorization Bearer <YOUR ACCESS TOKEN>
-        req.token=req.get('Authorization').replace('Bearer ','');
+        req.token=req.get('Authorization').replace('Bearer ', '');
         dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
           if (usertoken==null) {
             console.log('Invalid header token (Server restarted on clients?...): '+req.token);
             req.token=null;
+          } else {
+            token=usertoken;
           }
         });
       }
@@ -145,70 +153,73 @@ app.use(function(req, res, next) {
   console.log('Request for '+req.path);
   // set defaults
   //  Defaults to false except when you specifically request a Post from a muted user or when you specifically request a muted user's stream.
-  req.generalParams={};
-  req.generalParams.muted=false;
-  req.generalParams.deleted=true;
+  var generalParams={};
+  generalParams.muted=false;
+  generalParams.deleted=true;
   // Defaults to false for "My Stream" and true everywhere else.
-  req.generalParams.directed_posts=true;
-  req.generalParams.machine=false;
-  req.generalParams.starred_by=false;
-  req.generalParams.reposters=false;
-  req.generalParams.annotations=false;
-  req.generalParams.post_annotations=false;
-  req.generalParams.user_annotations=false;
-  req.generalParams.html=true;
+  generalParams.directed_posts=true;
+  generalParams.machine=false;
+  generalParams.starred_by=false;
+  generalParams.reposters=false;
+  generalParams.annotations=false;
+  generalParams.post_annotations=false;
+  generalParams.user_annotations=false;
+  generalParams.html=true;
   // channel
-  req.generalParams.marker=false;
-  req.generalParams.read=true;
-  req.generalParams.recent_messages=false;
-  req.generalParams.message_annotations=false;
-  req.generalParams.inactive=false;
+  generalParams.marker=false;
+  generalParams.read=true;
+  generalParams.recent_messages=false;
+  generalParams.message_annotations=false;
+  generalParams.inactive=false;
   // file
-  req.generalParams.incomplete=true;
-  req.generalParams.private=true;
-  req.generalParams.file_annotations=false;
+  generalParams.incomplete=true;
+  generalParams.private=true;
+  generalParams.file_annotations=false;
   //
-  req.channelParams={};
-  req.channelParams.types='';
+  var channelParams={};
+  channelParams.types='';
   if (req.query.channel_types) {
     console.log("Overriding channel_types to "+req.query.channel_types);
-    req.channelParams.types=req.query.channel_types;
+    channelParams.types=req.query.channel_types;
   }
-  req.fileParams={};
-  req.fileParams.types='';
+  var fileParams={};
+  fileParams.types='';
   if (req.query.file_types) {
     console.log("Overriding file_types to "+req.query.file_types);
-    req.channelParams.types=req.query.channel_types;
+    fileParams.types=req.query.channel_types;
   }
-  req.stremFacetParams={};
-  req.stremFacetParams.has_oembed_photo=false;
-  req.pageParams={};
-  req.pageParams.since_id=false;
+  var stremFacetParams={};
+  stremFacetParams.has_oembed_photo=false;
+  var pageParams={};
+  pageParams.since_id=false;
   if (req.query.since_id) {
     console.log("Overriding since_id to "+req.query.since_id);
-    req.pageParams.since_id=parseInt(req.query.since_id);
+    pageParams.since_id=parseInt(req.query.since_id);
   }
-  req.pageParams.before_id=false;
+  pageParams.before_id=false;
   if (req.query.before_id) {
     console.log("Overriding before_id to "+req.query.before_id);
-    req.pageParams.before_id=parseInt(req.query.before_id);
+    pageParams.before_id=parseInt(req.query.before_id);
   }
-  req.pageParams.count=20;
+  pageParams.count=20;
   if (req.query.count) {
     console.log("Overriding count to "+req.query.count);
-    req.pageParams.count=Math.min(Math.max(req.query.count,-200),200);
+    pageParams.count=Math.min(Math.max(req.query.count, -200), 200);
   }
   // stream marker supported endpoints only
-  req.pageParams.last_read=false;
-  req.pageParams.last_read_inclusive=false;
-  req.pageParams.last_marker=false;
-  req.pageParams.last_marker_inclusive=false;
+  pageParams.last_read=false;
+  pageParams.last_read_inclusive=false;
+  pageParams.last_marker=false;
+  pageParams.last_marker_inclusive=false;
+  // put objects into request
   req.apiParams={
-    generalParams: req.generalParams,
-    channelParams: req.channelParams,
-    fileParams: req.fileParams,
-    stremFacetParams: req.stremFacetParams,
-    pageParams: req.pageParams,
+    generalParams: generalParams,
+    channelParams: channelParams,
+    fileParams: fileParams,
+    stremFacetParams: stremFacetParams,
+    pageParams: pageParams,
+    tokenobj: token,
+    token: req.token,
   }
   // configure response
   res.prettyPrint=req.get('X-ADN-Pretty-JSON') || 0;
@@ -261,13 +272,13 @@ if (upstream_client_id!='NotSet') {
   var oauthproxy=require('./routes.oauth.proxy.js');
   oauthproxy.setupoauthroutes(app, cache);
 } else {
-  app.get('/oauth/authenticate',function(req,resp) {
+  app.get('/oauth/authenticate', function(req, resp) {
     resp.redirect(req.query.redirect_uri+'#access_token='+generateToken());
   });
 }
 
-app.get('/signup',function(req,resp) {
-  fs.readFile(__dirname+'/templates/signup.html', function(err,data) {
+app.get('/signup', function(req, resp) {
+  fs.readFile(__dirname+'/templates/signup.html', function(err, data) {
     if (err) {
       throw err;
     }
@@ -276,14 +287,14 @@ app.get('/signup',function(req,resp) {
 });
 
 /** include homepage route */
-app.get('/', function(req,resp) {
-  fs.readFile(__dirname+'/templates/index.html', function(err,data) {
+app.get('/', function(req, resp) {
+  fs.readFile(__dirname+'/templates/index.html', function(err, data) {
     if (err) {
       throw err;
     }
     var body=data.toString();
-    body=body.replace('{api_client_id}',api_client_id);
-    body=body.replace('{uplink_client_id}',upstream_client_id);
+    body=body.replace('{api_client_id}', api_client_id);
+    body=body.replace('{uplink_client_id}', upstream_client_id);
     resp.send(body);
   });
 });
