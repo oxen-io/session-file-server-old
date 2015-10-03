@@ -22,7 +22,7 @@ var lmem={ heapUser: 0 };
  */
 function copyentities(type, src, dest, postcontext) {
   if (!dest) {
-    console.log('dispatcher.js::copyentities - dest not set ',dest);
+    console.log('dispatcher.js::copyentities - dest not set ', dest);
     return;
   }
   // dest.entities[type]=[];
@@ -116,7 +116,7 @@ module.exports = {
       return;
     }
     if (!post.id) {
-      console.log('dispatcher.js::setPost - no id in post',post);
+      console.log('dispatcher.js::setPost - no id in post', post);
       if (callback) {
         callback(null, 'setPost - no id in post');
       }
@@ -146,7 +146,7 @@ module.exports = {
         //console.dir(post.user);
       }
       */
-      this.updateUser(post.user,post.ts,function(user, err) {
+      this.updateUser(post.user, post.ts, function(user, err) {
         if (err) {
           console.log("User Update err: "+err);
         //} else {
@@ -155,7 +155,7 @@ module.exports = {
       });
     }
     if (post.entities) {
-      this.setEntities('post',post.id,post.entities,function(entities, err) {
+      this.setEntities('post', post.id, post.entities, function(entities, err) {
         if (err) {
           console.log("entities Update err: "+err);
         //} else {
@@ -170,7 +170,7 @@ module.exports = {
       dataPost.userid=post.user.id;
     } else {
       // usually on deletes, they don't include the user object
-      //console.log('No Users on post ',post);
+      //console.log('No Users on post ', post);
       /*
 { created_at: '2013-08-16T01:10:29Z',
   num_stars: 0,
@@ -196,9 +196,9 @@ module.exports = {
       var ref=this;
       this.cache.setSource(post.source, function(client, err) {
         // param order is correct
-        //console.log('addPost setSource returned ',client,err);
+        //console.log('addPost setSource returned ', client, err, dataPost);
         if (err) {
-          console.log('can\'t setSource ',err);
+          console.log('can\'t setSource', err);
         } else {
           dataPost.client_id=client.client_id;
         }
@@ -211,7 +211,7 @@ module.exports = {
     }
 
     if (post.annotations) {
-      this.setAnnotations('post',post.id,post.annotations);
+      this.setAnnotations('post', post.id, post.annotations);
     }
 
     if (last_post_id==undefined || post.id>last_post_id) {
@@ -222,7 +222,14 @@ module.exports = {
       process.stdout.write('P');
     }
   },
+  // convert ADN format to DB format
   apiToPost: function(api, meta, callback) {
+    if (!api.user) {
+      console.log('apiToPost - api user is missing', api.user,api);
+      callback(null, 'no api user');
+      return;
+    }
+    // copy api
     var post=JSON.parse(JSON.stringify(api));
     post.date=new Date(api.created_at);
     post.ts=post.date.getTime();
@@ -239,7 +246,7 @@ module.exports = {
       // find it (or create it for caching later)
       this.cache.setSource(post.source, function(client, err) {
         if (err) {
-          console.log('can\'t setSource ',err);
+          console.log('can\'t setSource ', err);
         } else {
           post.client_id=client.client_id;
         }
@@ -258,13 +265,13 @@ module.exports = {
    */
   postToAPI: function(post, callback, meta) {
     if (!post) {
-      callback(post,'dispatcher.js::postToAPI - no post data passed in');
+      callback(null, 'dispatcher.js::postToAPI - no post data passed in');
       return;
     }
     var ref=this;
-    //console.log('dispatcher.js::postToAPI - gotPost. post.userid:',post.userid);
+    //console.log('dispatcher.js::postToAPI - gotPost. post.userid:', post.userid);
     // post.client_id is string(32)
-    //console.log('dispatcher.js::postToAPI - gotUser. post.client_id:',post.client_id);
+    //console.log('dispatcher.js::postToAPI - gotUser. post.client_id:', post.client_id);
 
     var finalcompsite=function(post, user, client, callback, err, meta) {
       // copy source (client_id) structure
@@ -272,7 +279,7 @@ module.exports = {
 
       var data={};
 
-      var postFields=['id','text','html','canonical_url','created_at','machine_only','num_replies','num_reposts','num_stars','thread_id','entities','source','user'];
+      var postFields=['id', 'text', 'html', 'canonical_url', 'created_at', 'machine_only', 'num_replies', 'num_reposts', 'num_stars', 'thread_id', 'entities', 'source', 'user'];
       for(var i in postFields) {
         var f=postFields[i];
         data[f]=post[f];
@@ -280,7 +287,7 @@ module.exports = {
       // convert TS to date object
       data.created_at=new Date(data.created_at);
       //console.log(post.num_replies+' vs '+data.num_replies);
-      var postFieldOnlySetIfValue=['repost_of','reply_to'];
+      var postFieldOnlySetIfValue=['repost_of', 'reply_to'];
       for(var i in postFieldOnlySetIfValue) {
         var f=postFieldOnlySetIfValue[i];
         if (post[f]) {
@@ -291,21 +298,22 @@ module.exports = {
       //console.log('dispatcher.js::postToAPI - Done, calling callback');
       // now fix up reposts
       if (post.repost_of) {
-        //console.log('converting repost_of from ',post.repost_of);
+        //console.log('converting repost_of from ', post.repost_of);
         ref.getPost(post.repost_of, null, function(repost, err, meta) {
-          //console.log('converting repost_of to ',repostapi.id);
+          //console.log('converting repost_of to', repostapi.id);
           data.repost_of=repost;
-          callback(data,err,meta);
+          callback(data, err, meta);
         })
       } else {
-        callback(data,err,meta);
+        callback(data, err, meta);
       }
     }
 
-    // we need post,entities,annotations
-    // user,entities,annotations
+    // we need post, entities, annotations
+    // user, entities, annotations
     // and finally client
     // could dispatch all 3 of these in parallel
+    // shouldAdd but can't no name/link data
     ref.getClient(post.client_id, function(client, clientErr, clientMeta) {
       //console.log('dispatcher.js::postToAPI - gotClient. post.id:', post.id);
 
@@ -334,30 +342,31 @@ module.exports = {
               hashtags: [],
               links: [],
             };
-            copyentities('mentions',entities.mentions,post,1);
-            copyentities('hashtags',entities.hashtags,post,1);
-            copyentities('links',entities.links,post,1);
+            copyentities('mentions', entities.mentions, post, 1);
+            copyentities('hashtags', entities.hashtags, post, 1);
+            copyentities('links', entities.links, post, 1);
             // use html cache
             if (1) {
-              finalcompsite(post,user,client,callback,err,meta);
+              //console.log('dispatcher.js::postToAPI('+post.id+') - calling final comp');
+              finalcompsite(post, user, client, callback, err, meta);
             } else {
               // generate HTML
-              ref.textProcess(post.text,function(textProcess,err) {
+              ref.textProcess(post.text, function(textProcess, err) {
                 //console.dir(textProcess);
                 post.html=textProcess.html;
-                finalcompsite(post,user,client,callback,err,meta);
-              },post.entities);
+                finalcompsite(post, user, client, callback, err, meta);
+              }, post.entities);
             }
           }); // getEntities
         } else {
-          ref.textProcess(post.text,function(textProc,err) {
+          ref.textProcess(post.text, function(textProc, err) {
             post.entities=textProc.entities;
             post.html=textProc.html;
-            finalcompsite(post,user,client,callback,err,meta);
-          },null,1);
+            finalcompsite(post, user, client, callback, err, meta);
+          }, null, 1);
         }
       }); // getUser
-    },1); // getClient
+    }); // getClient
   },
   addRepost: function(postid, token, callback) {
     this.cache.addRepost(postid, token, callback);
@@ -385,7 +394,7 @@ module.exports = {
       if (post) {
         ref.postToAPI(post, callback, meta);
       } else {
-        callback(null, 'getPost - post is not set!');
+        callback(null, 'dispatcher.js::getPost - post is not set!');
       }
     });
   },
@@ -511,7 +520,7 @@ module.exports = {
   getExplore: function(params, callback) {
     var ref=this;
     this.cache.getExplore(params, function(endpoints, err, meta) {
-      //console.log('dispatcher.js::getExplore - returned meta ',meta);
+      //console.log('dispatcher.js::getExplore - returned meta', meta);
       callback(endpoints, null, meta);
     });
   },
@@ -611,9 +620,10 @@ module.exports = {
               callback(apiposts);
             }
           });
-        },ref);
+        }, ref);
       } else {
-        callback(interactions, err, meta);
+        // no interactions
+        callback([], err, meta);
       }
     });
   },
@@ -665,8 +675,8 @@ module.exports = {
     var ref=this;
     // map API to DB
     // default to most secure
-    var raccess=2; // 0=public,1=loggedin,2=selective
-    var waccess=2; // 1=loggedin,2=selective
+    var raccess=2; // 0=public, 1=loggedin, 2=selective
+    var waccess=2; // 1=loggedin, 2=selective
     // editors are always seletcive
     if (json.readers.any_user) {
       raccess=1;
@@ -688,11 +698,11 @@ module.exports = {
       editors: json.editors.user_ids,
     };
     // update user object
-    this.updateUser(json.owner,ts);
-    this.cache.setChannel(channel,ts,function(chnl,err) {
+    this.updateUser(json.owner, ts);
+    this.cache.setChannel(channel, ts, function(chnl, err) {
       // if newer update annotations
       if (callback) {
-        callback(chnl,err);
+        callback(chnl, err);
       }
     });
     if (this.notsilent) {
@@ -726,7 +736,7 @@ module.exports = {
     // if though the user object maybe be up to date when the packet was sent
     // however the delay in receiving and processing maybe the cause of delay
     // meta.timestamp maybe the most accurate here?
-    this.updateUser(json.user,ts);
+    this.updateUser(json.user, ts);
     // create message DB object (API=>DB)
     var message={
       id: json.id,
@@ -906,15 +916,17 @@ module.exports = {
       this.setPost(data.post);
     }
     // update user record
-    if (data) {
-      this.updateUser(data.user,ts);
+    if (data && data.user && data.user.username) {
+      this.updateUser(data.user, ts);
     }
     // create/update star
     if (data) {
-      this.cache.setInteraction(data.user.id,data.post.id,'star',id,deleted,ts,callback);
+      // we don't need source user because that'll be in the post
+      // though maybe able to remove a look up if we pass it
+      this.cache.setInteraction(data.user.id, data.post.id, 'star', id, deleted, ts, callback);
     } else {
       if (deleted) {
-        this.cache.setInteraction(0,0,'star',id,deleted,ts,callback);
+        this.cache.setInteraction(0, 0, 'star', id, deleted, ts, callback);
       } else {
         console.log('dispatcher.js::setStar - Create empty?');
         if (callback) {
@@ -934,7 +946,7 @@ module.exports = {
     var interactions=[]; // [ts, {}]
     // get a list of interactions for this user
     // interactions are follows = users
-    // stars,reposts,reply = posts
+    // stars, reposts, reply = posts
     // welcome will be empty
     // broadcast_create, broadcast_subscribe, broadcast_subscribe will be channels
     // build a list sorted by timestamp
@@ -975,13 +987,13 @@ module.exports = {
    */
   updateUser: function(data, ts, callback) {
     if (!data) {
-      console.log('dispatcher.js:updateUser - data is missing',data);
-      callback(null,'data is missing');
+      console.log('dispatcher.js:updateUser - data is missing', data);
+      callback(null, 'data is missing');
       return;
     }
     if (!data.id) {
-      console.log('dispatcher.js:updateUser - id is missing',data);
-      callback(null,'id is missing');
+      console.log('dispatcher.js:updateUser - id is missing', data);
+      callback(null, 'id is missing');
       return;
     }
 
@@ -1007,7 +1019,7 @@ module.exports = {
     userData.cover_image=data.cover_image.url;
 
     if (data.description) {
-      //console.log('user '+data.id+' has description',data.description.entities);
+      //console.log('user '+data.id+' has description', data.description.entities);
       if (data.description.entities) {
         //console.log('user '+data.id+' has entities');
         this.setEntities('user', data.id, data.description.entities, function(entities, err) {
@@ -1030,10 +1042,10 @@ module.exports = {
       // only updated annotation if the timestamp is newer than we have
       // TODO: define signal if ts is old
       if (data.annotations) {
-        ref.setAnnotations('user',data.id,data.annotations);
+        ref.setAnnotations('user', data.id, data.annotations);
       }
       if (callback) {
-        callback(user,err,meta);
+        callback(user, err, meta);
       }
     });
     if (this.notsilent) {
@@ -1043,11 +1055,11 @@ module.exports = {
   userToAPI: function(user, callback, meta) {
     //console.log('dispatcher.js::userToAPI - '+user.id, callback, meta);
     if (!user) {
-      callback(null,'dispatcher.js::userToAPI - no user passed in');
+      callback(null, 'dispatcher.js::userToAPI - no user passed in');
       return;
     }
     if (!callback) {
-      callback(null,'dispatcher.js::userToAPI - no callback passed in');
+      callback(null, 'dispatcher.js::userToAPI - no callback passed in');
       return;
     }
     //console.log('dispatcher.js::userToAPI - setting up res');
@@ -1120,7 +1132,7 @@ module.exports = {
             if (res.description) {
               res.description.html=user.descriptionhtml;
             } else {
-              console.log('dispatcher.js::userToAPI - what happened to the description?!? ',user,res);
+              console.log('dispatcher.js::userToAPI - what happened to the description?!? ', user, res);
             }
             callback(res, userEntitiesErr);
           } else {
@@ -1136,21 +1148,21 @@ module.exports = {
         this.textProcess(user.description, function(textProc, err) {
           res.description.html=textProc.html;
           res.description.entities=textProc.entities;
-          callback(res,null);
+          callback(res, null);
         });
       }
     } else {
-      callback(res,null);
+      callback(res, null);
     }
   },
   getUser: function(user, params, callback) {
-    //console.log('dispatcher.js::getUser - '+id,params,callback);
+    //console.log('dispatcher.js::getUser - '+user, params);
     if (!callback) {
       console.log('dispatcher.js::getUser - no callback passed in');
       return;
     }
     if (!user) {
-      callback(null,'dispatcher.js::getUser - no getUser passed in');
+      callback(null, 'dispatcher.js::getUser - no getUser passed in');
       return;
     }
     var ref=this;
@@ -1172,13 +1184,13 @@ module.exports = {
     if (data) {
       // update user object
       if (data.user) {
-        this.updateUser(data.user,ts);
+        this.updateUser(data.user, ts);
       } else {
         console.log('dispatcher.js::setFollows - no user', data);
       }
       // update user object
       if (data.follows_user) {
-        this.updateUser(data.follows_user,ts);
+        this.updateUser(data.follows_user, ts);
       } else {
         console.log('dispatcher.js::setFollows - no follows_user', data);
       }
@@ -1186,7 +1198,7 @@ module.exports = {
       this.cache.setFollow(data.user.id, data.follows_user.id, id, deleted, ts);
     } else {
       // likely deleted is true in this path
-      this.cache.setFollow(0,0,id,deleted,ts);
+      this.cache.setFollow(0, 0, id, deleted, ts);
     }
     if (this.notsilent) {
       process.stdout.write(deleted?'f':'F');
@@ -1217,52 +1229,52 @@ module.exports = {
     // if so we need to make sure we only update if timestamp if newer
     /*
       if (data.annotations) {
-        ref.setAnnotations('file',data.id,data.annotations);
+        ref.setAnnotations('file', data.id, data.annotations);
       }
     */
   },
   /** client */
-  getSource: function(source,callback) {
+  getSource: function(source, callback) {
     if (source==undefined) {
-      callback(null,'source is undefined');
+      callback(null, 'source is undefined');
       return;
     }
     //console.dir(source);
     var ref=this.cache;
-    console.log('dispatcher.js::getSource ',source.client_id);
-    this.cache.getClient(source.client_id,function(client,err,meta) {
+    console.log('dispatcher.js::getSource ', source.client_id);
+    this.cache.getClient(source.client_id, function(client, err, meta) {
       if (client==null || err) {
-        //console.log('dispatcher.js::getSource failure ',err,client);
+        //console.log('dispatcher.js::getSource failure ', err, client);
         // we need to create it
-        ref.addSource(source.client_id,source.name,source.link,callback);
+        ref.addSource(source.client_id, source.name, source.link, callback);
       } else {
-        callback(client,err,meta);
+        callback(client, err, meta);
       }
     });
     if (this.notsilent) {
       process.stdout.write('c');
     }
   },
-  getClient: function(client_id,callback,shouldAdd) {
+  getClient: function(client_id, callback, shouldAdd) {
     if (client_id==undefined) {
-      callback(null,'client_id is undefined');
+      callback(null, 'client_id is undefined');
       return;
     }
     if (client_id==null) {
-      callback(null,'client_id is null');
+      callback(null, 'client_id is null');
       return;
     }
-    //console.log('dispatcher.js::getClient ',client_id);
-    this.cache.getClient(client_id,function(client,err,meta) {
+    var ref=this.cache;
+    //console.log('dispatcher.js::getClient', client_id);
+    this.cache.getClient(client_id, function(client, err, meta) {
       if (client==null || err) {
         console.log('dispatcher.js::getClient failure '+err);
         // should we just be setClient??
         if (shouldAdd!=undefined) {
           console.log("Should add client_id: "+client_id);
         }
-      } else {
-        callback(client,err,meta);
       }
+      callback(client,err,meta);
     });
   },
   /** entities */
@@ -1270,24 +1282,24 @@ module.exports = {
     this.cache.getEntities(type, id, callback);
   },
   setEntities: function(type, id, entities, callback) {
-    //console.dir('dispatcher.js::setEntities - '+type,entities);
+    //console.dir('dispatcher.js::setEntities - '+type, entities);
     // I'm pretty sure these arrays are always set
     if (entities.mentions && entities.mentions.length) {
-      this.cache.extractEntities(type,id,entities.mentions,'mention',function(nEntities,err,meta) {
+      this.cache.extractEntities(type, id, entities.mentions, 'mention', function(nEntities, err, meta) {
       });
       if (this.notsilent) {
         process.stdout.write('@');
       }
     }
     if (entities.hashtags && entities.hashtags.length) {
-      this.cache.extractEntities(type,id,entities.hashtags,'hashtag',function(nEntities,err,meta) {
+      this.cache.extractEntities(type, id, entities.hashtags, 'hashtag', function(nEntities, err, meta) {
       });
       if (this.notsilent) {
         process.stdout.write('#');
       }
     }
     if (entities.links && entities.links.length) {
-      this.cache.extractEntities(type,id,entities.links,'link',function(nEntities,err,meta) {
+      this.cache.extractEntities(type, id, entities.links, 'link', function(nEntities, err, meta) {
       });
       if (this.notsilent) {
         process.stdout.write('^');
@@ -1303,14 +1315,14 @@ module.exports = {
     // channel annotations mutable
     // and we don't have a unique constraint to tell if it's an add or update or del
     var ref=this;
-    this.cache.clearAnnotations(type,id,function() {
+    this.cache.clearAnnotations(type, id, function() {
       for(var i in annotations) {
         var note=annotations[i];
-        // insert into idtype,id,type,value
-        // type,id,note.type,note.value
-        ref.cache.addAnnotation(type,id,note.type,note.value,function(nNote,err) {
+        // insert into idtype, id, type, value
+        // type, id, note.type, note.value
+        ref.cache.addAnnotation(type, id, note.type, note.value, function(nNote, err) {
           if (err) {
-            console.log('dispatcher.js::setAnnotations - addAnnotation failure',err);
+            console.log('dispatcher.js::setAnnotations - addAnnotation failure', err);
           //} else {
           }
           if (this.notsilent) {
@@ -1318,7 +1330,7 @@ module.exports = {
           }
           /*
           if (note.value.length) {
-            writevaluearray($id,note.value);
+            writevaluearray(id, note.value);
           }
           */
         });
@@ -1345,17 +1357,17 @@ module.exports = {
     var urlRegex = /\b((?:https?:(?:\/{1,3}|[a-z0-9%])|[a-z0-9.\-]+[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)\/)(?:[^\s()<>{}\[\]]+|\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\))+(?:\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’])|(?:[a-z0-9]+(?:[.\-][a-z0-9]+)*[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)\b\/?))/ig;
 
     // data-mention-id="$1" will have to do a look up pass and set this back
-    html = html.replace(mentionRegex,'<span data-mention-name="$1" itemprop="mention">@$1</span>');
-    html = html.replace(hashtagRegex,'<span data-hashtag-name="$1" itemprop="hashtag">#$1</span>');
+    html = html.replace(mentionRegex, '<span data-mention-name="$1" itemprop="mention">@$1</span>');
+    html = html.replace(hashtagRegex, '<span data-hashtag-name="$1" itemprop="hashtag">#$1</span>');
 
     // since input is text, I believe we can safely assume it's not already in a tag
     // FIXME: we need to insert http:// if there's no protocol (post: 30795290)
     // be sure to check your html/entity caching to make sure it's off otherwise 30795290 is fine
-    html = html.replace(urlRegex,'<a href="$1">$1</a>');
+    html = html.replace(urlRegex, '<a href="$1">$1</a>');
 
     var userlookup={};
 
-    var finishcleanup=function(html,text,callback) {
+    var finishcleanup=function(html, text, callback) {
       if (!entities) {
         var lastmenpos=0;
         while(match=mentionRegex.exec(text)) {
@@ -1427,19 +1439,19 @@ module.exports = {
       });
 
       // remove line breaks
-      html=html.replace(/\r/g,'&#13;');
-      html=html.replace(/\n/g,'<br>');
+      html=html.replace(/\r/g, '&#13;');
+      html=html.replace(/\n/g, '<br>');
 
       var res={
         entities: entities,
         html: '<span itemscope="https://app.net/schemas/Post">'+html+'</span>',
         text: text
       };
-      callback(res,null);
+      callback(res, null);
     }
 
     var mentionsSrch=text.match(mentionRegex);
-    var launches=0,completed=0;
+    var launches=0, completed=0;
     if (mentionsSrch && mentionsSrch.length) {
       for(var i in mentionsSrch) {
         var mention=mentionsSrch[i]; // with @
@@ -1448,12 +1460,12 @@ module.exports = {
         var username=mention.substr(1);
         //console.log("Replacing "+username);
         launches++;
-        ref.cache.getUserID(username,function(user,userErr,userMeta) {
+        ref.cache.getUserID(username, function(user, userErr, userMeta) {
           //console.log('Searching for '+user.username);
           userlookup[user.username]=user.id;
           // fix up missing user ids
           var pattern=new RegExp(' data-mention-name="'+user.username, 'gi');
-          html=html.replace(pattern,' data-mention-id="'+user.id+'" data-mention-name="'+user.username);
+          html=html.replace(pattern, ' data-mention-id="'+user.id+'" data-mention-name="'+user.username);
           //console.log('Adjusted html '+html);
           completed++;
           //console.log(completed+'/'+launches);
@@ -1461,12 +1473,12 @@ module.exports = {
           // I'm concerned that if we queue 2 and then finish 2, we may trigger the ending early
           // and possibly more than once
           if (completed==launches) {
-            finishcleanup(html,text,callback);
+            finishcleanup(html, text, callback);
           }
         });
       }
     } else {
-      finishcleanup(html,text,callback);
+      finishcleanup(html, text, callback);
     }
 
   },
@@ -1547,6 +1559,10 @@ module.exports = {
         console.log("dispatcher.js::dispatch - unknown appstream type ["+meta.type+"]");
       break;
     }
+    // done with data
+    data=false;
+    meta=false;
+    json=false;
   }
   /**
    * This callback is displayed as part of Dispatcher class
