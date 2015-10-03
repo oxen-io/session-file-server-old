@@ -12,6 +12,30 @@ require('https').globalAgent.maxSockets = Infinity
 
 var callbacks = require('./dialect.appdotnet_official.callbacks.js');
 
+// post structure, good enough to fool alpha
+var notimplemented=[{
+  id: 0,
+  text: 'not implemented',
+  created_at: '2014-10-24T17:04:48Z',
+  source: {
+
+  },
+  user: {
+    id: 0,
+    username: 'notimplemented',
+    created_at: '2014-10-24T17:04:48Z',
+    avatar_image: {
+      url: 'https://d2rfichhc2fb9n.cloudfront.net/image/5/OhYk4yhX3u0PFdMTqIrtTF6SgOB7InMiOiJzMyIsImIiOiJhZG4tdXNlci1hc3NldHMiLCJrIjoiYXNzZXRzL3VzZXIvZTEvMzIvMjAvZTEzMjIwMDAwMDAwMDAwMC5wbmciLCJvIjoiIn0?h=80&w=80'
+    },
+    cover_image: {
+      url: 'https://d2rfichhc2fb9n.cloudfront.net/image/5/sz0h_gbdbxI14RcO12FPxO5nSbt7InMiOiJzMyIsImIiOiJhZG4tdXNlci1hc3NldHMiLCJrIjoiYXNzZXRzL3VzZXIvNjIvMzIvMjAvNjIzMjIwMDAwMDAwMDAwMC5wbmciLCJvIjoiIn0?w=862'
+    },
+    counts: {
+      following: 0,
+    }
+  }
+}];
+
 /**
  * Set up defined API routes at prefix
  */
@@ -22,14 +46,14 @@ module.exports=function(app, prefix) {
    */
   app.get(prefix+'/token', function(req, resp) {
     // req.token convert into userid/sourceid
-    console.log('dialect.*.js::/token  - looking up usertoken');
-    if (req.token) {
+    console.log('dialect.*.js::/token  - looking up usertoken', req.token);
+    if (req.token!==null && req.token!==undefined && req.token!='') {
       // need to translate token...
       dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
         //console.log('usertoken',usertoken);
-        console.log('dialect.*.js::/token  - got usertoken');
+        //console.log('dialect.*.js::/token  - got usertoken');
         if (usertoken==null) {
-          console.log('dialect.*.js::No valid token passed in to /token');
+          console.log('dialect.*.js::No valid token passed in to /token', req.token);
           var res={
             "meta": {
               "code": 401,
@@ -57,7 +81,7 @@ module.exports=function(app, prefix) {
     // req.token
     // req.token convert into userid/sourceid
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      console.log('usertoken',usertoken);
+      //console.log('usertoken',usertoken);
       if (usertoken==null) {
         // could be they didn't log in through a server restart
         var res={
@@ -117,6 +141,7 @@ module.exports=function(app, prefix) {
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
       //console.log('usertoken',usertoken);
       if (usertoken==null) {
+        console.log('dialect.appdotnet_official.js:postsStream - no token');
         // could be they didn't log in through a server restart
         var res={
           "meta": {
@@ -201,3 +226,4 @@ module.exports=function(app, prefix) {
     dispatcher.textProcess(req.body.text, null, null, callbacks.dataCallback(resp));
   });
 }
+ 
