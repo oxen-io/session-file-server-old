@@ -58,6 +58,37 @@ function copyentities(type, src, dest, postcontext) {
   }
 }
 
+function postsToADN(posts) {
+  // data is an array of entities
+  var apiposts={}, postcounter=0;
+  //console.log('dispatcher.js:getUserPosts - mapping '+posts.length);
+  if (posts && posts.length) {
+    posts.map(function(current, idx, Arr) {
+      //console.log('dispatcher.js:getUserPosts - map postid: '+current.id);
+      // get the post in API foromat
+      ref.postToAPI(current, function(post, err, postmeta) {
+        apiposts[post.id]=post;
+        postcounter++;
+        // join
+        //console.log(apiposts.length+'/'+entities.length);
+        if (postcounter==posts.length) {
+          //console.log('dispatcher.js::getUserPosts - finishing');
+          var res=[];
+          for(var i in posts) {
+            res.push(apiposts[posts[i].id]);
+          }
+          callback(res, null, meta);
+        }
+      });
+    }, ref);
+  } else {
+    // no posts
+    callback([], 'no posts for global', meta);
+  }
+}
+
+var humanFormat=require('human-format');
+
 /** minutely status report */
 setInterval(function () {
   var ts=new Date().getTime();
@@ -71,9 +102,10 @@ setInterval(function () {
   */
   // break so the line stands out from the instant updates
   process.stdout.write("\n");
-  console.log("dispatcher @"+ts+" Memory+["+(mem.heapUsed-lmem.heapUsed)+"] Heap["+mem.heapUsed+"] uptime: "+process.uptime());
+  console.log("dispatcher @"+ts+" Memory+["+humanFormat(mem.heapUsed-lmem.heapUsed)+"] Heap["+humanFormat(mem.heapUsed)+"] uptime: "+process.uptime());
   lmem=mem;
-},60*1000);
+  ts=null;
+}, 60*1000);
 
 // cache is available at this.cache
 // we set from API to DB format
@@ -324,18 +356,18 @@ module.exports = {
           client_id: client.client_id
         };
       } else {
-        console.log('dispatcher.js::postToAPI - client is ', client, clientErr);
+        console.log('dispatcher.js::postToAPI('+post.id+') - client is ', client, clientErr);
       }
 
-      //console.log('dispatcher.js::postToAPI - is ref this?',ref);
-      //console.log('dispatcher.js::postToAPI - getting user '+post.userid);
-      ref.getUser(post.userid, null, function(user,err) {
-        //console.log('dispatcher.js::postToAPI - got user '+post.userid, user, err);
+      //console.log('dispatcher.js::postToAPI - is ref this?', ref);
+      //console.log('dispatcher.js::postToAPI('+post.id+') - getting user '+post.userid);
+      ref.getUser(post.userid, null, function(user, err) {
+        //console.log('dispatcher.js::postToAPI('+post.id+') - got user '+post.userid, err);
         // use entity cache
         if (1) {
-          //console.log('dispatcher.js::postToAPI - gotEntity post. post.userid:',post.userid);
-          ref.getEntities('post',post.id,function(entities,entitiesErr,entitiesMeta) {
-            //console.log('dispatcher.js::makepost - gotEntity user.');
+          //console.log('dispatcher.js::postToAPI('+post.id+') - getEntity post. post.userid:', post.userid);
+          ref.getEntities('post', post.id, function(entities, entitiesErr, entitiesMeta) {
+            //console.log('dispatcher.js::postToAPI('+post.id+') - gotEntities');
 
             post.entities={
               mentions: [],
@@ -398,67 +430,91 @@ module.exports = {
       }
     });
   },
+  // threadid or reply_to? reply_to for now
   getReplies: function(postid, params, token, callback) {
     var ref=this;
     // userid can't be me without a token
     // userid could be a username though
-    this.cache.getReplies(postid, params, token, function(posts, err, meta) {
-      //console.log('dispatcher.js::getReplies - returned meta ',meta);
-      // data is an array of entities
-      var apiposts={}, postcounter=0;
-      //console.log('dispatcher.js:getReplies - mapping '+posts.length);
-      if (posts && posts.length) {
-        posts.map(function(current, idx, Arr) {
-          //console.log('dispatcher.js:getReplies - map postid: '+current.id);
-          // get the post in API foromat
-          ref.postToAPI(current, function(post, err, postmeta) {
-            // can error out
-            if (post) {
-              apiposts[post.id]=post;
-            }
-            // always increase counter
-            postcounter++;
-            // join
-            //console.log(apiposts.length+'/'+entities.length);
-            if (postcounter==posts.length) {
-              //console.log('dispatcher.js::getReplies - finishing');
-              // need to restore original order
-              var res=[];
-              for(var i in posts) {
-                if (posts[i]) {
-                  res.push(apiposts[posts[i].id]);
-                }
+    this.cache.getPost(postid, function(post, err) {
+      downloader.downloadThread(post.thread_id, token);
+      ref.cache.getReplies(post.thread_id, params, token, function(posts, err, meta) {
+        //console.log('dispatcher.js::getReplies - returned meta ', meta);
+        // data is an array of entities
+        var apiposts={}, postcounter=0;
+        //console.log('dispatcher.js:getReplies - mapping '+posts.length);
+        if (posts && posts.length) {
+          posts.map(function(current, idx, Arr) {
+            //console.log('dispatcher.js:getReplies - map postid: '+current.id);
+            // get the post in API foromat
+            ref.postToAPI(current, function(post, err, postmeta) {
+              // can error out
+              if (post) {
+                apiposts[post.id]=post;
               }
-              //console.log('dispatcher.js::getReplies - result ',res);
-              callback(res, null, meta);
-            }
-          });
-        }, ref);
-      } else {
-        // no posts
-        console.log('dispatcher.js:getReplies - no replies ');
-        callback([], 'no posts for replies', meta);
-      }
+              // always increase counter
+              postcounter++;
+              // join
+              //console.log(apiposts.length+'/'+entities.length);
+              if (postcounter==posts.length) {
+                //console.log('dispatcher.js::getReplies - finishing');
+                // need to restore original order
+                var res=[];
+                for(var i in posts) {
+                  if (posts[i]) {
+                    res.push(apiposts[posts[i].id]);
+                  }
+                }
+                //console.log('dispatcher.js::getReplies - result ', res);
+                callback(res, null, meta);
+              }
+            });
+          }, ref);
+        } else {
+          // no posts
+          console.log('dispatcher.js:getReplies - no replies ');
+          callback([], 'no posts for replies', meta);
+        }
+      });
     });
   },
-  getMentions: function(userid, params, callback) {
+  getMentions: function(userid, params, token, callback) {
     var ref=this;
+    // is this blocking execution? yes, I think it is
+    this.cache.getUser(userid, function(user, err) {
+      if (user.following==0) {
+        console.log('downloadMentions');
+        downloader.downloadMentions(userid, params, token);
+        console.log('downloadMentions complete');
+      }
+    });
     // userid can't be me without a token
     // userid could be a username though
     this.cache.getMentions(userid, params, function(entities, err, meta) {
       // data is an array of entities
-      var apiposts=[];
-      //console.log('dispatcher.js:getHashtag - mapping '+entities.length);
-      if (entities.length) {
+      var apiposts={};
+      var count=0;
+      console.log('dispatcher.js:getMentions - mapping',entities.length);
+      if (entities && entities.length) {
+        //for(var i in entities) {
+          //console.log('i',entities[i].typeid);
+        //}
         entities.map(function(current, idx, Arr) {
           // get the post in API foromat
-          ref.getPost(current.typeid, null, function(post, err, meta) {
-            apiposts.push(post);
+          //console.log('getting post',current.typeid);
+          ref.getPost(current.typeid, null, function(post, perr, pmeta) {
+            //console.log('got post',post.id);
+            apiposts[post.id]=post;
+            count++;
             // join
-            //console.log(apiposts.length+'/'+entities.length);
-            if (apiposts.length==entities.length) {
-              //console.log('dispatcher.js::getHashtag - finishing');
-              callback(apiposts);
+            console.log(count+'/'+entities.length,'post',post.id,'entity',current.id);
+            if (count==entities.length) {
+              console.log('dispatcher.js::getMentions - finishing',meta);
+              // restore order
+              var nlist=[];
+              for(var i in entities) {
+                nlist.push(apiposts[entities[i].typeid]);
+              }
+              callback(nlist, err, meta);
             }
           });
         }, ref);
@@ -476,10 +532,10 @@ module.exports = {
   getGlobal: function(params, callback) {
     var ref=this;
     this.cache.getGlobal(params, function(posts, err, meta) {
-      //console.log('dispatcher.js::getGlobal - returned meta ',meta);
+      //console.log('dispatcher.js::getGlobal - returned meta', meta);
       // data is an array of entities
       var apiposts={}, postcounter=0;
-      //console.log('dispatcher.js:getGlobal - mapping '+posts.length);
+      //console.log('dispatcher.js:getGlobal - mapping', posts.length);
       if (posts.length) {
         posts.map(function(current, idx, Arr) {
           //console.log('dispatcher.js:getGlobal - map postid: '+current.id);
@@ -526,7 +582,75 @@ module.exports = {
   },
   getUserStream: function(user, params, token, callback) {
     var ref=this;
+    //console.log('dispatcher.js::getUserStream', user);
+    this.cache.getUser(user, function(userdata, err, meta) {
+      ref.cache.getFollowing(user, {}, function(followings, err) {
+        console.log('user counts check', userdata.following, 'vs', followings.length);
+        if (userdata.following==0 || followings.length==0 || userdata.following>followings.length) {
+          console.log('likely we need to sync followers for',user);
+          downloader.downloadFollowing(user, token);
+        }
+      });
+    });
+    // ok actually build the stream
+    if (params.count===undefined) params.count=20;
+    if (params.before_id===undefined) params.before_id=-1; // -1 being the very end
+    var oldcount=params.count;
+    // but we want to make sure it's in the right direction
+    // if count is positive, then the direction is older than the 20 oldest post after before_id
+    params.count+=1; // add one at the end to check if there's more
+    // before_id
+    console.log('dispatcher.js::getUserStream - count',params.count);
     this.cache.getUserStream(user, params, token, function(posts, err, meta) {
+      // data is an array of entities
+      var apiposts={}, postcounter=0;
+      //if (posts) console.log('dispatcher.js:getUserPosts - mapping '+posts.length);
+      if (posts && posts.length) {
+        var min_id=posts[0].id+200,max_id=0;
+        posts.map(function(current, idx, Arr) {
+          //console.log('dispatcher.js:getUserPosts - map postid: '+current.id);
+          // get the post in API foromat
+          ref.postToAPI(current, function(post, err, postmeta) {
+            min_id=Math.min(min_id,post.id);
+            max_id=Math.max(max_id,post.id);
+            apiposts[post.id]=post;
+            postcounter++;
+            // join
+            //console.log(apiposts.length+'/'+entities.length);
+            // -1 because we asked for an extra
+            // but is that extra in the front or back?
+            if (postcounter==posts.length-1) {
+              //console.log('dispatcher.js::getUserStream - finishing');
+              var imeta={
+                code: 200,
+                min_id: min_id,
+                max_id: max_id,
+                more: posts.length==params.count
+              };
+              var res=[];
+              // well not all of them...
+              for(var i in posts) {
+                // well not all of them...
+                if (apiposts[posts[i].id]) {
+                  res.push(apiposts[posts[i].id]);
+                }
+              }
+              console.log('meta',meta);
+              console.log('imeta',imeta);
+              callback(res, null, imeta);
+            }
+          });
+        }, ref);
+      } else {
+        // no posts
+        callback([], 'no posts for global', meta);
+      }
+    });
+  },
+  getUnifiedStream: function(user, params, token, callback) {
+    console.log('dispatcher.js::getUnifiedStream', user);
+    var ref=this;
+    this.cache.getUnifiedStream(user, params, token, function(posts, err) {
       // data is an array of entities
       var apiposts={}, postcounter=0;
       //console.log('dispatcher.js:getUserPosts - mapping '+posts.length);
@@ -554,6 +678,8 @@ module.exports = {
         callback([], 'no posts for global', meta);
       }
     });
+    //console.log('dispatcher.js::getUnifiedStream - write me');
+    //callback(null, null);
   },
   /**
    * get range of posts for user id userid from data access
@@ -601,23 +727,30 @@ module.exports = {
    */
   getUserStars: function(userid, params, callback) {
     //console.log('dispatcher.js::getUserStars start');
+    if (!params.count) params.count=20;
     var ref=this;
     this.cache.getInteractions('star', userid, params, function(interactions, err, meta) {
       //console.log('dispatcher.js::getUserStars - ', interactions);
       // data is an array of interactions
-      if (interactions.length) {
+      if (interactions && interactions.length) {
         var apiposts=[];
         interactions.map(function(current, idx, Arr) {
           // we're a hasMany, so in theory I should be able to do
           // record.posts({conds});
           // get the post in API foromat
           ref.getPost(current.typeid, null, function(post, err, meta) {
-            apiposts.push(post);
+            //console.dir(post);
+            if (post && post.user && post.text) { // some are deleted, others are errors
+              apiposts.push(post);
+            } else {
+              interactions.pop();
+            }
             // join
-            //console.log(apiposts.length+'/'+interactions.length);
-            if (apiposts.length==interactions.length) {
+            //console.log(apiposts.length+'/'+interactions.length+' or '+params.count);
+            if (apiposts.length==params.count && apiposts.length==interactions.length) {
               //console.log('dispatcher.js::getUserStars - finishing');
               callback(apiposts);
+              return; // kill map, somehow?
             }
           });
         }, ref);
@@ -656,6 +789,35 @@ module.exports = {
       } else {
         // no entities
         callback([], 'no entities for '+hashtag, meta);
+      }
+    });
+  },
+  getExploreFeed: function(feed, params, callback) {
+    var ref=this;
+    this.cache.getExploreFeed(feed, params, function(posts, err) {
+      var apiposts=[];
+      if (posts.length) {
+        posts.map(function(current, idx, Arr) {
+          // get the post in API foromat
+          //console.log('getting',current.id);
+          ref.getPost(current.id, null, function(post, err, meta) {
+            if (post && post.text) {
+              apiposts.push(post);
+            } else {
+              console.log('no post', post, err, meta, current.id);
+              posts.pop();
+            }
+            // join
+            //console.log(apiposts.length+'/'+entities.length);
+            if (apiposts.length==posts.length) {
+              //console.log('dispatcher.js::getExploreFeed - finishing');
+              callback(apiposts);
+            }
+          });
+        }, ref);
+      } else {
+        // no entities
+        callback([], 'no posts for '+feed, meta);
       }
     });
   },
@@ -887,6 +1049,7 @@ module.exports = {
    * @param {array} scopes - token scope
    * @param {string} token - upstream token
    */
+  // FIXME: store downstream token, so we can look it up later!
   setToken: function(userid, client_id, scopes, token, callback) {
     // function(userid, client_id, scopes, token, callback)
     this.cache.addAPIUserToken(userid, client_id, scopes, token, callback);
@@ -942,7 +1105,70 @@ module.exports = {
    * get interactions from data access
    * @param {metaCallback} callback - function to call after completion
    */
-  getInteractions: function(userid, callback) {
+  getInteractions: function(userid, token, params, callback) {
+    var ref=this;
+    this.getUser(userid, null, function(user, err) {
+      // o(3) maybe 4 if toApi
+      console.log('getInteractions - gotUser');
+      ref.cache.getNotices(userid, { count: 20 }, function(notices, err) {
+        console.log('getInteractions - gotNotice',notices);
+        // actionuserid <= may have to look this up too
+        // look up: notice.postid => post
+        // look up: post.user.id => post.user
+        // we can roll up multiple entries for same type and post objects
+        var interactions=[];
+        for(var i in notices) {
+          var notice=notices[i];
+          if (notice.type==='follow') {
+            // follow, look up user
+            // if we use use the dispatcher one then we don't need to conver it
+            ref.getUser(notice.typeid, function(fuser, err) {
+              interactions.push({
+                  "event_date": notice.event_date,
+                  "action": 'follow',
+                  "objects": [
+                    user
+                  ],
+                  "users": [
+                    fuser
+                  ]
+              });
+              if (interactions.length==notices.length) {
+                console.log('getInteractions - calling back');
+                callback(interactions, err);
+              }
+            });
+          } else {
+            // not follow, look up post
+            // if we use use the dispatcher one then we don't need to conver it
+            ref.getPost(notice.typeid, {}, function(post, err) {
+              interactions.push({
+                  "event_date": notice.event_date,
+                  "action": notice.type,
+                  "objects": [
+                    post
+                  ],
+                  "users": [
+                    post.user
+                  ]
+              });
+              if (interactions.length==notices.length) {
+                console.log('getInteractions - calling back');
+                callback(interactions, err);
+              }
+            });
+          }
+        }
+        console.log('getInteractions - done');
+        //callback(interactions, err);
+      });
+    });
+  },
+  getInteractions2: function(userid, token, params, callback) {
+    // probably will needs params
+    // if each returns 0-count, that should be more than enough to fulfill count
+    // 4xcount but let's say we get less than count, that means there isn't the data
+    // so we can't provide more
     var interactions=[]; // [ts, {}]
     // get a list of interactions for this user
     // interactions are follows = users
@@ -951,22 +1177,287 @@ module.exports = {
     // broadcast_create, broadcast_subscribe, broadcast_subscribe will be channels
     // build a list sorted by timestamp
     var ref=this;
-    this.getUser(userid, null, function(self, err) {
-      ref.getUser(2, null, function(actor, err) {
-        var interaction={
-            "action": "follow",
-            "event_date": "2012-07-16T17:23:34Z",
-            "objects": [
-              self
-            ],
-            "users": [
-              actor
-            ]
-        };
-        // pagination_id
-        callback([interaction],null);
+    var done_follows=0;
+    var done_stars=0;
+    var done_reposts=0;
+    var done_replies=0;
+    //var list=[]; // (timestamp, action, objects, users)
+    var sent=0;
+    var checkdone=function() {
+      if (sent) return;
+      var list=followlist.concat(starlist).concat(repostlist).concat(replieslist);
+      console.log('dispatcher.js::getInteractions check', done_follows, done_stars, done_reposts, done_replies, 'items', list.length);
+      if (done_follows && done_stars && done_reposts && done_replies) {
+        //console.log('dispatcher.js::getInteractions done');
+        sent=1; // sent lock
+        //ref.getUser(userid, null, function(self, err) {
+          //console.log('self');
+          /*
+          ref.getUser(2, null, function(actor, err) {
+            //console.log('berg');
+            var interaction={
+                "action": "follow",
+                "event_date": "2012-07-16T17:23:34Z",
+                "objects": [
+                  self
+                ],
+                "users": [
+                  actor
+                ]
+            };
+            // pagination_id
+            //console.log('sending back');
+            callback([interaction], null);
+          });
+          */
+          // since we only need count (20)
+          // let's only do the getUser here
+          var interactions=[];
+          console.log('dispatcher.js::getInteractions - list len',list.length);
+          // so the way node works is that if we have 900 items
+          // we have to issue all 900 items before we'll get one response
+          for(var i in list) {
+            if (i>20) break;
+            // yield and then run this
+            //setImmediate(function() {
+              ref.getUser(list[i][3], null, function(fuser, err) {
+                var interaction={
+                    "event_date": list[i][0],
+                    "action": list[i][1],
+                    "objects": [
+                      list[i][2]
+                    ],
+                    "users": [
+                      fuser
+                    ]
+                };
+                //console.log(interaction.objects,interaction.users);
+                interactions.push(interaction);
+                console.log('i',i,'len',interactions.length);
+                if (interactions.length==list.length || interactions.length==20) {
+                  // 16-70s on 54posts 0 followers
+                  console.log('sending');
+                  callback(interactions, null);
+                }
+              });
+            //});
+          }
+          console.log('for is done, waiting on getUser');
+          //console.log('sending',interactions.length);
+          //callback(interactions, null);
+        //});
+      }
+    }
+    // follows
+    var followlist=[]
+    var followexpect=0;
+    // only need the most recent 20 follows
+    console.log('getting followers for', userid);
+    // lookup self first, and then get down to business
+    this.getUser(userid, null, function(user, err) {
+      ref.cache.getFollows(userid, { count: 20 }, function(follows, err) {
+        if (!follows.length) {
+          done_follows=1;
+          checkdone();
+        } else {
+          for(var i in follows) {
+            var follow=follows[i];
+            if (follow.active) {
+              followexpect++;
+              done_follows=0;
+              //console.log('expecting',followexpect);
+              //ref.getUser(follow.userid, null, function(fuser, err) {
+                followlist.push([follow.last_updated, 'follow', user, follow.userid])
+                //console.log('got',followlist.length,'vs',followexpect);
+                if (followlist.length==followexpect) {
+                  // move it into the main list
+                  done_follows=1;
+                  checkdone();
+                }
+              //});
+            }
+          }
+          if (followexpect===0) {
+            console.log('no active followers');
+            done_follows=1;
+          }
+          checkdone();
+        }
       });
     });
+    // stars
+    var starlist=[]
+    // not that I starred a post...
+    /*
+    this.cache.getInteractions('star', userid, { count: 20 }, function(stars, err) {
+      if (!stars.length) {
+        done_stars=1;
+      } else {
+        for(var i in stars) {
+          var star=stars[i];
+          ref.getUser(userid, null, function(user, err) {
+            ref.getPost(star.typeid, null, function(post, err) {
+              starlist.push([star.datetime, 'star', post, user])
+              console.log('*i',i,'vs',stars.length,'vs',starlist.length,'starlist');
+              if (starlist.length==stars.length) {
+                // move it into the main list
+                done_stars=1;
+                checkdone();
+              }
+            });
+          });
+        }
+      }
+      checkdone();
+    });
+    */
+    var repostlist=[]
+    var replieslist=[]
+    // can't count 20, we want any activity on all our posts
+    this.getUserPosts(userid, { }, function(posts, err) {
+      if (!posts.length) {
+        console.log('no posts');
+        done_reposts=1;
+        done_replies=1;
+        done_stars=1;
+        checkdone();
+        return;
+      }
+      var repostcount=0;
+      var replycount=0;
+      var starcount=0;
+      var postrepostcalls=0;
+      var postreplycalls=0;
+      var poststarcalls=0;
+      console.log('posts',posts.length);
+      var postcalls=0;
+      for(var i in posts) {
+        var post=posts[i];
+        // skip delete posts...
+        if (post.deleted) continue;
+        postcalls++;
+        // reposts
+        // get a list of all my posts, did any of them were a repost_of
+        // up to 20 reposts (as long as their reposts replies)
+        ref.cache.getReposts(post.id, { count: 20 }, token, function(reposts, err) {
+          /*
+          if (!reposts.length) {
+            console.log('well no resposts, let\'s check on things. posts: ',postcalls,'postrepostcalls',postrepostcalls);
+          }
+          */
+            //done_reposts=1;
+          //} else {
+          repostcount+=reposts.length;
+          for(var j in reposts) {
+            var repost=reposts[j];
+            //ref.getUser(repost.userid, null, function(ruser, err) {
+              repostlist.push([repost.created_at, 'repost', post, repost.userid])
+              //console.log('Pi',i,'vs',posts.length);
+              console.log('repost check',repostlist.length,'vs',repostcount,'repostcalls',postrepostcalls,'/',postcalls);
+              if (repostlist.length==repostcount && postcalls==postrepostcalls) {
+                // move it into the main list
+                // we're hitting this early
+                done_reposts=1;
+                checkdone();
+              }
+            //});
+          }
+          postrepostcalls++;
+          if (postrepostcalls==postcalls) {
+            // we're done, there maybe repostcount outstanding, let's check
+            console.log('repost done, count:',repostcount,'done:',repostlist.length);
+            // if we never requested anything, then we're done
+            if (!repostcount || repostcount==repostlist.length) {
+              done_reposts=1;
+              checkdone();
+            }
+          }
+          //}
+        });
+        // replys
+        // get a list of all my posts, reply_to
+        //console.log('Calling getReplies');
+        // up to 20 replies (as long as their recent replies)
+        ref.cache.getReplies(post.id, { count: 20 }, token, function(replies, err) {
+          //if (!replies.length) {
+            //done_replies=1;
+          //} else {
+          replycount+=replies.length;
+          for(var j in replies) {
+            var reply=replies[j];
+            //ref.getUser(reply.userid, null, function(ruser, err) {
+              replieslist.push([reply.created_at, 'reply', post, reply.userid])
+              //console.log('Li',i,'vs',posts.length);
+              console.log('reply check',replieslist.length,'vs',replycount,'replycalls',postreplycalls,'/',postcalls);
+              if (replieslist.length==replycount && postcalls==postreplycalls) {
+                // move it into the main list
+                done_replies=1;
+                checkdone();
+              }
+            //});
+          }
+          //console.log('uWotM8?',postreplycalls,'/',postcalls);
+          postreplycalls++;
+          if (postreplycalls==postcalls) {
+            // we're done, there maybe repostcount outstanding, let's check
+            console.log('reply done, count:',replycount,'done:',replieslist.length);
+            // if we never requested anything, then we're done
+            if (!replycount || replycount==replieslist.length) {
+              done_replies=1;
+              checkdone();
+            }
+          }
+          //}
+        });
+        // get people that have starred your posts
+        // up to 20 stars (as long as their recent stars)
+        ref.cache.getPostStars(post.id, { count: 20 }, function(starredposts, err) {
+          starcount+=starredposts.length;
+          for(var j in starredposts) {
+            var starpost=starredposts[j];
+            //ref.getUser(starpost.userid, null, function(ruser, err) {
+              starlist.push([starpost.created_at, 'star', post, starpost.userid])
+              //console.log('Li',i,'vs',posts.length);
+              console.log('star check',starlist.length,'vs',starcount,'starscalls',poststarcalls,'/',postcalls);
+              if (starlist.length==starcount && postcalls==poststarcalls) {
+                // move it into the main list
+                done_stars=1;
+                checkdone();
+              }
+            //});
+          }
+          poststarcalls++;
+          if (poststarcalls==postcalls) {
+            // we're done, there maybe repostcount outstanding, let's check
+            console.log('star done, count:',starcount,'done:',starlist.length);
+            // if we never requested anything, then we're done
+            if (!starcount || starcount==starlist.length) {
+              done_stars=1;
+              checkdone();
+            }
+          }
+        });
+      }
+      console.log('postcalls',postcalls);
+      console.log('counts',repostcount,replycount);
+      if (!postcalls) {
+        // if no valid posts to inspect, we're done
+        done_reposts=1;
+        done_replies=1;
+        done_stars=1;
+      } else {
+        // if post checks are done and there's no repostcost, then it's done
+        // do we even need these? if there are psts, we deal with it in the replycount
+        console.log('postcalls',postcalls);
+        console.log('reposts',postrepostcalls,'counts',repostcount,replycount);
+        console.log('replies',postreplycalls,'counts',replycount);
+        console.log('stars',poststarcalls,'counts',starcount);
+        //if (postcalls==postrepostcalls && !repostcount) done_reposts=1;
+        //if (postcalls==postreplycalls && !replycount) done_reposts=1;
+        //if (postcalls==poststarcalls && !starcount) done_stars=1;
+      }
+      checkdone();
+    }); // getUserPosts
   },
   //
   // mute
@@ -1134,6 +1625,7 @@ module.exports = {
             } else {
               console.log('dispatcher.js::userToAPI - what happened to the description?!? ', user, res);
             }
+            //console.log('dispatcher.js::userToAPI - calling back');
             callback(res, userEntitiesErr);
           } else {
             // you can pass entities if you want...
@@ -1166,17 +1658,39 @@ module.exports = {
       return;
     }
     var ref=this;
-    var func='getUser';
-    // make sure we check the cache
-    if (user[0]=='@') {
-      func='getUserID';
-      // strip @ from beginning
-      user=user.substr(1);
+    if (user=='me') {
+      console.log('getUser token', params.token);
+      if (params.tokenobj) {
+        console.dir(params.tokenobj);
+        user=params.tokenobj.userid;
+      } else {
+        this.getUserClientByToken(params.token, function(usertoken, err) {
+          if (usertoken==null) {
+            console.log('dispatcher.js::getUser - me but not token');
+            callback(null, 'dispatcher.js::getUser - me but not token');
+            return;
+          } else {
+            ref.cache.getUser(usertoken.userid, function(userobj, userErr, userMeta) {
+              //console.log('dispatcher.js::getUser - gotUser', userErr);
+              ref.userToAPI(userobj, callback, userMeta);
+            });
+          }
+        });
+      }
+    } else {
+      var func='getUser';
+      // make sure we check the cache
+      if (user[0]=='@') {
+        func='getUserID';
+        // strip @ from beginning
+        user=user.substr(1);
+      }
+      //console.log('dispatcher.js::getUser - calling', func);
+      this.cache[func](user, function(userobj, userErr, userMeta) {
+        //console.log('dispatcher.js::getUser - gotUser', userErr);
+        ref.userToAPI(userobj, callback, userMeta);
+      });
     }
-    this.cache[func](user, function(userobj, userErr, userMeta) {
-      //console.log('dispatcher.js::getUser - gotUser', userErr);
-      ref.userToAPI(userobj, callback, userMeta);
-    });
   },
   /** user_follow */
   setFollows: function(data, deleted, id, ts) {
@@ -1204,7 +1718,10 @@ module.exports = {
       process.stdout.write(deleted?'f':'F');
     }
   },
-  getFollows: function(userid, params, callback) {
+  getFollowings: function(userid, params, callback) {
+    this.cache.getFollowing(userid, params, callback);
+  },
+  getFollowers: function(userid, params, callback) {
     this.cache.getFollows(userid, params, callback);
   },
   /** files */
@@ -1271,10 +1788,18 @@ module.exports = {
         console.log('dispatcher.js::getClient failure '+err);
         // should we just be setClient??
         if (shouldAdd!=undefined) {
-          console.log("Should add client_id: "+client_id);
+          console.log("Should add client_id: "+client_id, shouldAdd);
+          //var source={ client_id: client_id, name: ??, link: ?? };
+          //ref.setSource();
         }
+        // make dummy
+        var client={
+          name: 'Unknown',
+          link: 'nowhere',
+          client_id: client_id
+        };
       }
-      callback(client,err,meta);
+      callback(client, err, meta);
     });
   },
   /** entities */
