@@ -160,7 +160,11 @@ module.exports.setupoauthroutes=function(app, db) {
           app.dispatcher.setToken(ses.userid, ses.client_id, ses.requested_scopes, data.access_token, function(usertoken, err) {
             console.log('cookie sesid: '+ses.id);
             console.log('token query: '+data.access_token);
-            console.log('final token: '+usertoken.token);
+            if (usertoken) {
+              console.log('final token: '+usertoken.token);
+            } else {
+              console.log('WARNING: couldn\'t set token');
+            }
             // we should start priming the UserStream here, so by the time they hit the stream, it'll be ready
             // getUserStream: function(user, params, token, callback) {
             //app.dispatcher.getUserStream(ses.userid, null, usertoken.token, function() {});
@@ -176,7 +180,10 @@ module.exports.setupoauthroutes=function(app, db) {
               resp.redirect(ses.redirect_uri+'&code='+ses.code);
             } else
             if (ses.response_type=='token') {
-              resp.redirect(ses.redirect_uri+'#access_token='+ses.code);
+              // code is only in memory not db
+              // code is not the token
+              // token is how things are looked up
+              resp.redirect(ses.redirect_uri+'#access_token='+ses.upstream_token);
             } else {
               console.log('unknown response_type '+ses.response_type);
             }
