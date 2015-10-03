@@ -7,7 +7,7 @@
   "dependencies": {
     "nconf": "~0.6.9",
     "express": "~4.1.2",
-    "body-parser": "1.1.2",
+    "body-parser": "~1.1.2",
     "request": "~2.34.0",
     "underscore": "1.6.0",
     "event-stream": "3.1.5",
@@ -18,9 +18,10 @@
     "qs": "1.2.1",
     "redis": "0.10.1",
     "sqlite3": "2.2.7"
+    "mysql": "~2.5.2"
   },
   "devDependencies": {
-    "jsdoc": "3.3.0-alpha9"
+    "jsdoc": "~3.3.0-alpha9"
   },
   "repository": {
     "type": "git",
