@@ -92,7 +92,13 @@ module.exports=function(app, prefix) {
         };
         resp.status(401).type('application/json').send(JSON.stringify(res));
       } else {
-        dispatcher.getInteractions(usertoken.userid, callbacks.dataCallback(resp));
+        // This endpoint accepts the interaction_actions as a query string parameter whose value
+        // is a comma separated list of actions you’re interested in. For instance, if you’re
+        // only interested in repost and follow interactions you could request
+        // users/me/interactions?interaction_actions=repost,follow.
+
+        // I don't think we want to pass the full token
+        dispatcher.getInteractions(usertoken.userid, req.token, {}, callbacks.dataCallback(resp));
       }
     });
   });
@@ -160,19 +166,63 @@ module.exports=function(app, prefix) {
       }
     });
   });
+  // /posts/stream/unified
+  app.get(prefix+'/posts/stream/unified', function(req, resp) {
+    console.log('dialect.appdotnet_official.js:postsStreamUnified - start', req.token);
+    // why bother the message pump and DB if req.token is undefined
+    if (req.token==undefined) {
+      console.log('dialect.appdotnet_official.js:postsStreamUnified - token not set');
+      // could be they didn't log in through a server restart
+      var res={
+        "meta": {
+          "code": 401,
+          "error_message": "Call requires authentication: Authentication required to fetch token."
+        }
+      };
+      resp.status(401).type('application/json').send(JSON.stringify(res));
+    } else {
+      dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+        //console.log('usertoken',usertoken);
+        if (usertoken==null) {
+          console.log('dialect.appdotnet_official.js:postsStreamUnified - no token');
+          // could be they didn't log in through a server restart
+          var res={
+            "meta": {
+              "code": 401,
+              "error_message": "Call requires authentication: Authentication required to fetch token."
+            }
+          };
+          resp.status(401).type('application/json').send(JSON.stringify(res));
+        } else {
+          //console.log('dialect.appdotnet_official.js:postsStream - getUserStream', req.token);
+          //dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp));
+          dispatcher.getUnifiedStream(usertoken.userid, req.apiParams.pageParams, req.token, function(posts, err, meta) {
+            //console.log('dialect.appdotnet_official.js:postsStream - sending');
+            var func=callbacks.postsCallback(resp, req.token);
+            //console.log('getUserStream',posts);
+            func(posts, err, meta);
+          });
+        }
+      });
+    }
+  });
   app.get(prefix+'/users/:user_id/mentions', function(req, resp) {
-    dispatcher.getMentions(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    dispatcher.getMentions(req.params.user_id, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id/stars', function(req, resp) {
     dispatcher.getUserStars(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id/following', function(req, resp) {
     // req.params.user_id,
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp, req.token));
+    //dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp, req.token));
+    var cb=callbacks.usersCallback(resp, req.token);
+    cb(notimplemented, 'not implemented', { code: 200 });
   });
   app.get(prefix+'/users/:user_id/followers', function(req, resp) {
     // req.params.user_id,
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp, req.token));
+    //dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp, req.token));
+    var cb=callbacks.usersCallback(resp, req.token);
+    cb(notimplemented, 'not implemented', { code: 200 });
   });
   /*
    * No token endpoints
@@ -202,7 +252,10 @@ module.exports=function(app, prefix) {
   });
   app.get(prefix+'/posts/stream/explore/:feed', function(req, resp) {
     // this is just a stub hack
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    //dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    dispatcher.getExploreFeed(req.params.feed, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    //var cb=callbacks.postsCallback(resp, req.token);
+    //cb(notimplemented, 'not implemented', { code: 200 });
   });
   // channel_id 1383 is always good for testing
   app.get(prefix+'/channels/:channel_id', function(req, resp) {
