@@ -11,7 +11,7 @@ var first_post_id;
 var last_post_id;
 
 /** for status reports */
-var lmem={ heapUser: 0 };
+var lmem={ heapUsed: 0 };
 
 /**
  * Helper function for copying entities around
