@@ -331,7 +331,7 @@ module.exports = {
       // now fix up reposts
       if (post.repost_of) {
         //console.log('converting repost_of from ', post.repost_of);
-        ref.getPost(post.repost_of, null, function(repost, err, meta) {
+        ref.getPost(post.repost_of.id, null, function(repost, err, meta) {
           //console.log('converting repost_of to', repostapi.id);
           data.repost_of=repost;
           callback(data, err, meta);
