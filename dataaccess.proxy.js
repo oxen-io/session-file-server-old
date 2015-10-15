@@ -385,6 +385,7 @@ module.exports = {
     }
     var ref=this;
     console.log('proxying post '+id);
+    console.log(id);
     proxycalls++;
     request.get({
       url: ref.apiroot+'/posts/'+id

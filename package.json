@@ -5,31 +5,32 @@
   "description": "App.net Alternative API",
   "main": "app.js",
   "dependencies": {
-    "nconf": "~0.6.9",
-    "express": "~4.1.2",
-    "body-parser": "~1.1.2",
-    "request": "~2.34.0",
-    "underscore": "1.6.0",
-    "event-stream": "3.1.5",
-    "caminte": "0.0.16",
-    "cookies": "0.1.0",
-    "rus-diff": "0.0.8",
-    "setimmediate": "1.0.2",
-    "qs": "1.2.1",
-    "redis": "0.10.1",
-    "sqlite3": "2.2.7"
-    "mysql": "~2.5.2"
+    "body-parser": "1.14.x",
+    "caminte": "0.0.33",
+    "cookies": "0.5.x",
+    "event-stream": "3.3.x",
+    "express": "4.13.x",
+    "human-format": "0.5.x",
+    "mysql": "2.9.x",
+    "nconf": "0.8.x",
+    "qs": "5.2.x",
+    "redis": "2.2.x",
+    "request": "2.65.x",
+    "rus-diff": "1.1.x",
+    "setimmediate": "1.0.x",
+    "sqlite3": "3.1.x",
+    "underscore": "1.8.x"
   },
   "devDependencies": {
-    "jsdoc": "~3.3.0-alpha9"
+    "jsdoc": "3.3.x"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/neuroscr/AppDotNetAPI.git"
   },
   "engines": {
-    "node": "0.8.x",
-    "npm": "1.1.x"
+    "node": "0.10.x",
+    "npm": "1.4.x"
   },
   "author": "Ryan Tharp",
   "license": "Dual"
