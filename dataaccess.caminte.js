@@ -618,9 +618,10 @@ module.exports = {
   },
   getUserID: function(username, callback) {
     if (!username) {
-      callback(null,'dataaccess.caminte.js::getUserID() - username was not set');
+      callback(null, 'dataaccess.caminte.js::getUserID() - username was not set');
       return;
     }
+    //console.log('dataaccess.caminte.js::getUserID(', username, ') - start');
     var ref=this;
     var username=username.toLowerCase();
     userModel.findOne({ where: { username: username }}, function(err, user) {
@@ -832,7 +833,7 @@ module.exports = {
     */
     if (ipost.repost_of) {
       // look up the parent post
-      this.getPost(ipost.repost_of.id, function(post, err) {
+      this.getPost(ipost.repost_of, function(post, err) {
         notice=new noticeModel();
         notice.event_date=ipost.created_at;
         notice.notifyuserid=post.userid; // who should be notified
@@ -1111,6 +1112,7 @@ module.exports = {
     }
   },
   getUserPosts: function(user, params, callback) {
+    //console.log('dataaccess.caminte.js::getUserPosts - start');
     var ref=this;
     /*
     postModel.find({ where: { userid: userid}, order: "id asc", limit: 1}, function(err, posts) {
@@ -1120,22 +1122,29 @@ module.exports = {
       console.log('Last User '+userid+' Post '+posts[0].id);
     });
     */
-    var search={};
-    if (user[0]=='@') {
-      // uhm I don't think posts has a username field...
-      search.username=user.substr(1);
-    } else {
-      search.userid=user;
-    }
-    postModel.find({ where: search, limit: params.count }, function(err, posts) {
-      if (err==null && posts==null) {
-        if (ref.next) {
-          ref.next.getUserPosts(user, params, callback);
-          return;
+    var finishFunc=function(userid) {
+      //console.log('userid', userid, 'count', params.count);
+      postModel.find({ where: { userid: userid }, limit: params.count }, function(err, posts) {
+        //console.log('err', err, 'posts', posts);
+        if (err==null && (posts==null || !posts.length)) {
+          if (ref.next) {
+            ref.next.getUserPosts(user, params, callback);
+            return;
+          }
         }
-      }
-      callback(posts, err);
-    });
+        callback(posts, err);
+      });
+    }
+    if (user[0]=='@') {
+      //console.log('dataaccess.caminte.js::getUserPosts - by username', user.substr(1));
+      this.getUserID(user.substr(1), function(userobj, userErr, userMeta) {
+        //console.log('dataaccess.caminte.js::getUserPosts - by username', user.substr(1), 'got', userobj.id);
+        finishFunc(userobj.id);
+      });
+    } else {
+      //console.log('dataaccess.caminte.js::getUserPosts - by userid', user);
+      finishFunc(user);
+    }
   },
   getMentions: function(user, params, callback) {
     var ref=this;

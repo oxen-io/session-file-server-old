@@ -136,7 +136,7 @@ module.exports = {
   },
   /**
    * Add/Update post in data store
-   * @param {object} post - the new post object
+   * @param {object} post - the new post object (in API format)
    * @param {setPostCallback} callback - function to call after completion
    */
   setPost: function(post, callback) {
@@ -224,6 +224,7 @@ module.exports = {
       */
     }
     dataPost.created_at=new Date(post.created_at); // fix incoming created_at iso date to Date
+    //console.log('dispatcher::setPost - user is', post.userid);
     if (post.source) {
       var ref=this;
       this.cache.setSource(post.source, function(client, err) {
@@ -331,7 +332,7 @@ module.exports = {
       // now fix up reposts
       if (post.repost_of) {
         //console.log('converting repost_of from ', post.repost_of);
-        ref.getPost(post.repost_of.id, null, function(repost, err, meta) {
+        ref.getPost(post.repost_of, null, function(repost, err, meta) {
           //console.log('converting repost_of to', repostapi.id);
           data.repost_of=repost;
           callback(data, err, meta);
@@ -347,7 +348,7 @@ module.exports = {
     // could dispatch all 3 of these in parallel
     // shouldAdd but can't no name/link data
     ref.getClient(post.client_id, function(client, clientErr, clientMeta) {
-      //console.log('dispatcher.js::postToAPI - gotClient. post.id:', post.id);
+      //console.log('dispatcher.js::postToAPI('+post.id+') - gotClient');
 
       if (client) {
         post.source={
@@ -412,6 +413,7 @@ module.exports = {
    * @param {object} params - the options context
    * @param {metaCallback} callback - function to call after completion
    */
+  // what params here??
   getPost: function(id, params, callback) {
     // probably should just exception and backtrace
     if (callback==undefined) {
@@ -548,7 +550,7 @@ module.exports = {
             // always increase counter
             postcounter++;
             // join
-            //console.log(apiposts.length+'/'+entities.length);
+            //console.log(postcounter+'/'+posts.length);
             if (postcounter==posts.length) {
               //console.log('dispatcher.js::getGlobal - finishing');
               // need to restore original order
@@ -702,7 +704,7 @@ module.exports = {
             apiposts[post.id]=post;
             postcounter++;
             // join
-            //console.log(apiposts.length+'/'+entities.length);
+            //console.log(postcounter+'/'+posts.length);
             if (postcounter==posts.length) {
               //console.log('dispatcher.js::getUserPosts - finishing');
               var res=[];

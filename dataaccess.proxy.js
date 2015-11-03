@@ -11,8 +11,8 @@ require("setimmediate");
 // we definitely want to burst when we need it
 // though should set some type of limit, like the max ADN resets
 // for what time period though? one frequency?
-require('http').globalAgent.maxSockets = Infinity
-require('https').globalAgent.maxSockets = Infinity
+require('http').globalAgent.maxSockets = Infinity;
+require('https').globalAgent.maxSockets = Infinity;
 
 /** @todo make count configureable, low latency=20count, aggressive cache=200count */
 
@@ -385,7 +385,6 @@ module.exports = {
     }
     var ref=this;
     console.log('proxying post '+id);
-    console.log(id);
     proxycalls++;
     request.get({
       url: ref.apiroot+'/posts/'+id
