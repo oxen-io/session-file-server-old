@@ -833,7 +833,7 @@ module.exports = {
     */
     if (ipost.repost_of) {
       // look up the parent post
-      this.getPost(ipost.repost_of, function(err, post) {
+      this.getPost(ipost.repost_of.id, function(err, post) {
         notice=new noticeModel();
         notice.event_date=ipost.created_at;
         notice.notifyuserid=post.userid; // who should be notified
