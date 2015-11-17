@@ -66,7 +66,7 @@ function postsToADN(posts) {
     posts.map(function(current, idx, Arr) {
       //console.log('dispatcher.js:getUserPosts - map postid: '+current.id);
       // get the post in API foromat
-      ref.postToAPI(current, function(post, err, postmeta) {
+      ref.postToAPI(current, function(err, post, postmeta) {
         apiposts[post.id]=post;
         postcounter++;
         // join
@@ -77,13 +77,13 @@ function postsToADN(posts) {
           for(var i in posts) {
             res.push(apiposts[posts[i].id]);
           }
-          callback(res, null, meta);
+          callback(null, res, meta);
         }
       });
     }, ref);
   } else {
     // no posts
-    callback([], 'no posts for global', meta);
+    callback('no posts for global', [], meta);
   }
 }
 
@@ -143,14 +143,14 @@ module.exports = {
     if (!post) {
       console.log('dispatcher.js::setPost - post is not set!');
       if (callback) {
-        callback(null, 'setPost - post is not set!');
+        callback('setPost - post is not set!', null);
       }
       return;
     }
     if (!post.id) {
       console.log('dispatcher.js::setPost - no id in post', post);
       if (callback) {
-        callback(null, 'setPost - no id in post');
+        callback('setPost - no id in post', null);
       }
       return;
     }
@@ -178,7 +178,7 @@ module.exports = {
         //console.dir(post.user);
       }
       */
-      this.updateUser(post.user, post.ts, function(user, err) {
+      this.updateUser(post.user, post.ts, function(err, user) {
         if (err) {
           console.log("User Update err: "+err);
         //} else {
@@ -187,7 +187,7 @@ module.exports = {
       });
     }
     if (post.entities) {
-      this.setEntities('post', post.id, post.entities, function(entities, err) {
+      this.setEntities('post', post.id, post.entities, function(err, entities) {
         if (err) {
           console.log("entities Update err: "+err);
         //} else {
@@ -227,7 +227,7 @@ module.exports = {
     //console.log('dispatcher::setPost - user is', post.userid);
     if (post.source) {
       var ref=this;
-      this.cache.setSource(post.source, function(client, err) {
+      this.cache.setSource(post.source, function(err, client) {
         // param order is correct
         //console.log('addPost setSource returned ', client, err, dataPost);
         if (err) {
@@ -259,7 +259,7 @@ module.exports = {
   apiToPost: function(api, meta, callback) {
     if (!api.user) {
       console.log('apiToPost - api user is missing', api.user,api);
-      callback(null, 'no api user');
+      callback('no api user', null);
       return;
     }
     // copy api
@@ -277,16 +277,16 @@ module.exports = {
     if (post.source) {
       var ref=this;
       // find it (or create it for caching later)
-      this.cache.setSource(post.source, function(client, err) {
+      this.cache.setSource(post.source, function(err, client) {
         if (err) {
           console.log('can\'t setSource ', err);
         } else {
           post.client_id=client.client_id;
         }
-        callback(post, err, meta);
+        callback(err, post, meta);
       });
     } else {
-      callback(post, null, meta);
+      callback(null, post, meta);
     }
     //return post;
   },
@@ -298,7 +298,7 @@ module.exports = {
    */
   postToAPI: function(post, callback, meta) {
     if (!post) {
-      callback(null, 'dispatcher.js::postToAPI - no post data passed in');
+      callback('dispatcher.js::postToAPI - no post data passed in', null);
       return;
     }
     var ref=this;
@@ -306,7 +306,7 @@ module.exports = {
     // post.client_id is string(32)
     //console.log('dispatcher.js::postToAPI - gotUser. post.client_id:', post.client_id);
 
-    var finalcompsite=function(post, user, client, callback, err, meta) {
+    var finalcompsite=function(err, post, user, client, callback, meta) {
       // copy source (client_id) structure
       // explicitly set the field we use
 
@@ -332,13 +332,13 @@ module.exports = {
       // now fix up reposts
       if (post.repost_of) {
         //console.log('converting repost_of from ', post.repost_of);
-        ref.getPost(post.repost_of, null, function(repost, err, meta) {
+        ref.getPost(post.repost_of.id, null, function(err, repost, meta) {
           //console.log('converting repost_of to', repostapi.id);
           data.repost_of=repost;
-          callback(data, err, meta);
+          callback(err, data, meta);
         })
       } else {
-        callback(data, err, meta);
+        callback(err, data, meta);
       }
     }
 
@@ -347,7 +347,7 @@ module.exports = {
     // and finally client
     // could dispatch all 3 of these in parallel
     // shouldAdd but can't no name/link data
-    ref.getClient(post.client_id, function(client, clientErr, clientMeta) {
+    ref.getClient(post.client_id, function(clientErr, client, clientMeta) {
       //console.log('dispatcher.js::postToAPI('+post.id+') - gotClient');
 
       if (client) {
@@ -362,12 +362,12 @@ module.exports = {
 
       //console.log('dispatcher.js::postToAPI - is ref this?', ref);
       //console.log('dispatcher.js::postToAPI('+post.id+') - getting user '+post.userid);
-      ref.getUser(post.userid, null, function(user, err) {
+      ref.getUser(post.userid, null, function(err, user) {
         //console.log('dispatcher.js::postToAPI('+post.id+') - got user '+post.userid, err);
         // use entity cache
         if (1) {
           //console.log('dispatcher.js::postToAPI('+post.id+') - getEntity post. post.userid:', post.userid);
-          ref.getEntities('post', post.id, function(entities, entitiesErr, entitiesMeta) {
+          ref.getEntities('post', post.id, function(entitiesErr, entities, entitiesMeta) {
             //console.log('dispatcher.js::postToAPI('+post.id+') - gotEntities');
 
             post.entities={
@@ -381,21 +381,21 @@ module.exports = {
             // use html cache
             if (1) {
               //console.log('dispatcher.js::postToAPI('+post.id+') - calling final comp');
-              finalcompsite(post, user, client, callback, err, meta);
+              finalcompsite(err, post, user, client, callback, meta);
             } else {
               // generate HTML
-              ref.textProcess(post.text, function(textProcess, err) {
+              ref.textProcess(post.text, function(err, textProcess) {
                 //console.dir(textProcess);
                 post.html=textProcess.html;
-                finalcompsite(post, user, client, callback, err, meta);
+                finalcompsite(err, post, user, client, callback, meta);
               }, post.entities);
             }
           }); // getEntities
         } else {
-          ref.textProcess(post.text, function(textProc, err) {
+          ref.textProcess(post.text, function(err, textProc) {
             post.entities=textProc.entities;
             post.html=textProc.html;
-            finalcompsite(post, user, client, callback, err, meta);
+            finalcompsite(err, post, user, client, callback, meta);
           }, null, 1);
         }
       }); // getUser
@@ -421,14 +421,14 @@ module.exports = {
       return;
     }
     if (id==undefined) {
-      callback(null, 'dispatcher.js::getPost - id is undefined');
+      callback('dispatcher.js::getPost - id is undefined', null);
     }
     var ref=this;
-    this.cache.getPost(id, function(post, err, meta) {
+    this.cache.getPost(id, function(err, post, meta) {
       if (post) {
         ref.postToAPI(post, callback, meta);
       } else {
-        callback(null, 'dispatcher.js::getPost - post is not set!');
+        callback('dispatcher.js::getPost - post is not set!', null);
       }
     });
   },
@@ -437,9 +437,9 @@ module.exports = {
     var ref=this;
     // userid can't be me without a token
     // userid could be a username though
-    this.cache.getPost(postid, function(post, err) {
+    this.cache.getPost(postid, function(err, post) {
       downloader.downloadThread(post.thread_id, token);
-      ref.cache.getReplies(post.thread_id, params, token, function(posts, err, meta) {
+      ref.cache.getReplies(post.thread_id, params, token, function(err, posts, meta) {
         //console.log('dispatcher.js::getReplies - returned meta ', meta);
         // data is an array of entities
         var apiposts={}, postcounter=0;
@@ -448,7 +448,7 @@ module.exports = {
           posts.map(function(current, idx, Arr) {
             //console.log('dispatcher.js:getReplies - map postid: '+current.id);
             // get the post in API foromat
-            ref.postToAPI(current, function(post, err, postmeta) {
+            ref.postToAPI(current, function(err, post, postmeta) {
               // can error out
               if (post) {
                 apiposts[post.id]=post;
@@ -467,14 +467,14 @@ module.exports = {
                   }
                 }
                 //console.log('dispatcher.js::getReplies - result ', res);
-                callback(res, null, meta);
+                callback(null, res, meta);
               }
             });
           }, ref);
         } else {
           // no posts
           console.log('dispatcher.js:getReplies - no replies ');
-          callback([], 'no posts for replies', meta);
+          callback('no posts for replies', [], meta);
         }
       });
     });
@@ -482,7 +482,7 @@ module.exports = {
   getMentions: function(userid, params, token, callback) {
     var ref=this;
     // is this blocking execution? yes, I think it is
-    this.cache.getUser(userid, function(user, err) {
+    this.cache.getUser(userid, function(err, user) {
       if (user.following==0) {
         console.log('downloadMentions');
         downloader.downloadMentions(userid, params, token);
@@ -491,7 +491,7 @@ module.exports = {
     });
     // userid can't be me without a token
     // userid could be a username though
-    this.cache.getMentions(userid, params, function(entities, err, meta) {
+    this.cache.getMentions(userid, params, function(err, entities, meta) {
       // data is an array of entities
       var apiposts={};
       var count=0;
@@ -503,7 +503,7 @@ module.exports = {
         entities.map(function(current, idx, Arr) {
           // get the post in API foromat
           //console.log('getting post',current.typeid);
-          ref.getPost(current.typeid, null, function(post, perr, pmeta) {
+          ref.getPost(current.typeid, null, function(err, post, pmeta) {
             //console.log('got post',post.id);
             apiposts[post.id]=post;
             count++;
@@ -516,13 +516,13 @@ module.exports = {
               for(var i in entities) {
                 nlist.push(apiposts[entities[i].typeid]);
               }
-              callback(nlist, err, meta);
+              callback(err, nlist, meta);
             }
           });
         }, ref);
       } else {
         // no entities
-        callback([], 'no mentions/entities for '+userid, meta);
+        callback('no mentions/entities for '+userid, [], meta);
       }
     });
   },
@@ -533,7 +533,7 @@ module.exports = {
    */
   getGlobal: function(params, callback) {
     var ref=this;
-    this.cache.getGlobal(params, function(posts, err, meta) {
+    this.cache.getGlobal(params, function(err, posts, meta) {
       //console.log('dispatcher.js::getGlobal - returned meta', meta);
       // data is an array of entities
       var apiposts={}, postcounter=0;
@@ -542,7 +542,7 @@ module.exports = {
         posts.map(function(current, idx, Arr) {
           //console.log('dispatcher.js:getGlobal - map postid: '+current.id);
           // get the post in API foromat
-          ref.postToAPI(current, function(post, err, postmeta) {
+          ref.postToAPI(current, function(err, post, postmeta) {
             // can error out
             if (post) {
               apiposts[post.id]=post;
@@ -560,13 +560,13 @@ module.exports = {
                   res.push(apiposts[posts[i].id]);
                 }
               }
-              callback(res, null, meta);
+              callback(null, res, meta);
             }
           });
         }, ref);
       } else {
         // no posts
-        callback([], 'no posts for global', meta);
+        callback('no posts for global', [], meta);
       }
     });
   },
@@ -577,16 +577,16 @@ module.exports = {
    */
   getExplore: function(params, callback) {
     var ref=this;
-    this.cache.getExplore(params, function(endpoints, err, meta) {
+    this.cache.getExplore(params, function(err, endpoints, meta) {
       //console.log('dispatcher.js::getExplore - returned meta', meta);
-      callback(endpoints, null, meta);
+      callback(null, endpoints, meta);
     });
   },
   getUserStream: function(user, params, token, callback) {
     var ref=this;
     //console.log('dispatcher.js::getUserStream', user);
-    this.cache.getUser(user, function(userdata, err, meta) {
-      ref.cache.getFollowing(user, {}, function(followings, err) {
+    this.cache.getUser(user, function(err, userdata, meta) {
+      ref.cache.getFollowing(user, {}, function(err, followings) {
         console.log('user counts check', userdata.following, 'vs', followings.length);
         if (userdata.following==0 || followings.length==0 || userdata.following>followings.length) {
           console.log('likely we need to sync followers for',user);
@@ -603,7 +603,7 @@ module.exports = {
     params.count+=1; // add one at the end to check if there's more
     // before_id
     console.log('dispatcher.js::getUserStream - count',params.count);
-    this.cache.getUserStream(user, params, token, function(posts, err, meta) {
+    this.cache.getUserStream(user, params, token, function(err, posts, meta) {
       // data is an array of entities
       var apiposts={}, postcounter=0;
       //if (posts) console.log('dispatcher.js:getUserPosts - mapping '+posts.length);
@@ -612,7 +612,7 @@ module.exports = {
         posts.map(function(current, idx, Arr) {
           //console.log('dispatcher.js:getUserPosts - map postid: '+current.id);
           // get the post in API foromat
-          ref.postToAPI(current, function(post, err, postmeta) {
+          ref.postToAPI(current, function(err, post, postmeta) {
             min_id=Math.min(min_id,post.id);
             max_id=Math.max(max_id,post.id);
             apiposts[post.id]=post;
@@ -639,20 +639,20 @@ module.exports = {
               }
               console.log('meta',meta);
               console.log('imeta',imeta);
-              callback(res, null, imeta);
+              callback(null, res, imeta);
             }
           });
         }, ref);
       } else {
         // no posts
-        callback([], 'no posts for global', meta);
+        callback('no posts for global', [], meta);
       }
     });
   },
   getUnifiedStream: function(user, params, token, callback) {
     console.log('dispatcher.js::getUnifiedStream', user);
     var ref=this;
-    this.cache.getUnifiedStream(user, params, token, function(posts, err) {
+    this.cache.getUnifiedStream(user, params, token, function(err, posts) {
       // data is an array of entities
       var apiposts={}, postcounter=0;
       //console.log('dispatcher.js:getUserPosts - mapping '+posts.length);
@@ -660,7 +660,7 @@ module.exports = {
         posts.map(function(current, idx, Arr) {
           //console.log('dispatcher.js:getUserPosts - map postid: '+current.id);
           // get the post in API foromat
-          ref.postToAPI(current, function(post, err, postmeta) {
+          ref.postToAPI(current, function(err, post, postmeta) {
             apiposts[post.id]=post;
             postcounter++;
             // join
@@ -671,13 +671,13 @@ module.exports = {
               for(var i in posts) {
                 res.push(apiposts[posts[i].id]);
               }
-              callback(res, null, meta);
+              callback(null, res, meta);
             }
           });
         }, ref);
       } else {
         // no posts
-        callback([], 'no posts for global', meta);
+        callback('no posts for global', [], meta);
       }
     });
     //console.log('dispatcher.js::getUnifiedStream - write me');
@@ -692,7 +692,7 @@ module.exports = {
   getUserPosts: function(userid, params, callback) {
     //console.log('dispatcher.js::getUserPosts - userid: '+userid);
     var ref=this;
-    this.cache.getUserPosts(userid, params, function(posts, err, meta) {
+    this.cache.getUserPosts(userid, params, function(err, posts, meta) {
       // data is an array of entities
       var apiposts={}, postcounter=0;
       //console.log('dispatcher.js:getUserPosts - mapping '+posts.length);
@@ -700,7 +700,7 @@ module.exports = {
         posts.map(function(current, idx, Arr) {
           //console.log('dispatcher.js:getUserPosts - map postid: '+current.id);
           // get the post in API foromat
-          ref.postToAPI(current, function(post, err, postmeta) {
+          ref.postToAPI(current, function(err, post, postmeta) {
             apiposts[post.id]=post;
             postcounter++;
             // join
@@ -711,13 +711,13 @@ module.exports = {
               for(var i in posts) {
                 res.push(apiposts[posts[i].id]);
               }
-              callback(res, null, meta);
+              callback(null, res, meta);
             }
           });
         }, ref);
       } else {
         // no posts
-        callback([], 'no posts for global', meta);
+        callback('no posts for global', [], meta);
       }
     });
   },
@@ -731,7 +731,7 @@ module.exports = {
     //console.log('dispatcher.js::getUserStars start');
     if (!params.count) params.count=20;
     var ref=this;
-    this.cache.getInteractions('star', userid, params, function(interactions, err, meta) {
+    this.cache.getInteractions('star', userid, params, function(err, interactions, meta) {
       //console.log('dispatcher.js::getUserStars - ', interactions);
       // data is an array of interactions
       if (interactions && interactions.length) {
@@ -740,7 +740,7 @@ module.exports = {
           // we're a hasMany, so in theory I should be able to do
           // record.posts({conds});
           // get the post in API foromat
-          ref.getPost(current.typeid, null, function(post, err, meta) {
+          ref.getPost(current.typeid, null, function(err, post, meta) {
             //console.dir(post);
             if (post && post.user && post.text) { // some are deleted, others are errors
               apiposts.push(post);
@@ -758,7 +758,7 @@ module.exports = {
         }, ref);
       } else {
         // no interactions
-        callback([], err, meta);
+        callback(err, [], meta);
       }
     });
   },
@@ -771,14 +771,14 @@ module.exports = {
   getHashtag: function(hashtag, params, callback) {
     var ref=this;
     //console.log('dispatcher.js:getHashtag - start #'+hashtag);
-    this.cache.getHashtagEntities(hashtag, params, function(entities, err, meta) {
+    this.cache.getHashtagEntities(hashtag, params, function(err, entities, meta) {
       // data is an array of entities
       var apiposts=[];
       //console.log('dispatcher.js:getHashtag - mapping '+entities.length);
       if (entities.length) {
         entities.map(function(current, idx, Arr) {
           // get the post in API foromat
-          ref.getPost(current.typeid, null, function(post, err, meta) {
+          ref.getPost(current.typeid, null, function(err, post, meta) {
             apiposts.push(post);
             // join
             //console.log(apiposts.length+'/'+entities.length);
@@ -790,19 +790,19 @@ module.exports = {
         }, ref);
       } else {
         // no entities
-        callback([], 'no entities for '+hashtag, meta);
+        callback('no entities for '+hashtag, [], meta);
       }
     });
   },
   getExploreFeed: function(feed, params, callback) {
     var ref=this;
-    this.cache.getExploreFeed(feed, params, function(posts, err) {
+    this.cache.getExploreFeed(feed, params, function(err, posts) {
       var apiposts=[];
       if (posts.length) {
         posts.map(function(current, idx, Arr) {
           // get the post in API foromat
           //console.log('getting',current.id);
-          ref.getPost(current.id, null, function(post, err, meta) {
+          ref.getPost(current.id, null, function(err, post, meta) {
             if (post && post.text) {
               apiposts.push(post);
             } else {
@@ -819,7 +819,7 @@ module.exports = {
         }, ref);
       } else {
         // no entities
-        callback([], 'no posts for '+feed, meta);
+        callback('no posts for '+feed, [], meta);
       }
     });
   },
@@ -833,7 +833,7 @@ module.exports = {
   setChannel: function(json, ts, callback) {
     if (!json) {
       console.log('dispatcher.js::setChannel - no json passed in');
-      callback(null, 'no json passed in');
+      callback('no json passed in', null);
       return;
     }
     var ref=this;
@@ -863,10 +863,10 @@ module.exports = {
     };
     // update user object
     this.updateUser(json.owner, ts);
-    this.cache.setChannel(channel, ts, function(chnl, err) {
+    this.cache.setChannel(channel, ts, function(err, chnl) {
       // if newer update annotations
       if (callback) {
-        callback(chnl, err);
+        callback(err, chnl);
       }
     });
     if (this.notsilent) {
@@ -915,10 +915,10 @@ module.exports = {
       is_deleted: json.is_deleted,
       created_at: json.created_at
     };
-    this.cache.setMessage(message, function(msg, err) {
+    this.cache.setMessage(message, function(err, msg) {
       // if current, extract annotations too
       if (callback) {
-        callback(msg, err);
+        callback(err, msg);
       }
     });
     if (this.notsilent) {
@@ -943,7 +943,7 @@ module.exports = {
    */
   getChannelMessage: function(cid, mids, params, callback) {
     console.log('dispatcher.js::getChannelMessage - write me!');
-    callback([], null);
+    callback(null, []);
   },
   //
   // channel_subscription
@@ -1013,7 +1013,7 @@ module.exports = {
   getToken: function(userid, client_id, callback) {
     // we could lookup unique token by userid/client_id
     // dummy token
-    this.getUser(userid, null, function(user, err) {
+    this.getUser(userid, null, function(err, user) {
       var token={
         app: {
           client_id: client_id,
@@ -1038,7 +1038,7 @@ module.exports = {
         user: user,
         "invite_link": "https://join.app.net/from/notareallink"
       };
-      callback(token, null);
+      callback(null, token);
     });
   },
   getUserClientByToken: function(token, callback) {
@@ -1109,10 +1109,10 @@ module.exports = {
    */
   getInteractions: function(userid, token, params, callback) {
     var ref=this;
-    this.getUser(userid, null, function(user, err) {
+    this.getUser(userid, null, function(err, user) {
       // o(3) maybe 4 if toApi
       console.log('getInteractions - gotUser');
-      ref.cache.getNotices(userid, { count: 20 }, function(notices, err) {
+      ref.cache.getNotices(userid, { count: 20 }, function(err, notices) {
         console.log('getInteractions - gotNotice',notices);
         // actionuserid <= may have to look this up too
         // look up: notice.postid => post
@@ -1124,7 +1124,7 @@ module.exports = {
           if (notice.type==='follow') {
             // follow, look up user
             // if we use use the dispatcher one then we don't need to conver it
-            ref.getUser(notice.typeid, function(fuser, err) {
+            ref.getUser(notice.typeid, function(err, fuser) {
               interactions.push({
                   "event_date": notice.event_date,
                   "action": 'follow',
@@ -1137,13 +1137,13 @@ module.exports = {
               });
               if (interactions.length==notices.length) {
                 console.log('getInteractions - calling back');
-                callback(interactions, err);
+                callback(err, interactions);
               }
             });
           } else {
             // not follow, look up post
             // if we use use the dispatcher one then we don't need to conver it
-            ref.getPost(notice.typeid, {}, function(post, err) {
+            ref.getPost(notice.typeid, {}, function(err, post) {
               interactions.push({
                   "event_date": notice.event_date,
                   "action": notice.type,
@@ -1156,7 +1156,7 @@ module.exports = {
               });
               if (interactions.length==notices.length) {
                 console.log('getInteractions - calling back');
-                callback(interactions, err);
+                callback(err, interactions);
               }
             });
           }
@@ -1222,7 +1222,7 @@ module.exports = {
             if (i>20) break;
             // yield and then run this
             //setImmediate(function() {
-              ref.getUser(list[i][3], null, function(fuser, err) {
+              ref.getUser(list[i][3], null, function(err, fuser) {
                 var interaction={
                     "event_date": list[i][0],
                     "action": list[i][1],
@@ -1239,7 +1239,7 @@ module.exports = {
                 if (interactions.length==list.length || interactions.length==20) {
                   // 16-70s on 54posts 0 followers
                   console.log('sending');
-                  callback(interactions, null);
+                  callback(null, interactions);
                 }
               });
             //});
@@ -1256,8 +1256,8 @@ module.exports = {
     // only need the most recent 20 follows
     console.log('getting followers for', userid);
     // lookup self first, and then get down to business
-    this.getUser(userid, null, function(user, err) {
-      ref.cache.getFollows(userid, { count: 20 }, function(follows, err) {
+    this.getUser(userid, null, function(err, user) {
+      ref.cache.getFollows(userid, { count: 20 }, function(err, follows) {
         if (!follows.length) {
           done_follows=1;
           checkdone();
@@ -1316,7 +1316,7 @@ module.exports = {
     var repostlist=[]
     var replieslist=[]
     // can't count 20, we want any activity on all our posts
-    this.getUserPosts(userid, { }, function(posts, err) {
+    this.getUserPosts(userid, { }, function(err, posts) {
       if (!posts.length) {
         console.log('no posts');
         done_reposts=1;
@@ -1341,7 +1341,7 @@ module.exports = {
         // reposts
         // get a list of all my posts, did any of them were a repost_of
         // up to 20 reposts (as long as their reposts replies)
-        ref.cache.getReposts(post.id, { count: 20 }, token, function(reposts, err) {
+        ref.cache.getReposts(post.id, { count: 20 }, token, function(err, reposts) {
           /*
           if (!reposts.length) {
             console.log('well no resposts, let\'s check on things. posts: ',postcalls,'postrepostcalls',postrepostcalls);
@@ -1380,7 +1380,7 @@ module.exports = {
         // get a list of all my posts, reply_to
         //console.log('Calling getReplies');
         // up to 20 replies (as long as their recent replies)
-        ref.cache.getReplies(post.id, { count: 20 }, token, function(replies, err) {
+        ref.cache.getReplies(post.id, { count: 20 }, token, function(err, replies) {
           //if (!replies.length) {
             //done_replies=1;
           //} else {
@@ -1413,7 +1413,7 @@ module.exports = {
         });
         // get people that have starred your posts
         // up to 20 stars (as long as their recent stars)
-        ref.cache.getPostStars(post.id, { count: 20 }, function(starredposts, err) {
+        ref.cache.getPostStars(post.id, { count: 20 }, function(err, starredposts) {
           starcount+=starredposts.length;
           for(var j in starredposts) {
             var starpost=starredposts[j];
@@ -1481,12 +1481,12 @@ module.exports = {
   updateUser: function(data, ts, callback) {
     if (!data) {
       console.log('dispatcher.js:updateUser - data is missing', data);
-      callback(null, 'data is missing');
+      callback('data is missing', null);
       return;
     }
     if (!data.id) {
       console.log('dispatcher.js:updateUser - id is missing', data);
-      callback(null, 'id is missing');
+      callback('id is missing', null);
       return;
     }
 
@@ -1515,7 +1515,7 @@ module.exports = {
       //console.log('user '+data.id+' has description', data.description.entities);
       if (data.description.entities) {
         //console.log('user '+data.id+' has entities');
-        this.setEntities('user', data.id, data.description.entities, function(entities, err) {
+        this.setEntities('user', data.id, data.description.entities, function(err, entities) {
           if (err) {
             console.log("entities Update err: "+err);
           //} else {
@@ -1531,14 +1531,14 @@ module.exports = {
     var ref=this;
     //console.log('made '+data.created_at+' become '+userData.created_at);
     // can we tell the difference between an add or update?
-    this.cache.setUser(userData, ts, function(user, err, meta) {
+    this.cache.setUser(userData, ts, function(err, user, meta) {
       // only updated annotation if the timestamp is newer than we have
       // TODO: define signal if ts is old
       if (data.annotations) {
         ref.setAnnotations('user', data.id, data.annotations);
       }
       if (callback) {
-        callback(user, err, meta);
+        callback(err, user, meta);
       }
     });
     if (this.notsilent) {
@@ -1548,11 +1548,11 @@ module.exports = {
   userToAPI: function(user, callback, meta) {
     //console.log('dispatcher.js::userToAPI - '+user.id, callback, meta);
     if (!user) {
-      callback(null, 'dispatcher.js::userToAPI - no user passed in');
+      callback('dispatcher.js::userToAPI - no user passed in', null);
       return;
     }
     if (!callback) {
-      callback(null, 'dispatcher.js::userToAPI - no callback passed in');
+      callback('dispatcher.js::userToAPI - no callback passed in', null);
       return;
     }
     //console.log('dispatcher.js::userToAPI - setting up res');
@@ -1616,7 +1616,7 @@ module.exports = {
       if (1) {
         var ref=this;
         //console.log('dispatcher.js::userToAPI - getEntities '+user.id);
-        this.getEntities('user', user.id, function(userEntities, userEntitiesErr, userEntitiesMeta) {
+        this.getEntities('user', user.id, function(userEntitiesErr, userEntities, userEntitiesMeta) {
           copyentities('mentions', userEntities.mentions, res.description);
           copyentities('hashtags', userEntities.hashtags, res.description);
           copyentities('links', userEntities.links, res.description);
@@ -1628,25 +1628,25 @@ module.exports = {
               console.log('dispatcher.js::userToAPI - what happened to the description?!? ', user, res);
             }
             //console.log('dispatcher.js::userToAPI - calling back');
-            callback(res, userEntitiesErr);
+            callback(userEntitiesErr, res);
           } else {
             // you can pass entities if you want...
-            ref.textProcess(user.description, function(textProc, err) {
+            ref.textProcess(user.description, function(err, textProc) {
               res.description.html=textProc.html;
-              callback(res, userEntitiesErr);
+              callback(userEntitiesErr, res);
             }, userEntities);
           }
         });
       } else {
         //console.log('dispatcher.js::userToAPI - textProcess description '+user.id);
-        this.textProcess(user.description, function(textProc, err) {
+        this.textProcess(user.description, function(err, textProc) {
           res.description.html=textProc.html;
           res.description.entities=textProc.entities;
-          callback(res, null);
+          callback(null, res);
         });
       }
     } else {
-      callback(res, null);
+      callback(null, res);
     }
   },
   getUser: function(user, params, callback) {
@@ -1656,7 +1656,7 @@ module.exports = {
       return;
     }
     if (!user) {
-      callback(null, 'dispatcher.js::getUser - no getUser passed in');
+      callback('dispatcher.js::getUser - no getUser passed in', null);
       return;
     }
     var ref=this;
@@ -1666,13 +1666,13 @@ module.exports = {
         console.dir(params.tokenobj);
         user=params.tokenobj.userid;
       } else {
-        this.getUserClientByToken(params.token, function(usertoken, err) {
+        this.getUserClientByToken(params.token, function(err, usertoken) {
           if (usertoken==null) {
             console.log('dispatcher.js::getUser - me but not token');
-            callback(null, 'dispatcher.js::getUser - me but not token');
+            callback('dispatcher.js::getUser - me but not token', null);
             return;
           } else {
-            ref.cache.getUser(usertoken.userid, function(userobj, userErr, userMeta) {
+            ref.cache.getUser(usertoken.userid, function(userErr, userobj, userMeta) {
               //console.log('dispatcher.js::getUser - gotUser', userErr);
               ref.userToAPI(userobj, callback, userMeta);
             });
@@ -1688,7 +1688,7 @@ module.exports = {
         user=user.substr(1);
       }
       //console.log('dispatcher.js::getUser - calling', func);
-      this.cache[func](user, function(userobj, userErr, userMeta) {
+      this.cache[func](user, function(userErr, userobj, userMeta) {
         //console.log('dispatcher.js::getUser - gotUser', userErr);
         ref.userToAPI(userobj, callback, userMeta);
       });
@@ -1755,19 +1755,19 @@ module.exports = {
   /** client */
   getSource: function(source, callback) {
     if (source==undefined) {
-      callback(null, 'source is undefined');
+      callback('source is undefined', null);
       return;
     }
     //console.dir(source);
     var ref=this.cache;
     console.log('dispatcher.js::getSource ', source.client_id);
-    this.cache.getClient(source.client_id, function(client, err, meta) {
+    this.cache.getClient(source.client_id, function(err, client, meta) {
       if (client==null || err) {
         //console.log('dispatcher.js::getSource failure ', err, client);
         // we need to create it
         ref.addSource(source.client_id, source.name, source.link, callback);
       } else {
-        callback(client, err, meta);
+        callback(err, client, meta);
       }
     });
     if (this.notsilent) {
@@ -1776,16 +1776,16 @@ module.exports = {
   },
   getClient: function(client_id, callback, shouldAdd) {
     if (client_id==undefined) {
-      callback(null, 'client_id is undefined');
+      callback('client_id is undefined', null);
       return;
     }
     if (client_id==null) {
-      callback(null, 'client_id is null');
+      callback('client_id is null', null);
       return;
     }
     var ref=this.cache;
     //console.log('dispatcher.js::getClient', client_id);
-    this.cache.getClient(client_id, function(client, err, meta) {
+    this.cache.getClient(client_id, function(err, client, meta) {
       if (client==null || err) {
         console.log('dispatcher.js::getClient failure '+err);
         // should we just be setClient??
@@ -1801,7 +1801,7 @@ module.exports = {
           client_id: client_id
         };
       }
-      callback(client, err, meta);
+      callback(err, client, meta);
     });
   },
   /** entities */
@@ -1812,21 +1812,21 @@ module.exports = {
     //console.dir('dispatcher.js::setEntities - '+type, entities);
     // I'm pretty sure these arrays are always set
     if (entities.mentions && entities.mentions.length) {
-      this.cache.extractEntities(type, id, entities.mentions, 'mention', function(nEntities, err, meta) {
+      this.cache.extractEntities(type, id, entities.mentions, 'mention', function(err, nEntities, meta) {
       });
       if (this.notsilent) {
         process.stdout.write('@');
       }
     }
     if (entities.hashtags && entities.hashtags.length) {
-      this.cache.extractEntities(type, id, entities.hashtags, 'hashtag', function(nEntities, err, meta) {
+      this.cache.extractEntities(type, id, entities.hashtags, 'hashtag', function(err, nEntities, meta) {
       });
       if (this.notsilent) {
         process.stdout.write('#');
       }
     }
     if (entities.links && entities.links.length) {
-      this.cache.extractEntities(type, id, entities.links, 'link', function(nEntities, err, meta) {
+      this.cache.extractEntities(type, id, entities.links, 'link', function(err, nEntities, meta) {
       });
       if (this.notsilent) {
         process.stdout.write('^');
@@ -1847,7 +1847,7 @@ module.exports = {
         var note=annotations[i];
         // insert into idtype, id, type, value
         // type, id, note.type, note.value
-        ref.cache.addAnnotation(type, id, note.type, note.value, function(nNote, err) {
+        ref.cache.addAnnotation(type, id, note.type, note.value, function(err, nNote) {
           if (err) {
             console.log('dispatcher.js::setAnnotations - addAnnotation failure', err);
           //} else {
@@ -1974,7 +1974,7 @@ module.exports = {
         html: '<span itemscope="https://app.net/schemas/Post">'+html+'</span>',
         text: text
       };
-      callback(res, null);
+      callback(null, res);
     }
 
     var mentionsSrch=text.match(mentionRegex);
@@ -1987,7 +1987,7 @@ module.exports = {
         var username=mention.substr(1);
         //console.log("Replacing "+username);
         launches++;
-        ref.cache.getUserID(username, function(user, userErr, userMeta) {
+        ref.cache.getUserID(username, function(userErr, user, userMeta) {
           //console.log('Searching for '+user.username);
           userlookup[user.username]=user.id;
           // fix up missing user ids

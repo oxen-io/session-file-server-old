@@ -49,7 +49,7 @@ module.exports=function(app, prefix) {
     console.log('dialect.*.js::/token  - looking up usertoken', req.token);
     if (req.token!==null && req.token!==undefined && req.token!='') {
       // need to translate token...
-      dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      dispatcher.getUserClientByToken(req.token, function(err, usertoken) {
         //console.log('usertoken', usertoken);
         //console.log('dialect.*.js::/token  - got usertoken');
         if (usertoken==null) {
@@ -80,7 +80,7 @@ module.exports=function(app, prefix) {
   app.get(prefix+'/users/:user_id/interactions', function(req, resp) {
     // req.token
     // req.token convert into userid/sourceid
-    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+    dispatcher.getUserClientByToken(req.token, function(err, usertoken) {
       //console.log('usertoken',usertoken);
       if (usertoken==null) {
         // could be they didn't log in through a server restart
@@ -144,7 +144,7 @@ module.exports=function(app, prefix) {
 
   // {"meta":{"code":401,"error_message":"Call requires authentication: This resource requires authentication and no token was provided."}}
   app.get(prefix+'/posts/stream', function(req, resp) {
-    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+    dispatcher.getUserClientByToken(req.token, function(err, usertoken) {
       //console.log('usertoken',usertoken);
       if (usertoken==null) {
         console.log('dialect.appdotnet_official.js:postsStream - no token');
@@ -158,10 +158,10 @@ module.exports=function(app, prefix) {
         resp.status(401).type('application/json').send(JSON.stringify(res));
       } else {
         //dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp));
-        dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams, req.token, function(posts, err, meta) {
+        dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams, req.token, function(err, posts, meta) {
           var func=callbacks.postsCallback(resp, req.token);
           //console.log('getUserStream',posts);
-          func(posts, err, meta);
+          func(err, posts, meta);
         });
       }
     });
@@ -181,7 +181,7 @@ module.exports=function(app, prefix) {
       };
       resp.status(401).type('application/json').send(JSON.stringify(res));
     } else {
-      dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      dispatcher.getUserClientByToken(req.token, function(err, usertoken) {
         //console.log('usertoken',usertoken);
         if (usertoken==null) {
           console.log('dialect.appdotnet_official.js:postsStreamUnified - no token');
@@ -196,11 +196,11 @@ module.exports=function(app, prefix) {
         } else {
           //console.log('dialect.appdotnet_official.js:postsStream - getUserStream', req.token);
           //dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp));
-          dispatcher.getUnifiedStream(usertoken.userid, req.apiParams.pageParams, req.token, function(posts, err, meta) {
+          dispatcher.getUnifiedStream(usertoken.userid, req.apiParams.pageParams, req.token, function(err, posts, meta) {
             //console.log('dialect.appdotnet_official.js:postsStream - sending');
             var func=callbacks.postsCallback(resp, req.token);
             //console.log('getUserStream',posts);
-            func(posts, err, meta);
+            func(err, posts, meta);
           });
         }
       });

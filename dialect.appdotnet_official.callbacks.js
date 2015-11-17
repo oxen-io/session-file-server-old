@@ -109,7 +109,7 @@ function formatpost(post, token) {
 
 module.exports = {
   'postsCallback' : function(resp, token) {
-    return function(posts, err, meta) {
+    return function(err, posts, meta) {
       for(var i in posts) {
         var post=posts[i];
         posts[i]=formatpost(post, token);
@@ -140,7 +140,7 @@ module.exports = {
   'usersCallback' : function(resp, token) {
     // posts is a hack, we're converting things like global to user lists
     // we need to not do this...
-    return function(posts, err, meta) {
+    return function(err, posts, meta) {
       var users=[];
       for(var i in posts) {
         users.push(formatuser(posts[i].user, token));
@@ -158,7 +158,7 @@ module.exports = {
   },
 
   'postCallback' : function(resp, token) {
-    return function(post, err, meta) {
+    return function(err, post, meta) {
       var res={
         meta: { code: 200 },
         data: formatpost(post, token)
@@ -174,7 +174,7 @@ module.exports = {
   },
 
   'tokenCallback' : function(resp, token) {
-    return function(data, err, meta) {
+    return function(err, data, meta) {
       err = typeof err !== 'undefined' ? err : undefined;
       meta = typeof meta !== 'undefined' ? meta : undefined;
       var res={
@@ -189,7 +189,7 @@ module.exports = {
   },
 
   'dataCallback' : function(resp) {
-    return function(data, err, meta) {
+    return function(err, data, meta) {
       err = typeof err !== 'undefined' ? err : undefined;
       meta = typeof meta !== 'undefined' ? meta : undefined;
       var res={
@@ -204,7 +204,7 @@ module.exports = {
   },
 
   'oembedCallback' : function(resp) {
-    return function(oembed, err) {
+    return function(err, oembed) {
       // there's no data/meta envelope for oembed
       //console.log('ADNO::oembed got ',oembed);
       sendrepsonse(JSON.stringify(oembed), resp);
