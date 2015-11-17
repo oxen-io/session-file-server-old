@@ -119,7 +119,7 @@ app.use(function(req, res, next) {
     if (req.query.access_token) {
       req.token=req.query.access_token;
       // probably should validate the token here
-      dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      dispatcher.getUserClientByToken(req.token, function(err, usertoken) {
         if (usertoken==null) {
           console.log('Invalid query token (Server restarted on clients?...): '+req.query.access_token+' err: '+err);
           req.token=null;
@@ -138,7 +138,7 @@ app.use(function(req, res, next) {
         //console.log('Authorization: '+req.get('Authorization'));
         // Authorization Bearer <YOUR ACCESS TOKEN>
         req.token=req.get('Authorization').replace('Bearer ', '');
-        dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+        dispatcher.getUserClientByToken(req.token, function(err, usertoken) {
           if (usertoken==null) {
             console.log('Invalid header token (Server restarted on clients?...): '+req.token);
             req.token=null;

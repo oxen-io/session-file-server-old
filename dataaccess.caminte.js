@@ -412,9 +412,9 @@ function db_insert(rec, model, callback) {
             // why don't we just return the entire record
             // that way we can get access to fields we don't have a getter for
             // or are generated on insert
-            callback(rec, err);
+            callback(err, rec);
           } else {
-            callback(null, err);
+            callback(err, null);
           }
         }
       });
@@ -423,7 +423,7 @@ function db_insert(rec, model, callback) {
       console.dir(rec.errors);
       if (callback) {
         // can we tell the different between string and array?
-        callback(null, rec.errors);
+        callback(rec.errors, null);
       }
     }
   });
@@ -435,7 +435,7 @@ function db_delete(id, model, callback) {
       console.log("delUser Error ", err);
     }
     if (callback) {
-      callback(rec, err);
+      callback(err, rec);
     }
   });
 }
@@ -446,7 +446,7 @@ function db_get(id, model, callback) {
     }
     // this one is likely not optional...
     //if (callback) {
-    callback(rec, err);
+    callback(err, rec);
     //}
   });
 }
@@ -571,7 +571,7 @@ function setparams(query, params, maxid, callback) {
       more: objects.length==params.count
     };
     // was .reverse on posts, but I don't think that's right for id DESC
-    callback(objects, err, imeta);
+    callback(err, objects, imeta);
   });
 }
 
@@ -604,7 +604,7 @@ module.exports = {
     // FIXME: check ts against last_update to make sure it's newer info than we have
     // since we have cached fields
     userModel.findOrCreate({ id: iuser.id }, iuser, function(err, user) {
-      if (callback) callback(user,err);
+      if (callback) callback(err, user);
     });
   },
   delUser: function(userid, callback) {
@@ -618,7 +618,7 @@ module.exports = {
   },
   getUserID: function(username, callback) {
     if (!username) {
-      callback(null, 'dataaccess.caminte.js::getUserID() - username was not set');
+      callback('dataaccess.caminte.js::getUserID() - username was not set', null);
       return;
     }
     //console.log('dataaccess.caminte.js::getUserID(', username, ') - start');
@@ -631,32 +631,32 @@ module.exports = {
           return;
         }
       }
-      callback(user, err);
+      callback(err, user);
     });
   },
   // callback is user, err, meta
   getUser: function(userid, callback) {
     if (userid==undefined) {
-      callback(null, 'dataaccess.caminte.js:getUser - userid is undefined');
+      callback('dataaccess.caminte.js:getUser - userid is undefined', null);
       return;
     }
     if (!userid) {
-      callback(null, 'dataaccess.caminte.js:getUser - userid isn\'t set');
+      callback('dataaccess.caminte.js:getUser - userid isn\'t set', null);
       return;
     }
     if (callback==undefined) {
-      callback(null, 'dataaccess.caminte.js:getUser - callback is undefined');
+      callback('dataaccess.caminte.js:getUser - callback is undefined', null);
       return;
     }
     var ref=this;
-    db_get(userid, userModel, function(user, err) {
+    db_get(userid, userModel, function(err, user) {
       if (user==null && err==null) {
         if (ref.next) {
           ref.next.getUser(userid, callback);
           return;
         }
       }
-      callback(user, err);
+      callback(err, user);
     });
   },
   /*
@@ -681,7 +681,7 @@ module.exports = {
         // do we auto upgrade scopes?
         // probably should just fail
         if (callback) {
-          callback(usertoken, 'Already have token');
+          callback('Already have token', usertoken);
         }
       }
     });
@@ -703,12 +703,12 @@ module.exports = {
       console.log('dataaccess.camintejs.js::getAPIUserToken - Token not defined');
       // we shouldn't need to return here
       // why doesn't mysql handle this right? bad driver
-      callback(null, 'token undefined');
+      callback('token undefined', null);
       return;
     }
     userTokenModel.findOne({ where: { token: token }}, function(err, usertoken) {
       //console.log('dataaccess.camintejs.js::getAPIUserToken - err',err,'usertoken',usertoken);
-      callback(usertoken, err);
+      callback(err, usertoken);
     });
   },
   /*
@@ -725,7 +725,7 @@ module.exports = {
         user.save();
       }
       if (callback) {
-        callback(user, err);
+        callback(err, user);
       }
     });
   },
@@ -739,7 +739,7 @@ module.exports = {
       } else {
       }
       if (callback) {
-        callback(user, err);
+        callback(err, user);
       }
     });
 
@@ -757,7 +757,7 @@ module.exports = {
   },
   getLocalClient: function(client_id, callback) {
     clientModel.findOne({ where: {client_id: client_id} }, function(err, client) {
-      callback(client, err);
+      callback(err, client);
     });
   },
   delLocalClient: function(client_id, callback) {
@@ -777,7 +777,7 @@ module.exports = {
   },
   getClient: function(client_id, callback) {
     clientModel.findOne({ where: {client_id: client_id} }, function(err, client) {
-      callback(client,err);
+      callback(err, client);
     });
   },
   setSource: function(source, callback) {
@@ -787,7 +787,7 @@ module.exports = {
       name: source.name,
       link: source.link
     }, function(err, client) {
-      callback(client, err);
+      callback(err, client);
     });
   },
   /* client (app) tokens */
@@ -833,7 +833,7 @@ module.exports = {
     */
     if (ipost.repost_of) {
       // look up the parent post
-      this.getPost(ipost.repost_of, function(post, err) {
+      this.getPost(ipost.repost_of, function(err, post) {
         notice=new noticeModel();
         notice.event_date=ipost.created_at;
         notice.notifyuserid=post.userid; // who should be notified
@@ -845,7 +845,7 @@ module.exports = {
     }
     if (ipost.reply_to) {
       // look up the parent post
-      this.getPost(ipost.reply_to, function(post, err) {
+      this.getPost(ipost.reply_to, function(err, post) {
         notice=new noticeModel();
         notice.event_date=ipost.created_at;
         notice.notifyuserid=post.userid; // who should be notified
@@ -862,7 +862,7 @@ module.exports = {
       id: ipost.id
     }, ipost, function(err, post) {
       if (callback) {
-        callback(post, err);
+        callback(err, post);
       }
     });
     //db_insert(new postModel(ipost), postModel, callback);
@@ -887,11 +887,11 @@ module.exports = {
   getPost: function(id, callback) {
     //console.log('dataaccess.caminte.js::getPost - id is '+id);
     if (id==undefined) {
-      callback(null, 'dataaccess.caminte.js::getPost - id is undefined');
+      callback('dataaccess.caminte.js::getPost - id is undefined', null);
       return;
     }
     var ref=this;
-    db_get(id, postModel, function(post, err) {
+    db_get(id, postModel, function(err, post) {
       //console.log('dataaccess.caminte.js::getPost - post, err',post,err);
       if (post==null && err==null) {
         //console.log('dataaccess.caminte.js::getPost - next?',ref.next);
@@ -901,7 +901,7 @@ module.exports = {
           return;
         }
       }
-      callback(post, err);
+      callback(err, post);
     });
   },
   getReposts: function(postid, params, token, callback) {
@@ -918,7 +918,7 @@ module.exports = {
             // if empties turns up not set
             if (ref.next) {
               //console.log('dataaccess.caminte.js::getPost - next');
-              ref.next.getReposts(postid, params, token, function(pdata, err, meta) {
+              ref.next.getReposts(postid, params, token, function(err, pdata, meta) {
                 // set empties
                 //console.log('dataaccess.caminte.js::getPost - proxy.getReposts got',pdata);
                 if (pdata.length==0) {
@@ -932,7 +932,7 @@ module.exports = {
                   empty.last_updated=new Date();
                   db_insert(empty, emptyModel);
                 }
-                callback(pdata, err, meta);
+                callback(err, pdata, meta);
               });
               return;
             } else {
@@ -942,11 +942,11 @@ module.exports = {
           } else {
             //console.log('dataaccess.caminte.js::getPost - used empty cache');
             // we know it's empty
-            callback([], null);
+            callback(null, []);
           }
         });
       } else {
-        callback(posts, err);
+        callback(err, posts);
       }
     });
   },
@@ -965,7 +965,7 @@ module.exports = {
 
             if (ref.next) {
               //console.log('dataaccess.caminte.js::getReplies - next');
-              ref.next.getReplies(postid, params, token, function(pdata, err, meta) {
+              ref.next.getReplies(postid, params, token, function(err, pdata, meta) {
                 // set empties
                 console.log('dataaccess.caminte.js::getReplies - proxy.getReposts got length',pdata.length,'postid',postid);
                 // 0 or the original post
@@ -980,7 +980,7 @@ module.exports = {
                   empty.last_updated=new Date();
                   db_insert(empty, emptyModel);
                 }
-                callback(pdata, err, meta);
+                callback(err, pdata, meta);
               });
               return;
             } else {
@@ -990,11 +990,11 @@ module.exports = {
           } else {
             console.log('dataaccess.caminte.js::getReplies - used empty cache');
             // we know it's empty
-            callback([], null);
+            callback(null, []);
           }
         });
       } else {
-        callback(posts, err);
+        callback(err, posts);
       }
     });
   },
@@ -1011,7 +1011,7 @@ module.exports = {
             ref.next.getUserStream(user, params, token, callback);
             return;
           }
-          callback([], null);
+          callback(null, []);
         } else {
           // we have some followings
           // for each following
@@ -1046,12 +1046,12 @@ module.exports = {
       });
     };
     if (user=='me') {
-      this.getAPIUserToken(token, function(tokenobj, err) {
+      this.getAPIUserToken(token, function(err, tokenobj) {
         finalfunc(tokenobj.userid);
       })
     } else if (user[0]=='@') {
       // uhm I don't think posts has a username field...
-      this.getUserID(user.substr(1), function(userobj, err) {
+      this.getUserID(user.substr(1), function(err, userobj) {
         finalfunc(userobj.id);
       });
     } else {
@@ -1071,7 +1071,7 @@ module.exports = {
             ref.next.getUserStream(user, params, token, callback);
             return;
           }
-          callback([], null);
+          callback(null, []);
         } else {
           // we have some followings
           // for each follower
@@ -1089,22 +1089,22 @@ module.exports = {
           postModel.find({ where: { userid: { in: userids } }, order: 'created_at DESC', limit: 20 }, function(err, posts) {
             if (err) {
               console.log('dataaccess.caminte.js::getUnifiedStream - post find err',err);
-              callback([], err);
+              callback(err, []);
             } else {
               //console.log('Found '+posts.length+' posts',err);
-              callback(posts, null);
+              callback(null, posts);
             }
           })
         }
       });
     };
     if (user=='me') {
-      this.getAPIUserToken(token, function(tokenobj, err) {
+      this.getAPIUserToken(token, function(err, tokenobj) {
         finalfunc(tokenobj.userid);
       })
     } else if (user[0]=='@') {
       // uhm I don't think posts has a username field...
-      this.getUserID(user.substr(1), function(userobj, err) {
+      this.getUserID(user.substr(1), function(err, userobj) {
         finalfunc(userobj.id);
       });
     } else {
@@ -1132,12 +1132,12 @@ module.exports = {
             return;
           }
         }
-        callback(posts, err);
+        callback(err, posts);
       });
     }
     if (user[0]=='@') {
       //console.log('dataaccess.caminte.js::getUserPosts - by username', user.substr(1));
-      this.getUserID(user.substr(1), function(userobj, userErr, userMeta) {
+      this.getUserID(user.substr(1), function(userErr, userobj, userMeta) {
         //console.log('dataaccess.caminte.js::getUserPosts - by username', user.substr(1), 'got', userobj.id);
         finishFunc(userobj.id);
       });
@@ -1316,7 +1316,7 @@ module.exports = {
           {"url":"/posts/stream/explore/checkins", "description":"App.net users in interesting places", "slug":"checkins", "title":"Checkins"}
         ]
       };
-      callback(res.data, null, res.meta);
+      callback(null, res.data, res.meta);
     }
   },
   getExploreFeed: function(feed, params, callback) {
@@ -1334,24 +1334,24 @@ module.exports = {
       id: chnl.id
     }, chnl, function(err, ochnl) {
       if (callback) {
-        callback(ochnl, err);
+        callback(err, ochnl);
       }
     });
   },
   getChannel: function(id, callback) {
     if (id==undefined) {
-      callback(null, 'dataaccess.caminte.js::getChannel - id is undefined');
+      callback('dataaccess.caminte.js::getChannel - id is undefined', null);
       return;
     }
     var ref=this;
-    db_get(id, channelModel, function(channel, err) {
+    db_get(id, channelModel, function(err, channel) {
       if (channel==null && err==null) {
         if (ref.next) {
           ref.next.getChannel(id, callback);
           return;
         }
       }
-      callback(channel, err);
+      callback(err, channel);
     });  },
   /** messages */
   setMessage: function (msg, callback) {
@@ -1360,29 +1360,29 @@ module.exports = {
       id: msg.id
     }, msg, function(err, omsg) {
       if (callback) {
-        callback(omsg, err);
+        callback(err, omsg);
       }
     });
   },
   getMessage: function(id, callback) {
     if (id==undefined) {
-      callback(null,'dataaccess.caminte.js::getMessage - id is undefined');
+      callback('dataaccess.caminte.js::getMessage - id is undefined', null);
       return;
     }
     var ref=this;
-    db_get(id, messageModel, function(message, err) {
+    db_get(id, messageModel, function(err, message) {
       if (message==null && err==null) {
         if (ref.next) {
           ref.next.getMessage(id, callback);
           return;
         }
       }
-      callback(message, err);
+      callback(err, message);
     });
   },
   getChannelMessages: function(channelid, params, callback) {
     messageModel.find({ where: { channel_id: channelid } }, function(err, messages) {
-      callback(messages, err);
+      callback(err, messages);
     });
   },
   /** subscription */
@@ -1398,13 +1398,13 @@ module.exports = {
       id: msg.id
     }, msg, function(err, omsg) {
       if (callback) {
-        callback(omsg, err);
+        callback(err, omsg);
       }
     });
   },
   getUserSubscriptions: function(userid, params, callback) {
     if (id==undefined) {
-      callback(null,'dataaccess.caminte.js::getUserSubscriptions - id is undefined');
+      callback('dataaccess.caminte.js::getUserSubscriptions - id is undefined', null);
       return;
     }
     if (this.next) {
@@ -1415,7 +1415,7 @@ module.exports = {
   },
   getChannelSubscriptions: function(channelid, params, callback) {
     if (id==undefined) {
-      callback(null, 'dataaccess.caminte.js::getChannelSubscriptions - id is undefined');
+      callback('dataaccess.caminte.js::getChannelSubscriptions - id is undefined', null);
       return;
     }
     if (this.next) {
@@ -1433,7 +1433,7 @@ module.exports = {
         id: file.id
       },file, function(err, ofile) {
         if (callback) {
-          callback(ofile, err);
+          callback(err, ofile);
         }
       });
     }
@@ -1451,7 +1451,7 @@ module.exports = {
     if (type===null) {
       // don't let it write type nulls
       console.log('dataaccess.caminte.js::extractEntities - extracted bad entity type',type);
-      callback(null,'badtype');
+      callback('badtype', null);
       return;
     }
     // delete (type & idtype & id)
@@ -1553,7 +1553,7 @@ module.exports = {
           }
         }
       }
-      callback(res, null);
+      callback(null, res);
     });
   },
   // more like getHashtagEntities
@@ -1566,7 +1566,7 @@ module.exports = {
     */
     // sorted by post created date...., well we have post id we can use
     entityModel.find({ where: { type: 'hashtag', text: hashtag }, order: 'typeid' }, function(err, entities) {
-      callback(entities, err);
+      callback(err, entities);
     });
   },
   /**
@@ -1581,7 +1581,7 @@ module.exports = {
     db_insert(note, annotationModel, callback);
   },
   clearAnnotations: function(idtype, id, callback) {
-    annotationModel.find({where: { idtype: idtype, typeid: id }},function(err,oldAnnotations) {
+    annotationModel.find({where: { idtype: idtype, typeid: id }},function(err, oldAnnotations) {
       for(var i in oldAnnotations) {
         var oldNote=oldAnnotations[i];
         // causes TypeError: Cannot read property 'constructor' of null
@@ -1609,7 +1609,7 @@ module.exports = {
     }
     */
     annotationModel.find({where: { idtype: idtype, typeid: id }},function(err, annotations) {
-      callback(annotations, err);
+      callback(err, annotations);
     });
   },
   /** follow */
@@ -1644,7 +1644,7 @@ module.exports = {
         last_updated: ts
       }, function(err, users) {
         if (callback) {
-          callback(users, err);
+          callback(err, users);
         }
       });
     } else {
@@ -1660,7 +1660,7 @@ module.exports = {
   },
   getFollowing: function(userid, params, callback) {
     if (userid==undefined) {
-      callback(null, 'dataaccess.caminte.js::getFollowing - userid is undefined');
+      callback('dataaccess.caminte.js::getFollowing - userid is undefined', null);
       return;
     }
     followModel.find({ where: { userid: userid } }, function(err, followings) {
@@ -1672,14 +1672,14 @@ module.exports = {
         }
       } else {
         //console.log('got', followings.length, 'followings for', userid);
-        callback(followings, err);
+        callback(err, followings);
       }
     })
   },
   // who is following this user
   getFollows: function(userid, params, callback) {
     if (userid==undefined) {
-      callback(null, 'dataaccess.caminte.js::getFollows - userid is undefined');
+      callback('dataaccess.caminte.js::getFollows - userid is undefined', null);
       return;
     }
     followModel.find({ where: { followsid: userid }, limit: params.count, order: "last_updated DESC" }, function(err, followers) {
@@ -1689,7 +1689,7 @@ module.exports = {
           return;
         }
       } else {
-        callback(followers, null);
+        callback(null, followers);
       }
     });
   },
@@ -1714,7 +1714,7 @@ module.exports = {
     // is there an existing match for this key (userid, postid, type)
     // wouldn't find or create be better here?
     var ref=this;
-    interactionModel.find({ where: { userid: userid, typeid: postid, type: type } }, function(err,foundInteraction) {
+    interactionModel.find({ where: { userid: userid, typeid: postid, type: type } }, function(err, foundInteraction) {
 
       // ok star,repost
       //console.log('setInteraction - type',type);
@@ -1727,7 +1727,7 @@ module.exports = {
         //noticeModel.noticeModel( { where: { created_at: ts, type: type } }, function(err, notify)
 
         // first who's object did we interact with
-        ref.getPost(postid, function(post, err, meta) {
+        ref.getPost(postid, function(err, post, meta) {
           notice=new noticeModel();
           notice.event_date=ts;
           notice.notifyuserid=post.userid; // who should be notified
@@ -1769,14 +1769,14 @@ module.exports = {
         callback(interactions, err);
       }
       */
-      callback(interactions, err);
+      callback(err, interactions);
     });
   },
   getNotices: function(userid, params, callback) {
     //console.log('dataaccess.caminte.js::getNotices');
     noticeModel.find({ where: { notifyuserid: userid }, limit: params.count, order: "event_date DESC" }, function(err, notices) {
       //console.log('dataaccess.caminte.js::gotNotices');
-      callback(notices, err);
+      callback(err, notices);
     });
   },
   // USERS DONT INTERACT WITH EACH OTHER (except follows)
@@ -1807,12 +1807,12 @@ module.exports = {
           }
         }
         //console.dir(interactions);
-        callback(interactions, err);
+        callback(err, interactions);
       });
     };
     if (user[0]=='@') {
       var username=user.substr(1);
-      this.getUserID(username, function(userobj, err) {
+      this.getUserID(username, function(err, userobj) {
         finishfunc(userobj.id);
       });
     } else {
