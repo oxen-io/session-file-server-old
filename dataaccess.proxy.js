@@ -2,6 +2,7 @@
 var request = require('request');
 var qs = require('qs');
 
+var downloader=require('./downloader.js');
 // backwards compatibility to allow us to do the right thing
 // this doesn't give us QoS but does allow us to say put in the background
 // does defer to immediate IO
@@ -257,7 +258,7 @@ module.exports = {
           // the response can be setPost'd
           // the current post isn't in API format
           // it's in ADN post
-          ref.dispatcher.setPost(post);
+          ref.dispatcher.setPost(data.data);
           // this will convert ADN to DB format, then we don't have to bug the dispatcher
           ref.dispatcher.apiToPost(data,data, data.meta, function(err, post) {
             //ref.setPost(post);
@@ -639,7 +640,10 @@ module.exports = {
         callback(e, null, null);
       }
     });
+    downloader.dispatcher=ref.dispatcher;
+    downloader.downloadFollowing(user, token);
     /** @todo async processing needed, so we don't lock the API. This all could be sent to a background thread*/
+    /*
     // after the fact processing
     // assuming this proxy trigger means we don't have any followers for user
     // let's get some users
@@ -697,6 +701,7 @@ module.exports = {
               }, startdelay2);
             };
             func2(follow);
+            */
             /** @todo we need to track usage rate/limits on each token */
             // we could also queue up their last 20 posts too...
             // it's a little agressive, we have want we need for the user stream
@@ -716,6 +721,7 @@ module.exports = {
             };
             func(userid);
             */
+            /*
           }
           console.log('Processed all '+res.data.length+' followings');
 
@@ -763,6 +769,7 @@ module.exports = {
       });
     }, 0);
     //callback([], null);
+    */
   },
   // user can be an id or @username
   getUnifiedStream: function(user, params, token, callback) {
