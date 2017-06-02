@@ -92,6 +92,7 @@ function formatpost(post, token) {
     post.num_reposts=parseInt(0+post.num_reposts); // cast to Number
     post.num_stars=parseInt(0+post.num_stars); // cast to Number
     post.machine_only=post.machine_only?true:false;
+    post.is_deleted=post.is_deleted?true:false;
     post.thread_id=''+post.thread_id; // cast to String (Number is too big for js?)
     if (post.reply_to) {
       post.reply_to=''+post.reply_to; // cast to String (Number is too big for js?)
@@ -137,11 +138,12 @@ module.exports = {
     }
   },
 
-  'usersCallback' : function(resp, token) {
+  'posts2usersCallback' : function(resp, token) {
     // posts is a hack, we're converting things like global to user lists
     // we need to not do this...
     return function(err, posts, meta) {
       var users=[];
+      // if any return fucking nothing (null) kill them (don't push them)
       for(var i in posts) {
         users.push(formatuser(posts[i].user, token));
       }
@@ -153,6 +155,28 @@ module.exports = {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
+      sendrepsonse(JSON.stringify(res), resp);
+    }
+  },
+
+  'usersCallback' : function(resp, token) {
+    return function(unformattedUsers, err, meta) {
+      var users=[];
+      for(var i in unformattedUsers) {
+        // filter out nulls, it's convenient to filter here
+        if (formatuser(unformattedUsers[i])) {
+          users.push(formatuser(unformattedUsers[i], token));
+        }
+      }
+      // meta order: min_id, code, max_id, more
+      var res={
+        meta: meta,
+        data: users
+      };
+      if (res.meta==undefined) {
+        res.meta={ code: 200 };
+      }
+      //console.log('ADNO.CB::usersCallback - res', res);
       sendrepsonse(JSON.stringify(res), resp);
     }
   },
@@ -173,6 +197,36 @@ module.exports = {
     }
   },
 
+  'userCallback' : function(resp, token) {
+    return function(user, err, meta) {
+      // meta order: min_id, code, max_id, more
+      if (!user) {
+        user={
+          id: 0,
+          username: 'notfound',
+          created_at: '2014-10-24T17:04:48Z',
+          avatar_image: {
+            url: 'http://cdn.discordapp.com/icons/235920083535265794/a0f48aa4e45d17d1183a563b20e15a54.png'
+          },
+          cover_image: {
+            url: 'http://cdn.discordapp.com/icons/235920083535265794/a0f48aa4e45d17d1183a563b20e15a54.png'
+          },
+          counts: {
+            following: 0,
+          }
+        };
+      }
+      var res={
+        meta: meta,
+        data: formatuser(user, token)
+      };
+      if (res.meta==undefined) {
+        res.meta={ code: 200 };
+      }
+      sendrepsonse(JSON.stringify(res), resp);
+    }
+  },
+
   'tokenCallback' : function(resp, token) {
     return function(err, data, meta) {
       err = typeof err !== 'undefined' ? err : undefined;
@@ -188,8 +242,24 @@ module.exports = {
     }
   },
 
+  // what's the difference between this and post?
   'dataCallback' : function(resp) {
-    return function(err, data, meta) {
+    return function(data, err, meta) {
+      err = typeof err !== 'undefined' ? err : undefined;
+      meta = typeof meta !== 'undefined' ? meta : undefined;
+      var res={
+        meta: meta,
+        data: data
+      };
+      if (res.meta==undefined) {
+        res.meta={ code: 200 };
+      }
+      sendrepsonse(JSON.stringify(res), resp);
+    }
+  },
+
+  'fileCallback': function(resp, token) {
+    return function(data, err, meta) {
       err = typeof err !== 'undefined' ? err : undefined;
       meta = typeof meta !== 'undefined' ? meta : undefined;
       var res={
