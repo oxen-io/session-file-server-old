@@ -192,6 +192,30 @@ module.exports = {
       callback(null, null, null);
     }
   },
+  delPost: function(postid, token, callback) {
+    if (this.next) {
+      this.next.delPost(postid, token, callback);
+    } else {
+      console.log('dataaccess.base.js::delPost - write me!');
+      callback(null, null, null);
+    }
+  },
+  updatePostHTML: function(postid, html, callback) {
+    if (this.next) {
+      this.next.updatePostHTML(postid, html, callback);
+    } else {
+      console.log('dataaccess.base.js::updatePostHTML - write me!');
+      callback(null, null);
+    }
+  },
+  updatePostCounts: function(postid, callback) {
+    if (this.next) {
+      this.next.updatePostCounts(postid, callback);
+    } else {
+      console.log('dataaccess.base.js::updatePostCounts - write me!');
+      callback(null, null);
+    }
+  },
   setPost:  function(ipost, callback) {
     if (this.next) {
       this.next.setPost(ipost, callback);
@@ -237,6 +261,14 @@ module.exports = {
       this.next.getReplies(postid, params, token, callback);
     } else {
       console.log('dataaccess.base.js::getReplies - write me!');
+      callback(null, null);
+    }
+  },
+  getUserRepostPost: function(userid, repost_of, callback) {
+    if (this.next) {
+      this.next.getUserRepostPost(userid, repost_of, callback);
+    } else {
+      console.log('dataaccess.base.js::getUserReportPost - write me!');
       callback(null, null);
     }
   },
@@ -372,6 +404,30 @@ module.exports = {
     }
   },
   /** files */
+  addFile: function(file, token, callback) {
+    if (this.next) {
+      this.next.addFile(file, token, callback);
+    } else {
+      console.log('dataaccess.base.js::addFile - write me!');
+      callback(null, null);
+    }
+  },
+  setFile: function(file, del, ts, callback) {
+    if (this.next) {
+      this.next.setFile(file, del, ts, callback);
+    } else {
+      console.log('dataaccess.base.js::setFile - write me!');
+      callback(null, null);
+    }
+  },
+  getFile: function(fileId, callback) {
+    if (this.next) {
+      this.next.getFile(fileId, callback);
+    } else {
+      console.log('dataaccess.base.js::getFile - write me!');
+      callback(null, null);
+    }
+  },
   /** entities */
   // should this model more closely follow the annotation model?
   // not really because entities are immutable (on posts not users)
@@ -428,6 +484,14 @@ module.exports = {
     }
   },
   /** follow */
+  updateUserCounts: function(userid, callback) {
+    if (this.next) {
+      this.next.updateUserCounts(userid, callback);
+    } else {
+      console.log('dataaccess.base.js::updateUserCounts - write me!');
+      callback(null, null);
+    }
+  },
   setFollow: function (srcid, trgid, id, del, ts, callback) {
     if (this.next) {
       this.next.setFollow(srcid, trgid, id, del, ts, callback);
@@ -441,6 +505,14 @@ module.exports = {
       this.next.getFollowing(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getFollowing - write me!');
+      callback(null, null);
+    }
+  },
+  follows: function(src, trg, callback) {
+    if (this.next) {
+      this.next.follows(src, trg, callback);
+    } else {
+      console.log('dataaccess.base.js::follows - write me!');
       callback(null, null);
     }
   },
@@ -477,6 +549,14 @@ module.exports = {
       callback(null, null);
     }
   },
+  getUserStarPost: function(userid, postid, callback) {
+    if (this.next) {
+      this.next.getUserStarPost(userid, postid, callback);
+    } else {
+      console.log('dataaccess.base.js::getPostStar - write me!');
+      callback(null, null);
+    }
+  },
   getPostStars: function(postid, params, callback) {
     if (this.next) {
       this.next.getPostStars(postid, params, callback);
@@ -485,9 +565,9 @@ module.exports = {
       callback(null, null);
     }
   },
-  getNotices: function(userid, params, callback) {
+  getNotices: function(userid, params, tokenObj, callback) {
     if (this.next) {
-      this.next.getNotices(userid, params, callback);
+      this.next.getNotices(userid, params, tokenObj, callback);
     } else {
       console.log('dataaccess.base.js::getNotices - write me!');
       callback(null, null);
