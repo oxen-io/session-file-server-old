@@ -46,7 +46,7 @@ module.exports=function(app, prefix) {
    */
   app.get(prefix+'/token', function(req, resp) {
     // req.token convert into userid/sourceid
-    console.log('dialect.*.js::/token  - looking up usertoken', req.token);
+    //console.log('dialect.*.js::/token  - looking up usertoken', req.token);
     if (req.token!==null && req.token!==undefined && req.token!='') {
       // need to translate token...
       dispatcher.getUserClientByToken(req.token, function(err, usertoken) {
@@ -102,8 +102,55 @@ module.exports=function(app, prefix) {
       }
     });
   });
+  // Token: Any
   app.get(prefix+'/posts/:post_id/replies', function(req, resp) {
     dispatcher.getReplies(req.params.post_id, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp, req.token));
+  });
+  app.post(prefix+'/users/:user_id/follow', function(req, resp) {
+    // can also be @username
+    var followsid=req.params.user_id;
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('usertoken', usertoken);
+      if (usertoken==null) {
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        console.log('ADNO::users/ID/follow - user_id', followsid);
+        // data.user.id, data.follows_user.id
+        dispatcher.setFollows({
+          user: { id: usertoken.userid }, follows_user: { id: followsid },
+        }, 0, 0, Date.now(), callbacks.userCallback(resp, req.token));
+      }
+    });
+  });
+  app.delete(prefix+'/users/:user_id/follow', function(req, resp) {
+    // can also be @username
+    var followsid=req.params.user_id;
+    console.log('body', req.body);
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('usertoken', usertoken);
+      if (usertoken==null) {
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        // data.user.id, data.follows_user.id
+        dispatcher.setFollows({
+          user: { id: usertoken.userid }, follows_user: { id: followsid },
+        }, true, 0, Date.now(), callbacks.userCallback(resp, req.token));
+      }
+    });
   });
   app.post(prefix+'/posts', function(req, resp) {
     /*
@@ -119,27 +166,212 @@ module.exports=function(app, prefix) {
     */
     var postdata={
       text: req.body.text,
-      reply_to: req.body.reply_to
     };
+    if (req.body.reply_to) { // this is optional
+      postdata.reply_to=req.body.reply_to;
+      console.log('setting reply_to', postdata.reply_to);
+    }
     if (req.body.entities) {
       postdata.entities=req.body.entities;
     }
     if (req.body.annotations) {
       postdata.annotations=req.body.annotations;
     }
-    dispatcher.addPost(postdata, req.token, callbacks.postCallback(resp, req.token));
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (err) {
+        console.error('ADNO::POST/posts - token err', err);
+      }
+      if (usertoken==null) {
+        console.log('dialect.appdotnet_official.js:POST/posts - no token for', req.token);
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        //console.log('dialect.appdotnet_official.js:postsStream - usertoken', usertoken);
+        // if we set here we don't really need to pass token
+        postdata.userid=usertoken.userid;
+        postdata.client_id=usertoken.client_id;
+        console.log('ADNO::POST/posts - postObject', postdata);
+        dispatcher.addPost(postdata, usertoken, callbacks.postCallback(resp, req.token));
+      }
+    });
+  });
+  app.delete(prefix+'/posts/:post_id', function(req, resp) {
+    // can also be @username
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (usertoken==null) {
+        console.log('dialect.appdotnet_official.js:DELETE/posts - no token');
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        dispatcher.delPost(req.params.post_id, usertoken, callbacks.postCallback(resp, req.token));
+      }
+    });
+  });
+  app.put(prefix+'/files', function(req, resp) {
+    console.log('dialect.appdotnet_official.js:PUT/files - detect');
+
+    resp.status(401).type('application/json').send(JSON.stringify(res));
+  });
+  // create file (for attachments)
+  app.post(prefix+'/files', upload.single('content'), function(req, resp) {
+    console.log('upload got', req.file.buffer.length, 'bytes');
+    //console.log('looking for type - params:', req.params, 'body:', req.body);
+    // type is in req.body.type
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (usertoken==null) {
+        console.log('dialect.appdotnet_official.js:DELETE/posts - no token');
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        request.post({
+          url: 'https://pomf.cat/upload.php',
+          formData: {
+            //files: fs.createReadStream(__dirname+'/git/caminte/media/mysql.png'),
+            'files[]': {
+              value: req.file.buffer,
+              options: {
+                filename: req.file.originalname,
+                contentType: req.file.mimetype,
+                knownLength: req.file.buffer.length
+              },
+            }
+          }
+        }, function (err, uploadResp, body) {
+          if (err) {
+            console.log('Error!', err);
+          } else {
+            //console.log('URL: ' + body);
+            /*
+            {"success":true,"files":[
+              {
+                "hash":"107df9aadaf6204789f966e1b7fcd31d75a121c1",
+                "name":"mysql.png",
+                "url":"https:\/\/my.mixtape.moe\/yusguk.png",
+                "size":13357
+              }
+            ]}
+            {
+              success: false,
+              errorcode: 400,
+              description: 'No input file(s)'
+            }
+            */
+            //console.log('body', body);
+            var data=JSON.parse(body);
+            //, 'from', body
+            console.log('mixtape', data);
+            if (data.success) {
+              for(var i in data.files) {
+                var file=data.files[i];
+                //file.hash (md5)
+                // write this to the db dude
+                //file.url
+                //file.size
+                //file.name
+                file.mime_type=req.file.mimetype;
+                file.kind=req.file.mimetype.match(/image/i)?'image':'other';
+                //console.log('type', req.body.type, typeof(req.body.type)); // it's string...
+                file.type=req.body.type;
+                dispatcher.addFile(file, usertoken, req.apiParams, callbacks.fileCallback(resp, req.token));
+              }
+            }
+            //console.log('Regular:', fs.createReadStream(__dirname+'/git/caminte/media/mysql.png'));
+          }
+        });
+      }
+    });
   });
   app.post(prefix+'/posts/:post_id/star', function(req, resp) {
-    dispatcher.addStar(req.params.post_id, req.token, callbacks.postCallback(resp, req.token));
+    // req.apiParams.tokenobj isn't set because IO
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (usertoken==null) {
+        console.log('dialect.appdotnet_official.js:POST/posts/ID/star - no token');
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        //console.log('dialect.appdotnet_official.js:POST/posts/ID/star - usertoken', usertoken);
+        dispatcher.addStar(req.params.post_id, usertoken, callbacks.postCallback(resp, req.token));
+      }
+    });
   });
   app.delete(prefix+'/posts/:post_id/star', function(req, resp) {
-    dispatcher.delStar(req.params.post_id, req.token, callbacks.postCallback(resp, req.token));
+    // req.apiParams.tokenobj isn't set because IO
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (usertoken==null) {
+        console.log('dialect.appdotnet_official.js:DELETE/posts/ID/star - no token');
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        //console.log('dialect.appdotnet_official.js:POST/posts/ID/star - usertoken', usertoken);
+        dispatcher.delStar(req.params.post_id, usertoken, callbacks.postCallback(resp, req.token));
+      }
+    });
   });
   app.post(prefix+'/posts/:post_id/repost', function(req, resp) {
-    dispatcher.addRepost(req.params.post_id, req.token, callbacks.postCallback(resp, req.token));
+    // req.apiParams.tokenobj isn't set because IO
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (usertoken==null) {
+        console.log('dialect.appdotnet_official.js:DELETE/posts/ID/star - no token');
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        dispatcher.addRepost(req.params.post_id, usertoken, callbacks.postCallback(resp, req.token));
+      }
+    });
   });
   app.delete(prefix+'/posts/:post_id/repost', function(req, resp) {
-    dispatcher.delRepost(req.params.post_id, req.token, callbacks.postCallback(resp, req.token));
+    // req.apiParams.tokenobj isn't set because IO
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (usertoken==null) {
+        console.log('dialect.appdotnet_official.js:DELETE/posts/ID/star - no token');
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        dispatcher.delRepost(req.params.post_id, usertoken, callbacks.postCallback(resp, req.token));
+      }
+    });
   });
 
   // {"meta":{"code":401,"error_message":"Call requires authentication: This resource requires authentication and no token was provided."}}
@@ -207,23 +439,53 @@ module.exports=function(app, prefix) {
     }
   });
   app.get(prefix+'/users/:user_id/mentions', function(req, resp) {
-    dispatcher.getMentions(req.params.user_id, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp, req.token));
+    dispatcher.getMentions(req.params.user_id, req.apiParams.pageParams,
+      req.token, callbacks.postsCallback(resp, req.token));
   });
+  /*
   app.get(prefix+'/users/:user_id/stars', function(req, resp) {
+    // do we need a token, do we have a token?
+    //console.log('dialect.appdotnet_official.js:usersStars - token', req.apiParams.tokenobj);
     dispatcher.getUserStars(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
   });
+  */
   app.get(prefix+'/users/:user_id/following', function(req, resp) {
-    // req.params.user_id,
-    //dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp, req.token));
-    var cb=callbacks.usersCallback(resp, req.token);
-    cb(notimplemented, 'not implemented', { code: 200 });
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (usertoken===null) {
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      dispatcher.getFollowings(req.params.user_id, req.apiParams.pageParams,
+        usertoken, callbacks.usersCallback(resp, req.token));
+    });
+    //var cb=callbacks.posts2usersCallback(resp, req.token);
+    //cb(notimplemented, 'not implemented', { code: 200 });
   });
   app.get(prefix+'/users/:user_id/followers', function(req, resp) {
-    // req.params.user_id,
-    //dispatcher.getGlobal(req.apiParams.pageParams, callbacks.usersCallback(resp, req.token));
-    var cb=callbacks.usersCallback(resp, req.token);
-    cb(notimplemented, 'not implemented', { code: 200 });
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (usertoken===null) {
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      dispatcher.getFollowers(req.params.user_id, req.apiParams.pageParams,
+        usertoken, callbacks.usersCallback(resp, req.token));
+    });
+    //var cb=callbacks.posts2usersCallback(resp, req.token);
+    //cb(notimplemented, 'not implemented', { code: 200 });
   });
+
   /*
    * No token endpoints
    */
@@ -231,21 +493,62 @@ module.exports=function(app, prefix) {
     dispatcher.getPost(req.params.id, req.apiParams, callbacks.postCallback(resp, req.token));
   });
   app.get(prefix+'/users/:user_id', function(req, resp) {
-    dispatcher.getUser(req.params.user_id, req.apiParams, callbacks.dataCallback(resp));
+    if (!req.token) {
+      dispatcher.getUser(req.params.user_id, req.apiParams, callbacks.dataCallback(resp));
+      return;
+    }
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('dialect.appdotnet_official.js:GETusers/ID - ', usertoken);
+      if (usertoken!=null) {
+        //console.log('dialect.appdotnet_official.js:GETusers/ID - found a token');
+        req.apiParams.tokenobj=usertoken;
+      }
+      dispatcher.getUser(req.params.user_id, req.apiParams, callbacks.userCallback(resp));
+    });
   });
   app.get(prefix+'/users/:user_id/posts', function(req, resp) {
-    dispatcher.getUserPosts(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    // we need token for stars/context
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('usertoken', usertoken);
+      if (usertoken!=null) {
+        req.apiParams.pageParams.tokenobj=usertoken;
+      }
+      dispatcher.getUserPosts(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    });
   });
   app.get(prefix+'/users/:user_id/stars', function(req, resp) {
     //console.log('ADNO::usersStar');
-    dispatcher.getUserStars(req.params.user_id, req.apiParams.pageParams, callbacks.dataCallback(resp));
+    // we need token for stars/context
+    //console.log('dialect.appdotnet_official.js:GETusers/ID/stars - token', req.token);
+    if (!req.token) {
+      dispatcher.getUserStars(req.params.user_id, req.apiParams.pageParams, callbacks.dataCallback(resp));
+      return;
+    }
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      console.log('dialect.appdotnet_official.js:GETusers/ID/stars - ', usertoken);
+      if (usertoken!=null) {
+        //console.log('dialect.appdotnet_official.js:GETusers/ID/stars - found a token');
+        req.apiParams.pageParams.tokenobj=usertoken;
+      }
+      dispatcher.getUserStars(req.params.user_id, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    });
   });
   app.get(prefix+'/posts/tag/:hashtag', function(req, resp) {
-    dispatcher.getHashtag(req.params.hashtag, req.apiParams.pageParams, callbacks.dataCallback(resp));
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      console.log('dialect.appdotnet_official.js:GETusers/ID/stars - ', usertoken);
+      if (usertoken!=null) {
+        //console.log('dialect.appdotnet_official.js:GETusers/ID/stars - found a token');
+        req.apiParams.tokenobj=usertoken;
+      }
+      dispatcher.getHashtag(req.params.hashtag, req.apiParams, callbacks.dataCallback(resp));
+    });
   });
   app.get(prefix+'/posts/stream/global', function(req, resp) {
     // why data instead of posts?
-    dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      req.apiParams.tokenobj=usertoken;
+      dispatcher.getGlobal(req.apiParams, callbacks.postsCallback(resp, req.token));
+    });
   });
   app.get(prefix+'/posts/stream/explore', function(req, resp) {
     dispatcher.getExplore(req.apiParams.pageParams, callbacks.dataCallback(resp));
@@ -253,6 +556,7 @@ module.exports=function(app, prefix) {
   app.get(prefix+'/posts/stream/explore/:feed', function(req, resp) {
     // this is just a stub hack
     //dispatcher.getGlobal(req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
+    // going to get usertoken...
     dispatcher.getExploreFeed(req.params.feed, req.apiParams.pageParams, callbacks.postsCallback(resp, req.token));
     //var cb=callbacks.postsCallback(resp, req.token);
     //cb(notimplemented, 'not implemented', { code: 200 });
