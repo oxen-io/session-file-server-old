@@ -93,7 +93,10 @@ var fileParams=['file_types'];
 
 /** need this for POST parsing */
 // heard this writes to /tmp and doesn't scale.. need to confirm if current versions have this problem
-app.use(bodyParser());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
 
 /**
  * Set up middleware to check for prettyPrint
