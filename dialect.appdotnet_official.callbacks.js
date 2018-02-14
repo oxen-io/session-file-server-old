@@ -62,6 +62,11 @@ function formatuser(user, token) {
     user.id=''+user.id;
     user.username=''+user.username; // 530 was cast as an int
     user.created_at=ISODateString(user.created_at);
+    if (!user.counts) {
+      // usually caused by call user instead of users callback
+      console.log('dialect.appdotnet_official.callback.js::formatuser - no user counts object')
+      user.counts={}
+    }
     user.counts.following=parseInt(0+user.counts.following);
     user.counts.posts=parseInt(0+user.counts.posts);
     user.counts.followers=parseInt(0+user.counts.followers);
@@ -110,9 +115,11 @@ function formatpost(post, token) {
 
 module.exports = {
   'postsCallback' : function(resp, token) {
-    return function(err, posts, meta) {
+    return function(posts, err, meta) {
+      console.log('dialect.appdotnet_official.callback.js::postsCallback - in posts callback',posts.length);
       for(var i in posts) {
         var post=posts[i];
+        //console.log('dialect.appdotnet_official.callback.js::postsCallback - looking at ',post.id,post.created_at,post.userid);
         posts[i]=formatpost(post, token);
         if (post.repost_of) {
           // this is an object...
@@ -141,12 +148,13 @@ module.exports = {
   'posts2usersCallback' : function(resp, token) {
     // posts is a hack, we're converting things like global to user lists
     // we need to not do this...
-    return function(err, posts, meta) {
+    return function(posts, err, meta) {
       var users=[];
       // if any return fucking nothing (null) kill them (don't push them)
       for(var i in posts) {
         users.push(formatuser(posts[i].user, token));
       }
+      //console.log('returning', users);
       // meta order: min_id, code, max_id, more
       var res={
         meta: meta,
@@ -182,7 +190,7 @@ module.exports = {
   },
 
   'postCallback' : function(resp, token) {
-    return function(err, post, meta) {
+    return function(post, err, meta) {
       var res={
         meta: { code: 200 },
         data: formatpost(post, token)
@@ -228,7 +236,7 @@ module.exports = {
   },
 
   'tokenCallback' : function(resp, token) {
-    return function(err, data, meta) {
+    return function(data, err, meta) {
       err = typeof err !== 'undefined' ? err : undefined;
       meta = typeof meta !== 'undefined' ? meta : undefined;
       var res={
@@ -260,6 +268,7 @@ module.exports = {
 
   'fileCallback': function(resp, token) {
     return function(data, err, meta) {
+      console.log('fileCallback', data, 'err', err, 'meta', meta);
       err = typeof err !== 'undefined' ? err : undefined;
       meta = typeof meta !== 'undefined' ? meta : undefined;
       var res={
@@ -274,7 +283,7 @@ module.exports = {
   },
 
   'oembedCallback' : function(resp) {
-    return function(err, oembed) {
+    return function(oembed, err) {
       // there's no data/meta envelope for oembed
       //console.log('ADNO::oembed got ',oembed);
       sendrepsonse(JSON.stringify(oembed), resp);
