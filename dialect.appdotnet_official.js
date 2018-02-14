@@ -9,6 +9,8 @@ we're responsible for filteirng models to make sure we only return what matches 
 var request = require('request');
 require('http').globalAgent.maxSockets = Infinity
 require('https').globalAgent.maxSockets = Infinity
+var multer  = require('multer');
+var storage = multer.memoryStorage()
 
 var callbacks = require('./dialect.appdotnet_official.callbacks.js');
 
@@ -35,6 +37,9 @@ var notimplemented=[{
     }
   }
 }];
+
+// fileFilter: util.fileFilter
+var upload = multer({ storage: storage, limits: {fileSize: 100*1024*1024} });
 
 /**
  * Set up defined API routes at prefix
