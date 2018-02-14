@@ -4,14 +4,6 @@
 var path = require('path');
 var nconf = require('nconf');
 
-function clone(o) {
-  var ret = {};
-  Object.keys(o).forEach(function (val) {
-    ret[val] = o[val];
-  });
-  return ret;
-}
-
 // Look for a config file
 var config_path = path.join(__dirname, '/config.json');
 // and a model file
@@ -101,10 +93,7 @@ var fileParams=['file_types'];
 
 /** need this for POST parsing */
 // heard this writes to /tmp and doesn't scale.. need to confirm if current versions have this problem
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({
-  extended: true
-}));
+app.use(bodyParser());
 
 /**
  * Set up middleware to check for prettyPrint
@@ -117,9 +106,11 @@ app.use(function(req, res, next) {
   var token=null;
   if (req.get('Authorization') || req.query.access_token) {
     if (req.query.access_token) {
+      console.log('app.js - Authquery',req.query.access_token);
       req.token=req.query.access_token;
       // probably should validate the token here
-      dispatcher.getUserClientByToken(req.token, function(err, usertoken) {
+      console.log('app.js - getUserClientByToken',req.token);
+      dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
         if (usertoken==null) {
           console.log('Invalid query token (Server restarted on clients?...): '+req.query.access_token+' err: '+err);
           req.token=null;
@@ -134,11 +125,12 @@ app.use(function(req, res, next) {
         }
       });
     } else {
+      console.log('authheader');
       if (req.get('Authorization')) {
         //console.log('Authorization: '+req.get('Authorization'));
         // Authorization Bearer <YOUR ACCESS TOKEN>
         req.token=req.get('Authorization').replace('Bearer ', '');
-        dispatcher.getUserClientByToken(req.token, function(err, usertoken) {
+        dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
           if (usertoken==null) {
             console.log('Invalid header token (Server restarted on clients?...): '+req.token);
             req.token=null;
