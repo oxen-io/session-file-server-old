@@ -39,6 +39,14 @@ module.exports = {
       callback(null, null);
     }
   },
+  patchUser: function(userid, changes, callback) {
+    if (this.next) {
+      this.next.patchUser(userid, changes, callback);
+    } else {
+      console.log('dataaccess.base.js::patchUser - write me!');
+      callback(null, null);
+    }
+  },
   delUser: function(userid, callback) {
     if (this.next) {
       this.next.delUser(userid, callback);
@@ -61,6 +69,33 @@ module.exports = {
       this.next.getUser(userid, callback);
     } else {
       console.log('dataaccess.base.js::getUser - write me!');
+      callback(null, null);
+    }
+  },
+  getUsers: function(users, params, callback) {
+    if (this.next) {
+      this.next.getUsers(users, params, callback);
+    } else {
+      console.log('dataaccess.base.js::getUsers - write me!');
+      callback(null, null);
+    }
+  },
+  searchUsers: function(query, params, callback) {
+    if (this.next) {
+      this.next.searchUsers(query, params, callback);
+    } else {
+      console.log('dataaccess.base.js::searchUsers - write me!');
+      callback(null, null);
+    }
+  },
+  /*
+   * oauth local app / callbacks
+   */
+  getAppCallbacks: function(client_id, client_secret, callback) {
+    if (this.next) {
+      this.next.getAppCallbacks(client_id, client_secret, callback);
+    } else {
+      console.log('dataaccess.base.js::getAppCallbacks - write me!');
       callback(null, null);
     }
   },
@@ -224,9 +259,9 @@ module.exports = {
       callback(null, null);
     }
   },
-  addRepost: function(postid, token, callback) {
+  addRepost: function(postid, originalPost, token, callback) {
     if (this.next) {
-      this.next.addRepost(postid, token, callback);
+      this.next.addRepost(postid, originalPost, token, callback);
     } else {
       console.log('dataaccess.base.js::addRepost - write me!');
       callback(null, null);
@@ -280,9 +315,9 @@ module.exports = {
       callback(null, null);
     }
   },
-  getUnifiedStream: function(user, params, token, callback) {
+  getUnifiedStream: function(userid, params, callback) {
     if (this.next) {
-      this.next.getUnifiedStream(user, params, token, callback);
+      this.next.getUnifiedStream(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getUnifiedStream - write me!');
       callback(null, null);
@@ -329,6 +364,14 @@ module.exports = {
       callback(null, null, null);
     }
   },
+  searchPosts: function(query, params, callback) {
+    if (this.next) {
+      this.next.searchPosts(query, params, callback);
+    } else {
+      console.log('dataaccess.base.js::searchPosts - write me!');
+      callback(null, null);
+    }
+  },
   /** channels */
   setChannel: function (chnl, ts, callback) {
     if (this.next) {
@@ -338,11 +381,37 @@ module.exports = {
       callback(null, null);
     }
   },
-  getChannel: function(id, callback) {
+  updateChannel: function (channelid, chnl, callback) {
     if (this.next) {
-      this.next.getChannel(id, callback);
+      this.next.updateChannel(channelid, chnl, callback);
+    } else {
+      console.log('dataaccess.base.js::updateChannel - write me!');
+      callback(null, null);
+    }
+  },
+  addChannel: function(userid, type, callback) {
+    //console.log('dataaccess.base.js::addChannel - hit!');
+    if (this.next) {
+      //console.log('dataaccess.base.js::addChannel - calling', this.next.name);
+      this.next.addChannel(userid, type, callback);
+    } else {
+      console.log('dataaccess.base.js::addChannel - write me!');
+      callback(null, null);
+    }
+  },
+  getChannel: function(id, params, callback) {
+    if (this.next) {
+      this.next.getChannel(id, params, callback);
     } else {
       console.log('dataaccess.base.js::getChannel - write me!');
+      callback(null, null);
+    }
+  },
+  getPMChannel: function(group, callback) {
+    if (this.next) {
+      this.next.getPMChannel(group, callback);
+    } else {
+      console.log('dataaccess.base.js::getPMChannel - write me!');
       callback(null, null);
     }
   },
@@ -352,6 +421,14 @@ module.exports = {
       this.next.setMessage(msg, callback);
     } else {
       console.log('dataaccess.base.js::setMessage - write me!');
+      callback(null, null);
+    }
+  },
+  addMessage: function (msg, callback) {
+    if (this.next) {
+      this.next.addMessage(msg, callback);
+    } else {
+      console.log('dataaccess.base.js::addMessage - write me!');
       callback(null, null);
     }
   },
@@ -379,11 +456,27 @@ module.exports = {
     active: { type: Boolean, index: true },
     last_updated: { type: Date },
   */
+  addSubscription: function (channel_id, userid, callback) {
+    if (this.next) {
+      this.next.addSubscription(channel_id, userid, callback);
+    } else {
+      console.log('dataaccess.base.js::addSubscription - write me!');
+      callback(null, null);
+    }
+  },
   setSubscription: function (chnlid, userid, del, ts, callback) {
     if (this.next) {
       this.next.setSubscription(chnlid, userid, del, ts, callback);
     } else {
       console.log('dataaccess.base.js::setSubscription - write me!');
+      callback(null, null);
+    }
+  },
+  delSubscription: function (channel_id, userid, callback) {
+    if (this.next) {
+      this.next.delSubscription(channel_id, userid, callback);
+    } else {
+      console.log('dataaccess.base.js::delSubscription - write me!');
       callback(null, null);
     }
   },
@@ -425,6 +518,14 @@ module.exports = {
       this.next.getFile(fileId, callback);
     } else {
       console.log('dataaccess.base.js::getFile - write me!');
+      callback(null, null);
+    }
+  },
+  getFiles: function(userid, params, callback) {
+    if (this.next) {
+      this.next.getFiles(userid, params, callback);
+    } else {
+      console.log('dataaccess.base.js::getFiles - write me!');
       callback(null, null);
     }
   },
