@@ -64,7 +64,7 @@ module.exports=function(app, prefix) {
           };
           resp.status(401).type('application/json').send(JSON.stringify(res));
         } else {
-          console.log('dialect.*.js::getting token for usertoken { userid:',usertoken.userid,'client_id:',usertoken.client_id);
+          //console.log('dialect.*.js::got token for /token { userid:',usertoken.userid,'client_id:',usertoken.client_id);
           // FIXME: pass params
           dispatcher.getToken(usertoken.userid, usertoken.client_id, callbacks.tokenCallback(resp, req.token));
         }
@@ -659,7 +659,9 @@ module.exports=function(app, prefix) {
       }
       req.apiParams.tokenobj=usertoken;
       //console.log('dialect.appdotnet_official.js:PUTusersX - creating channel of type', req.body.type);
-      if (!req.body.name || !req.body.locale || !req.body.timezone || !req.body.description) {
+      if (req.body.name === undefined || req.body.locale  === undefined ||
+        req.body.timezone  === undefined || req.body.description  === undefined ||
+        req.body.description.text === undefined) {
         var res={
           "meta": {
             "code": 400,
@@ -669,17 +671,22 @@ module.exports=function(app, prefix) {
         resp.status(400).type('application/json').send(JSON.stringify(res));
         return;
       }
-      // Currently, the only keys we use from your JSON will be readers, writers, annotations, and type.
-      /*
-      var channel={
-        type: req.body.type,
-        readers: req.body.readers?req.body.readers:{},
-        writers: req.body.writers?req.body.writers:{},
-        editors: {},
-        annotations: req.body.annotations
+      // These are required fields
+      var userobj={
+        name: req.body.name,
+        locale: req.body.locale,
+        timezone: req.body.timezone,
+        description: {
+          text: req.body.description.text,
+        },
+      };
+      // optional fields
+      if (req.body.annotations) {
+        userobj.annotations = req.body.annotations;
       }
-      dispatcher.addChannel(channel, req.apiParams, usertoken, callbacks.dataCallback(resp));
-      */
+      userobj.id = usertoken.userid;
+      dispatcher.updateUser(userobj, Date.now()/1000, callbacks.dataCallback(resp));
+      //dispatcher.addChannel(channel, req.apiParams, usertoken, callbacks.dataCallback(resp));
       console.log('dialect.appdotnet_official.js:PUTusersXx - body', req.body);
     });
   });
@@ -705,6 +712,10 @@ module.exports=function(app, prefix) {
         locale: req.body.locale,
         timezone: req.body.timezone,
         description: req.body.description,
+      }
+      // optional fields
+      if (req.body.annotations) {
+        request.annotations = req.body.annotations;
       }
       //console.log('dialect.appdotnet_official.js:PATCHusersX - creating channel of type', req.body.type);
       dispatcher.patchUser(request, req.apiParams, usertoken, callbacks.dataCallback(resp));
@@ -910,6 +921,29 @@ module.exports=function(app, prefix) {
     });
   });
 
+  app.delete(prefix+'/channels/:channel_id', function(req, resp) {
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('dialect.appdotnet_official.js:DELETEchannels - got token:', usertoken);
+      var userid='';
+      if (usertoken==null) {
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      //console.log('dialect.appdotnet_official.js:DELETEchannels - found a token', usertoken);
+      req.apiParams.tokenobj=usertoken;
+      //console.log('dialect.appdotnet_official.js:DELETEchannels - channel_id', req.params.channel_id);
+      // deactiveChannel: function(channelid, params, token, callback) {
+      dispatcher.deactiveChannel(req.params.channel_id, req.apiParams, usertoken, callbacks.dataCallback(resp));
+    });
+  });
+
+
   // subscribe to a channel (token: user / scope: public_messages or messages)
   app.post(prefix+'/channels/:channel_id/subscribe', function(req, resp) {
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
@@ -955,6 +989,10 @@ module.exports=function(app, prefix) {
   // Retrieve multiple Messages (Token: User, Scope: public_messages or messages)
   // how do you receive public messages in a public channel?
   app.get(prefix+'/channels/:channel_id/messages', function(req, resp) {
+    if (!req.token) {
+      dispatcher.getChannelMessages(req.params.channel_id, req.apiParams, callbacks.dataCallback(resp));
+      return;
+    }
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
       if (usertoken) {
         req.apiParams.tokenobj=usertoken;
@@ -1011,7 +1049,7 @@ module.exports=function(app, prefix) {
         postdata.destinations.push(usertoken.userid);
         // FIXME: also need to dedup this
       }
-      console.log('dialect.appdotnet_official.js:POSTchannelsXmessages - creating message in channel', req.params.channel_id);
+      //console.log('dialect.appdotnet_official.js:POSTchannelsXmessages - creating message in channel', req.params.channel_id);
       //addMessage: function(channel_id, postdata, params, token, callback) {
       dispatcher.addMessage(req.params.channel_id, postdata, req.apiParams, usertoken, callbacks.dataCallback(resp));
     });
