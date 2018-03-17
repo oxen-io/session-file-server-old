@@ -26,10 +26,15 @@ var adnstream = require('./ohe/adnstream');
 
 /** pull configuration from config into variables */
 var apiroot = nconf.get('uplink:apiroot') || 'https://api.app.net';
+
 var upstream_client_id=nconf.get('uplink:client_id') || 'NotSet';
 var upstream_client_secret=nconf.get('uplink:client_secret') || 'NotSet';
 var webport = nconf.get('web:port') || 7070;
 var api_client_id= nconf.get('web:api_client_id') || '';
+
+var auth_base=nconf.get('auth:base') || 'https://account.app.net/oauth/';
+var auth_client_id=nconf.get('auth:client_id') || upstream_client_id;
+var auth_client_secret=nconf.get('auth:client_secret') || upstream_client_secret;
 
 // Todo: make these modular load modules from config file
 
@@ -37,7 +42,10 @@ var api_client_id= nconf.get('web:api_client_id') || '';
 // Todo: expiration models and configuration
 
 // Todo: end error object
-var proxy=require('./dataaccess.proxy.js');
+var proxy = null
+if (upstream_client_id!='NotSet') {
+  proxy = require('./dataaccess.proxy.js');
+}
 var db=require('./dataaccess.caminte.js');
 var cache=require('./dataaccess.base.js');
 var dispatcher=require('./dispatcher.js');
@@ -45,10 +53,15 @@ var dialects=[];
 // Todo: message queue
 
 // initialize chain
-db.next=proxy;
+if (proxy) db.next=proxy;
 cache.next=db;
 dispatcher.cache=cache;
 dispatcher.notsilent=!(nconf.get('uplink:silent') || false);
+dispatcher.appConfig = {
+  provider: nconf.get('pomf:provider') || 'pomf.cat',
+  provider_url: nconf.get('pomf:provider_url') || 'https://pomf.cat/',
+}
+console.log('configuring app as', dispatcher.appConfig)
 // app.net defaults
 dispatcher.config=nconf.get('dataModel:config') || {
   "text": {
@@ -76,10 +89,13 @@ dispatcher.config=nconf.get('dataModel:config') || {
     "annotation_max_bytes": 8192
   }
 };
+console.log('configuring adn settings as', dispatcher.config)
 
-// set up proxy object
-proxy.apiroot=apiroot;
-proxy.dispatcher=dispatcher; // upload dispatcher
+if (proxy) {
+  // set up proxy object
+  proxy.apiroot=apiroot;
+  proxy.dispatcher=dispatcher; // upload dispatcher
+}
 
 /** set up query parameters */
 // all Boolean (0 or 1) and prefixed by include_
@@ -98,6 +114,22 @@ app.use(bodyParser.urlencoded({
   extended: true
 }));
 
+app.all('/*', function(req, res, next){
+
+    origin = req.get('Origin') || '*';
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.set('Access-Control-Expose-Headers', 'Content-Length');
+    res.set('Access-Control-Allow-Credentials', 'true');
+    res.set('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization'); // add the list of headers your site allows.
+    if ('OPTIONS' == req.method) {
+      var ts=new Date().getTime();
+      console.log('app.js - OPTIONS requests served in', (ts-res.start)+'ms');
+      return res.sendStatus(200);
+    }
+    next();
+});
+
 /**
  * Set up middleware to check for prettyPrint
  * This is run on each incoming request
@@ -109,9 +141,10 @@ app.use(function(req, res, next) {
   var token=null;
   if (req.get('Authorization') || req.query.access_token) {
     if (req.query.access_token) {
-      console.log('app.js - Authquery',req.query.access_token);
+      //console.log('app.js - Authquery',req.query.access_token);
       req.token=req.query.access_token;
       // probably should validate the token here
+      /*
       console.log('app.js - getUserClientByToken',req.token);
       dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
         if (usertoken==null) {
@@ -127,12 +160,14 @@ app.use(function(req, res, next) {
           console.log('token marked valid');
         }
       });
+      */
     } else {
-      console.log('authheader');
+      //console.log('authheader');
       if (req.get('Authorization')) {
         //console.log('Authorization: '+req.get('Authorization'));
         // Authorization Bearer <YOUR ACCESS TOKEN>
         req.token=req.get('Authorization').replace('Bearer ', '');
+        /*
         dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
           if (usertoken==null) {
             console.log('Invalid header token (Server restarted on clients?...): '+req.token);
@@ -141,6 +176,7 @@ app.use(function(req, res, next) {
             token=usertoken;
           }
         });
+        */
       }
     }
   }
@@ -148,7 +184,11 @@ app.use(function(req, res, next) {
   if (dispatcher.notsilent && upstream_client_id!='NotSet') {
     process.stdout.write("\n");
   }
-  console.log('Request for '+req.path);
+  // not any of these
+  if (!(req.path.match(/\/channels/) || req.path.match(/\/posts\/\d+\/replies/) ||
+    req.path.match(/users\/@[A-z]+\/posts/))) {
+    console.log('Request for '+req.path);
+  }
   // set defaults
   //  Defaults to false except when you specifically request a Post from a muted user or when you specifically request a muted user's stream.
   var generalParams={};
@@ -159,9 +199,32 @@ app.use(function(req, res, next) {
   generalParams.machine=false;
   generalParams.starred_by=false;
   generalParams.reposters=false;
+
+  // map to bool but handle '0' and '1' just like 'true' and 'false'
+  function stringToBool(str) {
+    if (str === '0' || str === 'false' || str === 'null' || str === 'undefined') {
+      return false;
+    }
+    // handle ints and bool types too
+    return str?true:false;
+  }
+
   generalParams.annotations=false;
+  if (req.query.include_annotations!==undefined) {
+    //console.log("Overriding include_annotations to", req.query.include_annotations);
+    generalParams.annotations=stringToBool(req.query.include_annotations);
+  }
+
   generalParams.post_annotations=false;
+  if (req.query.include_post_annotations!==undefined) {
+    console.log("Overriding include_post_annotations to", req.query.include_post_annotations);
+    generalParams.post_annotations=stringToBool(req.query.include_post_annotations);
+  }
   generalParams.user_annotations=false;
+  if (req.query.include_user_annotations!==undefined) {
+    console.log("Overriding include_user_annotations to", req.query.include_user_annotations);
+    generalParams.user_annotations=stringToBool(req.query.include_user_annotations);
+  }
   generalParams.html=true;
   // channel
   generalParams.marker=false;
@@ -191,7 +254,7 @@ app.use(function(req, res, next) {
   var pageParams={};
   pageParams.since_id=false;
   if (req.query.since_id) {
-    console.log("Overriding since_id to "+req.query.since_id);
+    //console.log("Overriding since_id to "+req.query.since_id);
     pageParams.since_id=parseInt(req.query.since_id);
   }
   pageParams.before_id=false;
@@ -262,14 +325,34 @@ for(var i in mounts) {
 // config app (express framework)
 app.upstream_client_id=upstream_client_id;
 app.upstream_client_secret=upstream_client_secret;
+app.auth_client_id=auth_client_id;
+app.auth_client_secret=auth_client_secret;
 app.webport=webport;
 app.apiroot=apiroot;
 
-// only can proxy if we're set up as a client
-if (upstream_client_id!='NotSet') {
+// only can proxy if we're set up as a client or an auth_base not app.net
+console.log('upstream_client_id', upstream_client_id)
+if (upstream_client_id!='NotSet' || auth_base!='https://account.app.net/oauth/') {
   var oauthproxy=require('./routes.oauth.proxy.js');
+  oauthproxy.auth_base=auth_base;
   oauthproxy.setupoauthroutes(app, cache);
 } else {
+  // Not Cryptographically safe
+  function generateToken(string_length) {
+    var chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz";
+    var randomstring = '';
+    for (var x=0;x<string_length;x++) {
+      var letterOrNumber = Math.floor(Math.random() * 2);
+      if (letterOrNumber == 0) {
+        var newNum = Math.floor(Math.random() * 9);
+        randomstring += newNum;
+      } else {
+        var rnum = Math.floor(Math.random() * chars.length);
+        randomstring += chars.substring(rnum, rnum+1);
+      }
+    }
+    return randomstring;
+  }
   app.get('/oauth/authenticate', function(req, resp) {
     resp.redirect(req.query.redirect_uri+'#access_token='+generateToken());
   });
