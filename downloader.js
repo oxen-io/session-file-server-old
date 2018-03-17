@@ -6,14 +6,14 @@ var rateLimiter = require('./ratelimiter.js');
 // backwards compatibility to allow us to do the right thing
 // this doesn't give us QoS but does allow us to say put in the background
 // does defer to immediate IO
-require("setimmediate");
+//require('setimmediate');
 
 // remove 5 connections to upstream at a time
 // we definitely want to burst when we need it
 // though should set some type of limit, like the max ADN resets
 // for what time period though? one frequency?
-require('http').globalAgent.maxSockets = Infinity
-require('https').globalAgent.maxSockets = Infinity
+//require('http').globalAgent.maxSockets = Infinity
+//require('https').globalAgent.maxSockets = Infinity
 
 /** @todo make count configureable, low latency=20count, aggressive cache=200count */
 
@@ -44,7 +44,7 @@ module.exports = {
   // we need a start point and a false to recurse the pages or not
   downloadThread: function(postid, token, callback) {
     var ref=this;
-    console.log('proxying posts replies '+postid);
+    console.log('downloader.js::downloadThread - proxying posts replies '+postid);
     proxycalls++;
     rateLimiter.rateLimit(token?1:0, 0, function() {
       request.get({
@@ -76,9 +76,13 @@ module.exports = {
         } else {
           console.log('downloader.js:downloadThread - request failure');
           console.log('error', e);
-          console.log('statusCode', r.statusCode);
+          if (r) {
+            console.log('statusCode', r.statusCode);
+          }
           console.log('body', body);
-          callback(null, e, null);
+          if (callback) {
+            callback(null, e, null);
+          }
         }
       });
     });
