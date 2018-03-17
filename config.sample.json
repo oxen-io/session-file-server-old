@@ -1,9 +1,18 @@
 {
+  "auth": {
+    "base": "https://someoauth.server/oauth/",
+    "client_id": "id",
+    "client_secret": "secret"
+  },
   "uplink": {
     "apiroot": "https://api.app.net",
     "client_id": "",
     "client_secret": "",
     "silent": false
+  },
+  "pomf": {
+    "provider": "pomf.cat",
+    "provider_url": "https://pomf.cat/"
   },
   "web": {
     "port": 7070,
