@@ -29,12 +29,12 @@ var Schema = require('caminte').Schema;
 // set up the (eventually configureable) model pools
 // 6379 is default redis port number
 /** schema data backend type */
-var schemaDataType = 'memory';
+var schemaDataType = 'mysql';
 /** set up where we're storing the "network data" */
-var configData = { database: 'data' };
+var configData = { database: '', host: '', username: '', password: '' };
 var schemaData = new Schema(schemaDataType, configData); //port number depends on your configuration
 /** set up where we're storing the tokens */
-var configToken = { database: 'token'}
+var configToken = { database: '', host: '', username: '', password: '' }
 var schemaToken = new Schema(schemaDataType, configToken); //port number depends on your configuration
 
 if (schemaDataType==='mysql') {
@@ -275,6 +275,7 @@ var channelModel = schemaData.define('channel', {
   writers: { type: schemaData.Text }, // comma separate list (need index for PM channel lookup)
   editors: { type: schemaData.Text }, // comma separate list
   created_at: { type: Date }, // created_at isn't in the API
+  inactive: { type: Date }, // date made inactive
   last_updated: { type: Date },
 });
 
@@ -746,14 +747,14 @@ function setparams(query, params, maxid, callback) {
     query=query.lt(params.before_id);
   }
   */
-  console.log('dataaccess.caminte.js::setparams query', query.q);
+  //console.log('dataaccess.caminte.js::setparams query', query.q);
   var min_id=Number.MAX_SAFE_INTEGER, max_id=0;
   query.run({},function(err, objects) {
     //console.log('dataaccess.caminte.js::setparams -', query.model.modelName, 'query got', objects.length, 'only need', params.count);
     // first figure out "more"
     // if got less than what we requested, we may not have it cached
     // we'll have to rely on meta to know if it's proxied or not
-    console.log('dataaccess.caminte.js::setparams - got', objects.length, 'queried', queryCount, 'asked_for', count);
+    //console.log('dataaccess.caminte.js::setparams - got', objects.length, 'queried', queryCount, 'asked_for', count);
     var more = objects.length==queryCount;
     // restore object result set
     // which end to pop, well depends on count
@@ -1085,7 +1086,7 @@ module.exports = {
   getAPIUserToken: function(token, callback) {
     //console.log('dataaccess.camintejs.js::getAPIUserToken - Token:', token);
     if (token==undefined) {
-      console.log('dataaccess.camintejs.js::getAPIUserToken - Token not defined');
+      //console.log('dataaccess.camintejs.js::getAPIUserToken - Token not defined');
       // we shouldn't need to return here
       // why doesn't mysql handle this right? bad driver
       callback(null, 'token undefined');
@@ -1667,13 +1668,18 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
             // for everyone we following, get a list of their posts (that are reposted: num_reposts)
             // and exclude those reposts
             // well a repost can be of a repost
+            // can either single out thread_id or recurse on reposts
+            // thread_id in notRepostsOf and repost_of=0
             postModel.find({ where: { userid: { in: userids }, repost_of: 0, num_reposts: { gt: 0 } } }, function(err, theirPostsThatHaveBeenReposted) {
               var notRepostsOf=[]
               for(var i in theirPostsThatHaveBeenReposted) {
                 notRepostsOf.push(theirPostsThatHaveBeenReposted[i].id);
               }
+              // get a list of posts where their reposts of reposts
+              //postModel.find({ where: { thread_id: { in: notRepostsOf }, repost_of: { ne: 0  } } }, function(err, repostsOfRepostsOfFollowingPosts) {
               //console.log('notRepostsOf', notRepostsOf);
               setparams(postModel.find().where('id', { nin: removePosts }).where('repost_of', { nin: notRepostsOf }).where('userid',{ in: userids }), params, maxid, callback);
+              //})
             });
           //});
         });
@@ -1984,7 +1990,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     }
   },
   getExploreFeed: function(feed, params, callback) {
-    console.log('dataaccess.camtinte.js::getExploreFeed(', feed, ',..., ...) - start');
+    //console.log('dataaccess.camtinte.js::getExploreFeed(', feed, ',..., ...) - start');
     if (this.next) {
       this.next.getExploreFeed(feed, params, callback);
     } else {
@@ -1996,15 +2002,12 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
           // we need to convert to setParams
           annotationModel.find({ where: { idtype: 'post', type: 'net.app.core.oembed' }, order: 'typeid DESC' }, function(err, dbNotes) {
             if (!dbNotes.length) callback(posts, null, { "code": 200 });
+            var posts = []
             for(var i in dbNotes) {
-              ref.getPost(dbNotes[i].typeid, function(post, err, meta) {
-                posts.push(post);
-                //console.log(posts.length, '/', dbNotes.length);
-                if (posts.length===dbNotes.length) {
-                  callback(posts, null, { "code": 200 });
-                }
-              });
+              posts.push(dbNotes[i].typeid)
             }
+            var maxid=0;
+            setparams(postModel.find().where('id', { in: posts }), params, maxid, callback);
           });
         break;
         case 'checkins':
@@ -2086,6 +2089,13 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
           // so "trending" will be posts with hashtags created in the last 48 hours, sorted by most replies
           entityModel.find({ where: { idtype: 'post', type: 'hashtag' }, order: 'typeid DESC' }, function(err, dbEntities) {
             if (!dbEntities.length) callback(posts, null, { "code": 200 });
+            var posts = []
+            for(var i in dbEntities) {
+              posts.push(dbEntities[i].typeid)
+            }
+            var maxid=0;
+            setparams(postModel.find().where('id', { in: posts }), params, maxid, callback);
+            /*
             var started={};
             var starts=0;
             var dones=0;
@@ -2101,6 +2111,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
                 }
               });
             }
+            */
           });
         break;
         case 'subtweets':
@@ -2146,6 +2157,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   },
   updateChannel: function (channelid, chnl, callback) {
     console.log('dataaccess.caminte.js::updateChannel - ', channelid, chnl);
+    // FIXME: maybe only update channels that are active
     channelModel.update({ id: channelid }, chnl, function(err, channel) {
       if (callback) {
         callback(channel, err);
