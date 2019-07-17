@@ -64,7 +64,7 @@ function normalizeUserID(input, tokenobj, callback) {
   //console.log('dispatcher::normalizeUserID', input)
   if (input=='me') {
     if (tokenobj && tokenobj.userid) {
-      //console.log('dispatcher.js::getUserStars - me became', tokenobj.userid);
+      //console.log('dispatcher.js::normalizeUserID - me became', tokenobj.userid);
       callback(tokenobj.userid, '');
       return;
     } else {
@@ -184,6 +184,7 @@ module.exports = {
   // tokenObj isn't really used at this point...
   // difference between stream and api?
   addPost: function(post, tokenObj, callback) {
+
     var ref=this;
     function makePost() {
       //console.log('dispatcher::addPost annotations - ', post.annotations);
@@ -195,6 +196,7 @@ module.exports = {
             ref.setAnnotations('post', dbpost.id, post.annotations);
           }
           console.log('dispatcher.js::addPost - GotPost', dbpost.id);
+
 
           //console.log('dispatcher.js::addPost - postToAPI params', params);
           // well we have to wait until we have the post.id and then we can write it
@@ -307,10 +309,53 @@ module.exports = {
       setDone('thread');
     });
   },
+  // FIXME change API to access params
   delPost: function(postid, token, callback) {
-    this.cache.delPost(postid, function(post, err, meta) {
-      console.log('dispatcher.js::delPost - returning', post);
-      callback(post, err, meta);
+    var ref = this;
+    this.getPost(postid, {}, function(post, err, postMeta) {
+      if (post.userid != token.userid) {
+        console.warn('permissions denied')
+        callback(post, 'access denied to post', {
+          code: token?403:401,
+        });
+        return
+      }
+      ref.cache.delPost(postid, function(delRes, dbErr, dbMeta) {
+        // delRes are
+        /*
+        OkPacket {
+          fieldCount: 0,
+          affectedRows: 0,
+          insertId: 0,
+          serverStatus: 2,
+          warningCount: 0,
+          message: '(Rows matched: 0  Changed: 0  Warnings: 0',
+          protocol41: true,
+          changedRows: 0
+        }
+        */
+        //console.log('dispatcher.js::delPost - returning', post);
+        var params = {
+          generalParams: {
+            deleted: true
+          }
+        }
+        // postToAPI: function(post, params, tokenObj, callback, meta) {
+        //getPost: function(id, params, callback) {
+        //ref.getPost(postid, params, callback);
+        post.is_deleted = 1
+        callback(post, '', postMeta)
+        /*
+        ref.postToApi(post, { }, function(apiPost, err) {
+          module.exports.pumpStreams({
+            id: postid,
+            type: 'post',
+            op:   'del',
+          }, apiPost);
+          callback(apiPost, err, dbMeta);
+        });
+        */
+      });
     });
   },
   /**
@@ -506,7 +551,7 @@ module.exports = {
     // , 'source', 'user'
     var postFields=['id', 'text', 'html', 'canonical_url', 'created_at',
       'machine_only', 'num_replies', 'num_reposts', 'num_stars', 'thread_id',
-      'entities'];
+      'entities', 'is_deleted'];
     for(var i in postFields) {
       var f=postFields[i];
       data[f]=post[f];
@@ -630,9 +675,9 @@ module.exports = {
         });
       }
     } else {
-      if (params != {}) {
-        console.log('dispatcher.js::postToAPI('+post.id+') - params dont have generalParams');
-      }
+      //if (params != {}) {
+        //console.log('dispatcher.js::postToAPI('+post.id+') - params dont have generalParams');
+      //}
     }
 
 
@@ -975,9 +1020,10 @@ module.exports = {
     });
   },
   delRepost: function(postid, tokenObj, callback) {
-    this.cache.delRepost(postid, tokenObj, function(dbPost, err, meta) {
+    var ref = this;
+    this.cache.delRepost(postid, tokenObj, function(success, err, meta) {
       // postToAPI function(post, params, token, callback, meta) {
-      ref.postToAPI(dbPost, {}, tokenObj, callback, meta);
+      ref.getPost(postid, { generalParams: { deleted: true } }, callback);
     });
   },
   /**
@@ -1005,6 +1051,7 @@ module.exports = {
     //console.log('dispatcher.js::getPost - getting id',id);
     this.cache.getPost(id, function(post, err, meta) {
       if (post) {
+        //console.log('dispatcher.js::getPost - GotPost', post);
         //console.log('dispatcher.js::getPost - GotPost',post.id);
         //console.log('dispatcher.js::getPost - postToAPI params', params);
         ref.postToAPI(post, params, params && params.tokenobj?params.tokenobj:null, callback, meta);
@@ -1016,6 +1063,10 @@ module.exports = {
   // threadid or reply_to? reply_to for now
   getReplies: function(postid, params, token, callback) {
     var ref=this;
+    if (!postid || postid === 'undefined') {
+      callback([], 'empty postid', postid);
+      return;
+    }
     // userid can't be me without a token
     // userid could be a username though
     // FIXME: make sure postid is a number
@@ -1140,10 +1191,12 @@ module.exports = {
     var ref=this;
     //console.log('dispatcher.js::getGlobal - start');
     this.cache.getGlobal(params, function(posts, err, meta) {
+      // meta is garbage
+      // more yes or no
       //console.log('dispatcher.js::getGlobal - returned meta', meta);
       // data is an array of entities
       var apiposts={}, postcounter=0;
-      console.log('dispatcher.js:getGlobal - mapping', posts.length);
+      //console.log('dispatcher.js:getGlobal - mapping', posts.length);
       if (posts.length) {
         posts.map(function(current, idx, Arr) {
           if (!current) {
@@ -1177,7 +1230,7 @@ module.exports = {
                 }
               }
               //console.log('sending',res.length,'posts to dialect');
-              //console.log('meta',meta);
+              //console.log('dispatcher.js::getGlobal - meta', meta);
               callback(res, null, meta);
             }
           });
@@ -1271,7 +1324,7 @@ module.exports = {
                     res.push(apiposts[posts[i].id]);
                   }
                 }
-                console.log('meta',meta);
+                //console.log('dispatcher::getUserStream - meta', meta);
                 //console.log('imeta',imeta);
                 callback(res, null, meta);
               }
@@ -1441,7 +1494,7 @@ module.exports = {
             //console.log(apiposts.length+'/'+interactions.length+' or '+params.count);
             // interactions.length looks good
             if (apiposts.length==params.count || apiposts.length==interactions.length) {
-              console.log('dispatcher.js::getUserStars - finishing', apiposts.length);
+              //console.log('dispatcher.js::getUserStars - finishing', apiposts.length);
               callback(apiposts);
               return; // kill map, somehow?
             }
@@ -1449,7 +1502,7 @@ module.exports = {
         }, ref);
       } else {
         // no interactions
-        console.log('dispatcher.js::getUserStars - finishing but no stars for', userid, params);
+        //console.log('dispatcher.js::getUserStars - finishing but no stars for', userid, params);
         callback([], err, meta);
       }
     });
@@ -1656,6 +1709,7 @@ module.exports = {
     }
     // make sure ownerid isn't in the writers
     // we need it in the db this way for PM channel search
+    // which way is this way?
     if (api.writers.user_ids) {
       var nList=[];
       for(var i in api.writers.user_ids) {
@@ -1679,23 +1733,31 @@ module.exports = {
     function setDone(type) {
       channelDone[type]=true;
       // if something is not done
+      //if (channel.debug) {
       //console.log('dispatcher.js::channelToAPI('+channel.id+') - checking if done');
+      //}
       for(var i in channelDone) {
         if (!channelDone[i]) {
-          //console.log('dispatcher.js::channelToAPI('+channel.id+') -', i, 'is not done');
+          if (channel.debug) {
+            console.log('dispatcher.js::channelToAPI('+channel.id+') -', i, 'is not done');
+          }
           return;
         }
       }
-      //console.log('dispatcher.js::channelToAPI('+channel.id+') - done', data, meta);
+      if (channel.debug) {
+        console.log('dispatcher.js::channelToAPI('+channel.id+') - done', meta, typeof(callback));
+      }
       //console.log('dispatcher.js::channelToAPI('+channel.id+') - done, text', data.text);
       // everything is done
       callback(api, null, meta);
     }
 
     function loadUser(userid, params, cb) {
-      //console.log('dispatcher.js::channelToAPI('+channel.id+') - getting user '+channel.userid);
+      if (channel.debug) console.log('dispatcher.js::channelToAPI('+channel.id+') - getting user '+userid);
+      //params.debug = true
       ref.getUser(userid, params, function(user, userErr, userMeta) {
-        //console.log('dispatcher.js::channelToAPI('+channel.id+') - got user '+channel.userid, err);
+        if (userErr) console.error('dispatcher.js::channelToAPI('+channel.id+') - ', userErr)
+        if (channel.debug) console.log('dispatcher.js::channelToAPI('+channel.id+') - got user '+userid);
         if (!user) {
           user={
             id: 0,
@@ -1735,6 +1797,22 @@ module.exports = {
     // you_subscribed
     if (tokenObj.subscribedOpt) {
       api.you_subscribed=true;
+    } else if (tokenObj.unsubscribedOpt) {
+      api.you_subscribed=false;
+    } else {
+      if (tokenObj.subscribedOpt===undefined && tokenObj.unsubscribedOpt===undefined) {
+        //console.log('dispatcher.js::channelToAPI - are you subscribed?', tokenObj.userid);
+        channelDone.subscribed = false
+        ref.cache.getSubscription(api.id, tokenObj.userid, function(subed, err) {
+          //console.log('dispatcher.js::channelToAPI - are you subscribed?', subed);
+          api.you_subscribed=false;
+          if (subed) {
+            api.you_subscribed=true;
+          }
+          //console.log('dispatcher.js::channelToAPI - are you subscribed?', api.you_subscribed);
+          setDone('subscribed');
+        })
+      }
     }
     if (channel.ownerid == tokenObj.userid) {
       api.readers.you=true;
@@ -1748,21 +1826,27 @@ module.exports = {
     } else
     //console.log('dispatcher.js::channelToAPI - tokenObj', tokenObj);
     if (tokenObj.userid) {
+      // process readers
+      if (channel.reader==0) {
+        api.readers.you=true;
+      } else
       // logged in
       if (channel.reader==1) {
-        api.writers.you=true;
+        api.readers.you=true;
       }
+
       if (channel.writer==1) {
         api.writers.you=true;
       }
       if (!api.writers.you) { // optimization
-        var writes=channel.writers.split(/,/);
+        var writes=channel.writers?channel.writers.split(/,/):[];
         //console.log('checking', writes, 'for', tokenObj.userid, '=', writes.indexOf(tokenObj.userid+''));
         if (writes.indexOf(tokenObj.userid+'')!=-1) {
           api.writers.you=true;
         }
       }
     }
+    //if (channel.debug) console.log('asking to load', channel.ownerid)
     loadUser(channel.ownerid, params, function(user, userErr, userMeta) {
       api.owner=user;
       //console.log('dispatcher.js::channelToAPI - params', params);
@@ -1778,10 +1862,18 @@ module.exports = {
       //callback(api, userErr);
       setDone('annotations');
     }
-    //getChannelMessages: function(cid, params, callback) {
-    var mParams={ pageParams: { count: 1 }, generalParams: {} }
+    //getChannelMessages function(cid, params, callback) {
+    var mParams={ pageParams: { count: 1 }, generalParams: {}, tokenobj: tokenObj }
     this.getChannelMessages(channel.id, mParams, function(messages, messageErr, messageMeta) {
-      //console.log('last message for', channel.id, 'is', messages);
+      if (messageErr) {
+        console.log('dispatcher::channelToAPI - messageErr', messageErr, 'channel', channel.id);
+      }
+      if (!messages.length) {
+        //console.log('dispatcher::channelToAPI - last message for', channel.id, 'is', messages);
+      }
+      if (messages[0]) {
+        api.recent_message_id = messages[0].id;
+      }
       api.recent_message = messages[0];
       setDone('messages');
     });
@@ -1815,10 +1907,11 @@ module.exports = {
     }
   },
   updateChannel: function(channelid, update, params, token, callback) {
+    //console.log('dispatcher.js::updateChannel', channelid)
     // The only keys that can be updated are annotations, readers, and writers
     // (and the ACLs can only be updated if immutable=false).
     // The you_can_edit property tells you if you are allowed to update a channel. Currently, only the Channel owner can edit a channel.
-    var ref=this;
+    var ref = this;
     this.cache.getChannel(channelid, params, function(channel, err, meta) {
       console.log('dispatcher.js::updateChannel - got channel', typeof(channel), Object.keys(channel), channel);
       // FIXME: use apiToChannel
@@ -1834,16 +1927,31 @@ module.exports = {
         // can we tell the difference between set and not set?
         // so we can clear?
         if (update.readers.public) {
-          channel.reader=0;
+          channel.reader = 0;
         } else
-        if (update.writers.any_user) {
-          channel.reader=1;
+        if (update.readers.any_user) {
+          channel.reader = 1;
+        } else {
+          channel.reader = 2;
+        }
+        if (update.readers.user_ids) {
+          channel.reader = 2;
+          channel.readers = update.readers.user_ids.join(',');
         }
       }
       // update writers
       if (update.writers) {
         if (update.writers.any_user) {
-          channel.writer=1;
+          channel.writer = 1;
+        } else {
+          channel.writer = 2;
+        }
+        if (update.writers.user_ids) {
+          // has to be an array
+          channel.writers = update.writers.user_ids.join(',');
+          channel.writer = 2;
+        } else {
+          channel.writers = ''
         }
       }
       console.log('dispatcher.js::updateChannel - updating channel', channel.id, 'to', channel);
@@ -1853,10 +1961,17 @@ module.exports = {
         //console.log('dispatcher.js::updateChannel - chanUpdErr', chanUpdErr);
         // update annotations
         //setAnnotations: function(type, id, annotations, callback) {
-        ref.setAnnotations('channel', channelid, update.annotations, function() {
-          //console.log('dispatcher.js::updateChannel - annotations set');
+        // if it's not set, it'll clear it...
+        // If you want to add or update a Channel’s annotations, you may include the optional annotations key and pass in the annotations that are changing.
+        // it's optional
+        if (update.annotations !== undefined) {
+          ref.setAnnotations('channel', channelid, update.annotations, function() {
+            //console.log('dispatcher.js::updateChannel - annotations set');
+            ref.channelToAPI(channel, params, token, callback, meta);
+          });
+        } else {
           ref.channelToAPI(channel, params, token, callback, meta);
-        });
+        }
       });
       //});
     });
@@ -1878,21 +1993,34 @@ module.exports = {
     });
   },
   deactiveChannel: function(channelid, params, token, callback) {
-    //console.log('dispatcher::addChannel', params, token);
+    console.log('dispatcher::deactiveChannel', channelid, params, token);
     var ref=this;
     // only the owner can deactivate
     this.getChannel(channelid, params, function(channel, err, meta) {
-      if (!token.userid || channel.ownerid != token.userid) {
+      //console.log('ownerid', channel.owner.id, 'token', token.userid, 'channel', channel);
+      if (!token.userid || (channel && channel.owner && channel.owner.id != token.userid)) {
         callback({}, 'access denied to channel', {
           code: token?403:401,
         });
         return;
       }
       var chnl={
-        inactive: new Date()
+        inactive: new Date(),
       }
-      ref.cache.updateChannel(channelid, chnl, function(channel2, err2, meta2) {
-        ref.channelToAPI(channel2, params, token, callback, meta2);
+      //console.log('dispatcher::deactiveChannel', channelid, params, token);
+      ref.cache.updateChannel(channelid, chnl, function(success, err2, meta2) {
+        channel.is_deleted = true;
+        callback(channel, '', meta);
+        //ref.channelToAPI(channel, params, token, callback, meta2);
+      })
+      // FIXME: get rid of the N+1 and delete all in one query
+      ref.cache.getChannelSubscriptions(channelid, { }, function(subs, err, meta) {
+        for(var i in subs) {
+          var userid = subs[i].userid
+          ref.cache.setSubscription(channelid, userid, true, new Date(), function(subscription, err) {
+            console.log('dispatcher::deactiveChannel - remove used from channel', channelid)
+          })
+        }
       })
     })
   },
@@ -1921,6 +2049,10 @@ module.exports = {
     return allowed;
   },
   checkWriteChannelAccess: function(channel, userid) {
+    if (!channel) {
+      console.warn('dispatcher::checkWriteChannelAccess - no channel passed in')
+      return false
+    }
     var allowed=false;
     // maybe throw error if channel isnt an object
     // this isn't a thing in writer mode
@@ -1956,7 +2088,7 @@ module.exports = {
    * @param {metaCallback} callback - function to call after completion
    */
   getChannel: function(ids, params, callback) {
-    if (ids===undefined) {
+    if (ids===undefined || ids === "undefined") {
       console.log('dispatcher.js::getChannel - id was undefined');
       callback([], 'ids was undefined');
       return;
@@ -1964,9 +2096,15 @@ module.exports = {
     //console.log('dispatcher.js::getChannel - ids', ids);
     var ref=this;
     this.cache.getChannel(ids, params, function(channels, err, meta) {
+      if (channels === undefined) {
+        callback([], err, meta);
+        return;
+      }
+      //console.log('dispatcher.js::getChannel - got array', channels);
       if (channels instanceof Array) {
         //console.log('dispatcher.js::getChannel - got array', channels.length);
         if (!channels.length) {
+          //console.log('dispatcher.js::getChannel multiple - no result for', ids);
           callback([], err, meta);
           return;
         }
@@ -2001,13 +2139,14 @@ module.exports = {
           var allowed=ref.checkChannelAccess(channel, params.tokenobj?params.tokenobj.userid:0);
           // block if not allowed
           if (!allowed) {
-            apis.push({ readers: { user_ids: [] }, writers: { user_ids: [] }, editots: { user_ids: [] } });
+            apis.push({ id: channel.id, readers: { user_ids: [] }, writers: { user_ids: [] }, editors: { user_ids: [] } });
             if (channels.length == apis.length) {
               //console.log('dispatcher.js::getChannel - returning array');
               callback(apis, err);
             }
             continue;
           }
+          //console.log('dispatcher.js::getChannel array - channel', channels[i]);
           // channel, params, tokenObj, callback, meta
           ref.channelToAPI(channels[i], params, params.tokenobj?params.tokenobj:{}, function(api, cErr) {
             apis.push(api);
@@ -2020,7 +2159,8 @@ module.exports = {
         }
         return;
       }
-      console.log('dispatcher.js::getChannel - non array');
+      //console.log('dispatcher.js::getChannel single - channel', channels);
+      //console.log('dispatcher.js::getChannel - non array');
       // channelToAPI: function (channel, params, tokenObj, callback, meta) {
       ref.channelToAPI(channels, params, params.tokenobj?params.tokenobj:{}, callback, meta);
     });
@@ -2033,6 +2173,11 @@ module.exports = {
     callback(channel, null);
   },
   messageToAPI: function(message, params, tokenObj, callback, meta) {
+    if (!message) {
+      console.log('dispatcher::messageToAPI - empty message', message)
+      callback({}, 'empty message')
+      return
+    }
     var api={
       channel_id: message.channel_id,
       created_at: message.created_at,
@@ -2049,7 +2194,32 @@ module.exports = {
       source: {},
       thread_id: message.id,
     };
+    if (message.is_deleted) {
+      api.is_deleted = true
+    }
     var ref=this;
+
+    var messageDone={
+      user: false,
+      annotations: false,
+      entities: false,
+    }
+
+    function setDone(type) {
+      messageDone[type]=true;
+      // if something is not done
+      //console.log('dispatcher.js::messageToAPI('+message.id+') - checking if done');
+      for(var i in messageDone) {
+        if (!messageDone[i]) {
+          //console.log('dispatcher.js::messageToAPI('+message.id+') -', i, 'is not done');
+          return;
+        }
+      }
+      //console.log('dispatcher.js::channelToAPI('+channel.id+') - done', data, meta);
+      //console.log('dispatcher.js::channelToAPI('+channel.id+') - done, text', data.text);
+      // everything is done
+      callback(api, null, meta);
+    }
     function loadUser(userid, params, cb) {
       //console.log('dispatcher.js::postToAPI('+post.id+') - getting user '+post.userid);
       ref.getUser(userid, params, function(user, userErr, userMeta) {
@@ -2073,14 +2243,91 @@ module.exports = {
         cb(user, userErr, userMeta);
       }); // getUser
     }
+    function loadAnnotation(mid, cb) {
+      ref.getAnnotation('message', mid, function(dbNotes, err, noteMeta) {
+        var apiNotes=[];
+        for(var j in dbNotes) {
+          var note=dbNotes[j];
+          //console.log('got note', j, '#', note.type, '/', note.value, 'for', posts[i].id);
+          apiNotes.push({
+            type: note.type,
+            value: note.value,
+          });
+        }
+        cb(apiNotes, err, noteMeta);
+      });
+    }
+
+    function loadEntites(message, cb) {
+      // use entity cache (DB read or CPU calculate)
+      if (1) {
+        //console.log('dispatcher.js::postToAPI('+post.id+') - getEntity post. post.userid:', post.userid);
+        if (!message.id) {
+          console.log('dispatcher.js::messageToAPI:::loadEntites', message);
+          console.trace('dispatcher.js::messageToAPI:::loadEntites')
+          cb();
+          return;
+        }
+        ref.getEntities('message', message.id, function(entities, entitiesErr, entitiesMeta) {
+          //console.log('dispatcher.js::postToAPI('+post.id+') - gotEntities');
+          api.entities={
+            mentions: [],
+            hashtags: [],
+            links: [],
+          };
+          copyentities('mentions', entities.mentions, api, 1);
+          copyentities('hashtags', entities.hashtags, api, 1);
+          copyentities('links', entities.links, api, 1);
+          // use html cache?
+          if (1) {
+            //console.log('dispatcher.js::postToAPI('+post.id+') - calling final comp');
+            //finalcompsite(post, user, client, callback, err, meta);
+            cb();
+          } else {
+            // generate HTML
+            // text, entities, postcontext, callback
+            ref.textProcess(message.text, post.entities, true, function(textProcess, err) {
+              //console.dir(textProcess);
+              api.html=textProcess.html;
+              //finalcompsite(post, user, client, callback, err, meta);
+              cb();
+            });
+          }
+        }); // getEntities
+      } else {
+        ref.textProcess(message.text, message.entities, true, function(textProcess, err) {
+          api.entities=textProcess.entities;
+          api.html=textProcess.html;
+          //finalcompsite(post, user, client, callback, err, meta);
+          cb();
+        });
+      }
+    }
+    loadEntites(message, function() {
+      setDone('entities');
+    })
+
     loadUser(message.userid, params, function(user, userErr, userMeta) {
       api.user=user;
       //console.log('dispatcher.js::messageToAPI - params', params.generalParams);
       if (params.generalParams.annotations || params.generalParams.post_annotations) {
-        api.annotations=[];
+        // do user annotations need to be loaded?
+        //console.log('write me')
       }
-      callback(api, null);
+      setDone('user');
+      //callback(api, null);
     });
+    if (params.generalParams.annotations || params.generalParams.post_annotations) {
+      loadAnnotation(message.id, function(apiNotes, noteErr, noteMeta) {
+        //console.log('dispatcher.js::messageToAPI - loading annotations', apiNotes.length)
+        api.annotations = apiNotes;
+        setDone('annotations');
+      });
+    } else {
+      //api.annotations=[];
+      setDone('annotations');
+    }
+
   },
   /**
    * add/update message
@@ -2122,13 +2369,16 @@ module.exports = {
       process.stdout.write('M');
     }
   },
-  // FIXME: security checks
   addMessage: function(channel_id, postdata, params, tokenobj, callback) {
-    //console.log('dispatcher.js::addMessage - channel_id', channel_id);
+    console.log('dispatcher.js::addMessage - channel_id', channel_id);
     var ref=this;
     function continueAddMessage(channel_id) {
-      //console.log('dispatcher.js::addMessage - checking channel', channel_id, 'permission for token user', tokenobj?tokenobj.userid:0)
+      console.log('dispatcher.js::addMessage - checking channel', channel_id, 'permission for token user', tokenobj?tokenobj.userid:0)
       ref.cache.getChannel(channel_id, params, function(channel, channelErr, channelMeta) {
+        if (channelErr) console.error('dispatcher::addMessage - channelErr', channelErr)
+        if (!channel) {
+          console.warn('dispatcher::addMessage - no channel for', channel_id)
+        }
         if (!ref.checkWriteChannelAccess(channel, tokenobj?tokenobj.userid:0)) {
           //console.log('dispatcher.js::addMessage - denying access')
           callback({}, 'access denied to channel', {
@@ -2140,8 +2390,14 @@ module.exports = {
       })
     }
     function continueAddMessage2(channel_id) {
+      console.log('continueAddMessage2', channel_id)
+      // why does annotations force channel_id 0?
+      // so the message doesn't show up until
+      // the annotations are written all the way through
+      // it prevents bounces in the bridges
       var message={
-        channel_id: channel_id,
+        channel_id: postdata.annotations?0:channel_id,
+        annotation_channel_id: channel_id,
         text: postdata.text,
         html: postdata.text, // FIXME: generate HTML from text
         machine_only: postdata.machine_only?1:0,
@@ -2152,19 +2408,78 @@ module.exports = {
         is_deleted: false,
         created_at: new Date()
       };
-      //console.log('dispatcher.js::addMessage - message', message);
-      ref.cache.addMessage(message, function(msg ,err, meta) {
-        if (err) {
-          console.log('dispatcher.js::addMessage - err', err);
+
+      function getEntities(message, cb) {
+        ref.textProcess(message.text, message.entities, true, function(textProc, err) {
+          //console.log('dispatcher.js::addMessage - textProc', textProc);
+          message.entities=textProc.entities;
+          message.html=textProc.html;
+          cb();
+        });
+      }
+      // check out postToAPI
+      // needs to run before textProcess
+      function checkTagUser(message, cb) {
+        if (!((message.text && message.text.match(/{username}/)) || (message.html && message.html.match(/{username}/)))) {
+          cb();
+          return;
         }
-        // if current, extract annotations too
-        if (callback) {
-          //console.log('dispatcher.js::addMessage - has callback');
-          ref.messageToAPI(message, params, tokenobj, function(api, err) {
-            //console.log('dispatcher.js::addMessage - api', api);
-            callback(api, err);
-          }, meta);
-        }
+        ref.cache.getUser(message.userid, function(user, err, meta) {
+          if (message.text && message.text.match(/{username}/)) {
+            message.text=message.text.replace(new RegExp('{username}', 'g'), user.username);
+          }
+          if (message.html && message.html.match(/{username}/)) {
+            message.html=message.html.replace(new RegExp('{username}', 'g'), user.username);
+          }
+          cb();
+        });
+      }
+      // these both mess with .html / .text
+      checkTagUser(message, function() {
+        // after username is in place, we'll have better positions
+        getEntities(message, function() {
+          //console.log('dispatcher.js::addMessage - message', message);
+          ref.cache.addMessage(message, function(msg ,err, meta) {
+            if (err) {
+              console.log('dispatcher.js::addMessage - err', err);
+            }
+            if (postdata.annotations) {
+              console.log('dispatcher.js::addMessage - detected annotations', channel_id)
+              // fix up channel_id for msg pump
+              msg.channel_id = channel_id
+              ref.setAnnotations('message', msg.id, postdata.annotations, function() {
+                console.log('write channel_id', channel_id)
+                ref.cache.setMessage({
+                  id: msg.id,
+                  channel_id: channel_id
+                }, function(omsg) {
+                  // omsg will be 1 if it's an update
+                  //console.log('channel set', channel_id, 'for', msg.id, omsg);
+                });
+              });
+            }
+            // OPT: if no streams and no callback, no need for API conversion
+            ref.messageToAPI(msg, params, tokenobj, function(api, err) {
+              //console.log('dispatcher.js::addMessage - api', api);
+              /*
+              module.exports.pumpStreams({
+                id:   msg.id,
+                type: 'message',
+                op:   'add',
+                actor: msg.userid,
+                channel_id: channel_id
+              }, api);
+              */
+              ref.setEntities('message', msg.id, message.entities, function() {
+                // if current, extract annotations too
+                if (callback) {
+                  //console.log('dispatcher.js::addMessage - has callback');
+                  callback(api, err, meta);
+                }
+              });
+            }, meta);
+          });
+        });
       });
     }
     if (channel_id=='pm') {
@@ -2179,7 +2494,7 @@ module.exports = {
         continueAddMessage(nChannel_id);
       });
     } else {
-      //console.log('dispatcher.js::addMessage - not pm channel');
+      console.log('dispatcher.js::addMessage - not pm channel', channel_id);
       continueAddMessage(channel_id);
     }
   },
@@ -2199,7 +2514,13 @@ module.exports = {
     }
     //getChannel: function(ids, params, callback) {
     this.cache.getChannel(cid, params, function(channel, channelErr, channelMeta) {
-
+      //console.log('dispatcher.js:getChannelMessages - check', channel)
+      if (!channel) {
+        callback([], 'no such channel', {
+          code: 404,
+        });
+        return;
+      }
       if (!ref.checkChannelAccess(channel, params.tokenobj?params.tokenobj.userid:0)) {
         callback([], 'access denied to channel', {
           code: params.tokenobj?403:401,
@@ -2297,8 +2618,8 @@ module.exports = {
     var ref=this;
     //channel_id, userid, del, ts, callback
     this.cache.setSubscription(channel_id, tokenobj.userid, true, new Date(), function(subscription, err) {
-    //delSubscription: function (channel_id, userid, callback) {
-    //this.cache.delSubscription(channel_id, tokenobj.userid, function(subscription, err) {
+      //delSubscription: function (channel_id, userid, callback) {
+      //this.cache.delSubscription(channel_id, tokenobj.userid, function(subscription, err) {
       params.unsubscribedOpt = true;
       ref.getChannel(channel_id, params, callback);
     });
@@ -2310,7 +2631,7 @@ module.exports = {
    * @param {metaCallback} callback - function to call after completion
    */
   getUserSubscriptions: function(userid, params, callback) {
-    console.log('dispatcher.js::getUserSubscriptions - ', userid)
+    //console.log('dispatcher.js::getUserSubscriptions - ', userid)
     // include_recent messages
     // channel_types filter
     var ref=this;
@@ -2336,6 +2657,7 @@ module.exports = {
     */
 
     this.cache.getUserSubscriptions(userid, params, function(subs, subsErr, subsMeta) {
+      //console.log('dispatcher.js::getUserSubscriptions - ', userid, 'has', subs.length)
       if (!subs.length) {
         callback([], subsErr, { code: 200, more: false});
         return;
@@ -2386,7 +2708,8 @@ module.exports = {
           nlist.push(api);
         }
         //console.log('dispatcher.js::getUserSubscriptions - final count', nlist.length);
-        callback(nlist, apiErr, apiMeta);
+        // we actually want the count from subsMeta
+        callback(nlist, apiErr, subsMeta);
       });
       /*
       var channelCriteria={ where: { id: { in: channelids } } };
@@ -2436,7 +2759,20 @@ module.exports = {
    * @param {metaCallback} callback - function to call after completion
    */
   getChannelSubscriptions: function(channelid, params, callback) {
-    this.cache.getChannelSubscriptions(channelid, params, callback);
+    var ref = this;
+    this.cache.getChannelSubscriptions(channelid, params, function(subs, err, meta) {
+      var list = [];
+      for(var i in subs) {
+        var sub = subs[i].userid;
+        // FIXME: remove N+1
+        ref.getUser(sub, params, function(user, uErr, uMeta) {
+          list.push(user);
+          if (list.length == subs.length) {
+            callback(list, '', meta);
+          }
+        })
+      }
+    });
   },
   //
   // stream_marker
@@ -2447,8 +2783,8 @@ module.exports = {
    * @todo implement function
    * @param {object} data - stream marker data object
    */
-  setStreamMakerdata: function(data) {
-    console.log('dispatcher.js::setStreamMakerdata - write me!');
+  setStreamMarkerdata: function(data) {
+    console.log('dispatcher.js::setStreamMarkerdata - write me!');
     if (callback) {
       callback(null, null);
     }
@@ -2574,7 +2910,11 @@ module.exports = {
   getInteractions: function(userid, tokenObj, params, callback) {
     //console.log('getInteractions - ', userid, typeof(tokenObj), typeof(params), typeof(callback));
     var ref=this;
-    this.getUser(userid, { tokenobj: tokenObj }, function(user, err) {
+    params.tokenobj = tokenObj
+    // FIXME: why do we need this getUser call?
+    // is this just used to normalize the userid?
+    // it's to insert ourselves as a receiver of actions
+    this.getUser(userid, params, function(user, err) {
       // o(3) maybe 4 if toApi
       //console.log('getInteractions - gotUser');
       // was base class getting in the way
@@ -2666,17 +3006,28 @@ module.exports = {
                       ],
                       "pagination_id": notice.id
                   };
-                  count++;
-                  if (count==notices.length) {
-                    //console.log('dispatcher.js::getInteractions - resortReturn');
-                    resortReturn(interactions, err);
+                  if (notice.altnum) {
+                    ref.getPost(notice.altnum, {}, function(post2, err) {
+                      interactions[notice.id].objects.push(post2)
+                      count++;
+                      if (count==notices.length) {
+                        //console.log('dispatcher.js::getInteractions - resortReturn');
+                        resortReturn(interactions, err);
+                      }
+                    })
+                  } else {
+                    count++;
+                    if (count==notices.length) {
+                      //console.log('dispatcher.js::getInteractions - resortReturn');
+                      resortReturn(interactions, err);
+                    }
                   }
                 });
               });
             }
           }(notice);
         }
-        console.log('getInteractions - done');
+        //console.log('getInteractions - done');
         //callback(interactions, err);
       });
     });
@@ -3004,18 +3355,19 @@ module.exports = {
       callback(null, 'id is missing');
       return;
     }
-
-    // fix api/stream record in db format
+    // FIXME: current user last_updated
     var ref=this;
     if (data.annotations) {
+      console.log('dispatcher.js:updateUser - hasNotes, userid', data.id, 'notes', data.annotations, 'full', data)
+      // FIXME: only updated annotation if the timestamp is newer than we have
       this.setAnnotations('user', data.id, data.annotations);
     }
+    // fix api/stream record in db format
     this.apiToUser(data, function(userData) {
       //console.log('made '+data.created_at+' become '+userData.created_at);
       // can we tell the difference between an add or update?
       //console.log('dispatcher.js::updateUser - final', userData)
       ref.cache.setUser(userData, ts, function(user, err, meta) {
-        // only updated annotation if the timestamp is newer than we have
         // TODO: define signal if ts is old
         if (callback) {
           callback(user, err, meta);
@@ -3083,7 +3435,8 @@ module.exports = {
     // include_annotations, include_user_annotations, include_html
     var ref=this;
     if (request.annotations) {
-      this.setAnnotations('user', request.id, request.annotations);
+      console.log('dispatcher.js::patchUser - annotations', request.annotations);
+      this.setAnnotations('user', tokenObj.userid, request.annotations);
     }
     this.cache.patchUser(tokenObj.userid, changes, function(user, err, meta) {
       if (callback) {
@@ -3094,10 +3447,15 @@ module.exports = {
     });
   },
   // destructive to user
+  // to database format
   apiToUser: function(user, callback) {
     // collapse API to db structure
     // copy what we can without linking to the orignal, so we don't destroy
     var userData=JSON.parse(JSON.stringify(user));
+    if (user.username === undefined) {
+      console.log('dispatcher::apiToUser - user', user.id, 'doesnt have a username', user)
+      user.username = ''
+    }
     userData.username=user.username.toLowerCase(); // so we can find it
     userData.created_at=new Date(user.created_at); // fix incoming created_at iso date to Date
     // if there isn't counts probably a bad input
@@ -3107,10 +3465,18 @@ module.exports = {
       userData.posts=user.counts.posts;
       userData.stars=user.counts.stars;
     }
+    if (user.avatar_image === undefined) {
+      console.log('dispatcher::apiToUser - user', user.id, 'doesnt have a avatar_image', user)
+      user.avatar_image = {}
+    }
     // set avatar to null if is_default true
     userData.avatar_width=user.avatar_image.width;
     userData.avatar_height=user.avatar_image.height;
     userData.avatar_image=user.avatar_image.url;
+    if (user.cover_image === undefined) {
+      console.log('dispatcher::apiToUser - user', user.id, 'doesnt have a cover_image', user)
+      user.cover_image = {}
+    }
     userData.cover_width=user.cover_image.width;
     userData.cover_height=user.cover_image.height;
     userData.cover_image=user.cover_image.url;
@@ -3135,6 +3501,7 @@ module.exports = {
     callback(userData, null);
     //return userData;
   },
+  // from internal database format
   userToAPI: function(user, token, callback, meta) {
     //console.log('dispatcher.js::userToAPI - '+user.id, callback, meta);
     if (!user) {
@@ -3210,12 +3577,12 @@ module.exports = {
       //console.log('dispatcher.js::userToAPI - checking if done, just finished', type);
       for(var i in need) {
         if (need[i]) {
-          //console.log('dispatcher.js::userToAPI -', i, 'is not done');
+          if (user.debug) console.log('dispatcher.js::userToAPI('+user.id+') -', i, 'is not done');
           return;
         }
       }
       // , res, meta
-      //console.log('dispatcher.js::userToAPI - done');
+      if (user.debug) console.log('dispatcher.js::userToAPI ('+user.id+') - done');
       //console.log('dispatcher.js::userToAPI - done, text', data.text);
       // everything is done
       reallyDone();
@@ -3240,7 +3607,7 @@ module.exports = {
               } else {
                 console.log('dispatcher.js::userToAPI - what happened to the description?!? ', user, res);
               }
-              //console.log('dispatcher.js::userToAPI - calling back', res);
+              if (user.debug) console.log('dispatcher.js::userToAPI('+user.id+') - calling back');
               callback(res, userEntitiesErr);
             } else {
               // you can pass entities if you want...
@@ -3267,11 +3634,12 @@ module.exports = {
     }
 
     if (user.annotations) {
-      //console.log('dispatcher.js::userToAPI - need user annotations');
+      if (user.debug) console.log('dispatcher.js::userToAPI('+user.id+') - need user annotations');
       need.annotation = true;
       var loadAnnotation=function(user, cb) {
+        if (user.debug) console.log('dispatcher.js::userToAPI('+user.id+') - get user annotations');
         ref.getAnnotation('user', user.id, function(dbNotes, err, noteMeta) {
-          //console.log('user', user.id, 'annotations', dbNotes);
+          if (user.debug) console.log('user', user.id, 'annotations', dbNotes.length);
           var apiNotes=[];
           for(var j in dbNotes) {
             var note=dbNotes[j];
@@ -3286,10 +3654,10 @@ module.exports = {
       }
 
       loadAnnotation(user, function(apiNotes, notesErr, notesMeta) {
-        //console.log('final anno', apiNotes)
+        if (notesErr) console.log('dispatcher.js::userToAPI - loadAnnotation', notesErr);
+        if (user.debug) console.log('final anno', apiNotes.length)
         res.annotations=apiNotes;
         needComplete('annotation')
-        //console.log('dispatcher.js::getUser - gotUser', userErr);
       });
       //res.annotations = user.annotations
     }
@@ -3316,7 +3684,7 @@ module.exports = {
   getUser: function(user, params, callback) {
     //console.log('dispatcher.js::getUser - '+user, params);
     if (!callback) {
-      console.log('dispatcher.js::getUser - no callback passed in');
+      console.error('dispatcher.js::getUser - no callback passed in');
       return;
     }
     if (!user) {
@@ -3326,6 +3694,7 @@ module.exports = {
     if (params===null) {
       console.log('dispatcher.js::getUser - params are null');
       params={
+        generalParams: {},
         tokenobj: {}
       };
     }
@@ -3335,15 +3704,19 @@ module.exports = {
       if (err) {
         console.log('dispatcher.js::getUser - cant normalize user', user, err);
       }
+      if (!userid) userid = 0 // don't break caminte
       ref.cache.getUser(userid, function(userobj, userErr, userMeta) {
         if (userErr) {
           console.log('dispatcher.js::getUser - cant get user', userid, userErr);
         }
         if (userobj && params.generalParams) {
-          userobj.annotations = params.generalParams.annotations // FIXME: temp hack (until we can change the userToAPI prototype)
-        } else {
-          console.log('dispatcher.js::getUser - not such user?', userid)
+          // FIXME: temp hack (until we can change the userToAPI prototype)
+          userobj.annotations = params.generalParams.annotations || params.generalParams.user_annotations
+        //} else {
+          //console.log('dispatcher.js::getUser - not such user?', userid, 'or no generalParams?', params)
         }
+        //console.log('found user', userobj.id, '==', user)
+        if (params.debug) userobj.debug = true
         ref.userToAPI(userobj, params.tokenobj, callback, userMeta);
       });
     })
@@ -3427,6 +3800,7 @@ module.exports = {
     var rUsers=[]
     //console.log('dispatcher.js::getUsers - users', users);
     for(var i in users) {
+      //console.log('dispatcher.js::getUsers - user', users[i]);
       normalizeUserID(users[i], params.tokenobj, function(userid, err) {
         ref.cache.getUser(userid, function(userobj, userErr, userMeta) {
           //console.log('dispatcher.js::getUsers - gotUser', userErr);
@@ -3473,17 +3847,17 @@ module.exports = {
       // because user/ID/follow calls this without looking up the complete user
       if (data.user && data.user.username) {
         this.updateUser(data.user, ts);
-      } else {
-        console.log('dispatcher.js::setFollows - no user', data);
+      //} else {
+        //console.log('dispatcher.js::setFollows - no user', data);
       }
       // update user object
       if (data.follows_user && data.follows_user.username) {
         this.updateUser(data.follows_user, ts);
-      } else {
-        console.log('dispatcher.js::setFollows - no follows_user', data);
+      //} else {
+        //console.log('dispatcher.js::setFollows - no follows_user', data);
       }
       // set relationship status
-      console.log('dispatcher.js::setFollows - has data', data.user.id, data.follows_user.id, id, deleted, ts);
+      //console.log('dispatcher.js::setFollows - has data', data.user.id, data.follows_user.id, id, deleted, ts);
       this.cache.setFollow(data.user.id, data.follows_user.id, id, deleted, ts);
     } else {
       // likely deleted is true in this path
@@ -3521,6 +3895,7 @@ module.exports = {
               }
               if (!user) {
                 console.log('dispatcher.js::getFollowers - empty user gotten for', follows[i].userid);
+                user = {} // fix it so setting pagination doesn't crash
               }
               /*
               if (!user.avatar_image.url) {
@@ -3606,6 +3981,61 @@ module.exports = {
       });
     });
   },
+  /** mutes */
+  //req.params.user_id, req.apiParams, req.usertoken, callbacks.dataCallback(resp)
+  getMutes: function(userids, params, tokenObj, callback) {
+    var ref = this;
+    var userid = userids;
+    if (userids == 'me') {
+      userid = tokenObj.userid;
+    }
+    this.cache.getMutes(userid, params, function(mutes, err, meta) {
+      if (!mutes.length) {
+        callback([], err, meta);
+        return;
+      }
+      var userMutes = [];
+      for(var i in mutes) {
+        var userid = mutes[i].muteeid;
+        // strip paging out params but leave includes
+        // FIXME: turn into function
+        var nParams = params;
+        delete nParams.before_id;
+        delete nParams.since_id;
+        ref.getUser(userid, nParams, function(user, userErr, userMeta) {
+          userMutes.push(user);
+          if (mutes.length == userMutes.length) {
+            callback(userMutes, err, meta);
+          }
+        })
+      }
+    });
+  },
+  addMute: function(userid, params, tokenObj, callback) {
+    var ref = this;
+    console.log('dispatcher::addMute', userid, 'for', tokenObj.userid);
+    this.cache.addMute(tokenObj.userid, userid, params, function(mute, err) {
+      var nParams = params;
+      delete nParams.before_id;
+      delete nParams.since_id;
+      ref.getUser(mute.muteeid, nParams, callback);
+    });
+  },
+  deleteMute: function(userid, params, tokenObj, callback) {
+    var ref = this;
+    console.log('dispatcher::deleteMute', userid, 'for', tokenObj.userid);
+    this.cache.delMute(tokenObj.userid, userid, params, function(mute, err) {
+      var nParams = params;
+      delete nParams.before_id;
+      delete nParams.since_id;
+      if (mute) {
+        ref.getUser(mute.muteeid, nParams, callback);
+      } else {
+        console.log('dispatcher::deleteMute - mute not found', userid, 'for', tokenObj.userid);
+        callback([], '404 mute not found');
+      }
+    });
+  },
   /** files */
   fileToAPI: function(file, params, token, callback) {
     var api={
@@ -3650,6 +4080,7 @@ module.exports = {
   },
   getFiles: function(userid, params, callback) {
     var ref=this
+    //console.log('dispatcher.js::getFiles - for user', userid);
     this.cache.getFiles(userid, params, function(dbFiles, err, meta) {
       if (!dbFiles.length) {
         callback([], null)
@@ -3842,20 +4273,20 @@ module.exports = {
 
       function checkDone(i) {
         done[i]++;
-        //console.log(i, 'done', done[i], 'calls', calls[i]);
+        //console.log('(', type, id, ')', i, 'done', done[i], 'calls', calls[i]);
         if (done[i]===calls[i]) {
           // replace value
           notes[i].value=fixedSet;
           replaces++;
-          //console.log('dispatcher.js::getAnnotation - checkdone replaces', replaces, 'notes', notes.length);
+          //console.log('dispatcher.js::getAnnotation(', type, id, ') - checkdone replaces', replaces, 'notes', notes.length);
           if (replaces===notes.length) {
-            //console.log('final notes', notes);
+            //console.log('dispatcher.js::getAnnotation(', type, id, ') - final notes', notes);
             callback(notes, err, meta);
           }
         }
       }
 
-      //console.log('dispatcher.js::getAnnotation - notes', notes.length);
+      //console.log('dispatcher.js::getAnnotation(', type, id, ') - notes', notes.length);
       for(var i in notes) {
         // check values
         var fixedSet={}
@@ -3869,6 +4300,14 @@ module.exports = {
           calls[i]++;
         }
         // I think we only every have one value
+        // nope because you can have an empty array
+        //console.log(i, 'value', notes[i].value, 'len', notes[i].value.length, typeof(notes[i].value), notes[i].value.constructor.name)
+        if (notes[i].value.constructor.name == 'Array' && !notes[i].value.length) {
+          fixedSet=notes[i].value
+          calls[i]++;
+          checkDone(i)
+          continue
+        }
         for(var k in notes[i].value) {
           //console.log('value', notes[i].value, 'vs', oldValue, 'k', k, 'val', notes[i].value[k], 'vs', oldValue[k]);
           if (k[0]=='+') {
@@ -3954,7 +4393,7 @@ module.exports = {
     });
   },
   /** text process */
-  // postcontext means this is a post
+  // postcontext (bool) means this is a post
   // FIXME: pass in if it's a machine_only or not
   textProcess: function(text, entities, postcontext, callback) {
     var ref=this;
@@ -3970,13 +4409,41 @@ module.exports = {
     var urlRegex = /\b((?:https?:(?:\/{1,3}|[a-z0-9%])|[a-z0-9.\-]+[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)\/)(?:[^\s()<>{}\[\]]+|\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\))+(?:\([^\s()]*?\([^\s()]+\)[^\s()]*?\)|\([^\s]+?\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’])|(?:[a-z0-9]+(?:[.\-][a-z0-9]+)*[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)\b\/?))/ig;
 
     // data-mention-id="$1" will have to do a look up pass and set this back
-    html = html.replace(mentionRegex, '<span data-mention-name="$1" itemprop="mention">@$1</span>');
-    html = html.replace(hashtagRegex, '<span data-hashtag-name="$1" itemprop="hashtag">#$1</span>');
+    //html = html.replace(mentionRegex, '<span data-mention-name="$1" itemprop="mention">@$1</span>');
 
     // since input is text, I believe we can safely assume it's not already in a tag
     // FIXME: we need to insert http:// if there's no protocol (post: 30795290)
     // be sure to check your html/entity caching to make sure it's off otherwise 30795290 is fine
-    html = html.replace(urlRegex, '<a href="$1">$1</a>');
+    //html = html.replace(urlRegex, '<a href="$1">$1</a>');
+    // since hash can be in a link, make sure we process hashtags last
+    //html = html.replace(hashtagRegex, '<span data-hashtag-name="$1" itemprop="hashtag">#$1</span>');
+    var re = [
+      "@([a-zA-Z0-9\-_]+)\\b",
+      "\\b((?:https?:(?:\\/{1,3}|[a-z0-9%])|[a-z0-9.\\-]+[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)\\/)(?:[^\\s()<>{}\\[\\]]+|\\([^\\s()]*?\\([^\\s()]+\\)[^\\s()]*?\\)|\\([^\\s]+?\\))+(?:\\([^\\s()]*?\\([^\\s()]+\\)[^\\s()]*?\\)|\\([^\\s]+?\\)|[^\\s`!()\\[\\]{};:'\".,<>?«»“”‘’])|(?:[a-z0-9]+(?:[.\\-][a-z0-9]+)*[.](?:com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|Ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw)\\b\\/?))",
+      "#([a-zA-Z0-9\-_]+)\\b",
+    ];
+    //console.log('array', re)
+    //console.log('string', re.join('|'))
+    re = new RegExp(re.join('|'), "gi");
+    html = html.replace(re, function(match, mention, link, hash) {
+      //console.log('html replace', match);
+      //console.log('html mention', mention);
+      //console.log('html link', link);
+      //console.log('html hash', hash);
+      if (mention) {
+        return '<span data-mention-name="'+mention+'" itemprop="mention">@'+mention+'</span>';
+      }
+      if (link) {
+        if (!link.match(/:\/\//)) {
+          link = 'http://'+link
+        }
+        return '<a href="'+link+'">'+link+'</a>';
+      }
+      if (hash) {
+        return '<span data-hashtag-name="'+hash+'" itemprop="hashtag">#'+hash+'</span>';
+      }
+      return match;
+    });
 
     var userlookup={};
 
@@ -4020,28 +4487,8 @@ module.exports = {
         }
         entities.mentions=mentions;
       }
-      //console.log('current hashtags', entities.hashtags);
-      //|| entities.parse_hashtags isn't spec
-      // should always be on
-      if (!entities.hashtags || !entities.hashtags.length) {
-        // extract hashtags
-        //console.log('extracting hashtags');
-        // FIXME: 30792555 invisible hashtags?
-        // we're not encoding text right...
-        var hashtags=[];
-        while(match=hashtagRegex.exec(text)) {
-          var hashtag=match[1];
-          var obj={
-            name: hashtag,
-            pos: match.index,
-            len: hashtag.length+1, // includes char for #
-          }
-          //console.log('extracted hashtag:', hashtag);
-          hashtags.push(obj);
-        }
-        //console.log('extracted hashtags', hashtags);
-        entities.hashtags=hashtags;
-      }
+      // we should do links before hashtags
+      // since a # can be inside a link
       if (!entities.links || !entities.links.length || entities.parse_links) {
         // extract URLS
         var links=[]
@@ -4050,7 +4497,7 @@ module.exports = {
           // we need to insert http:// if there's no protocol (post: 30795290)
           // FIXME: colon isn't good enough
           var text=url;
-          if (url.indexOf(':')==-1) {
+          if (url.indexOf('://')==-1) {
             url='http://'+url;
           }
           var obj={
@@ -4063,6 +4510,48 @@ module.exports = {
         }
         entities.links=links;
       }
+
+      //console.log('current hashtags', entities.hashtags);
+      //|| entities.parse_hashtags isn't spec
+      // should always be on
+      if (!entities.hashtags || !entities.hashtags.length) {
+        // extract hashtags
+        //console.log('extracting hashtags');
+        // FIXME: 30792555 invisible hashtags?
+        // we're not encoding text right...
+        var hashtags=[];
+        while(match=hashtagRegex.exec(text)) {
+          var hashtag = match[1];
+          var insideLink = false;
+          for(var i in entities.links) {
+            var link = entities.links[i];
+            var start=link.pos;
+            var end=start + link.len;
+            //console.log('hash start inside link?', start, '<?', match.index, '<?', end);
+            if (start <= match.index && match.index <= end) {
+              //console.log('hash end inside link?', start, '<?', match.index+hashtag.length+1, '<?', end);
+              if (start <= match.index + hashtag.length+1 && match.index + hashtag.length+1 <= end) {
+                //console.log('hashtag', hashtag, 'is in link', link.url)
+                insideLink = true;
+                break;
+              }
+            }
+          }
+          if (insideLink) {
+            continue;
+          }
+          var obj={
+            name: hashtag,
+            pos: match.index,
+            len: hashtag.length+1, // includes char for #
+          }
+          //console.log('extracted hashtag:', hashtag);
+          hashtags.push(obj);
+        }
+        //console.log('extracted hashtags', hashtags);
+        entities.hashtags=hashtags;
+      }
+
       /*
       console.dir(mentions);
       console.dir(hashtags);
