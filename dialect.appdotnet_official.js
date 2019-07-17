@@ -9,9 +9,7 @@ var callbacks = require('./dialect.appdotnet_official.callbacks.js');
 // for pomf support
 var request=require('request');
 var multer  = require('multer');
-
 var storage = multer.memoryStorage()
-
 var upload = multer({ storage: storage, limits: {fileSize: 100*1024*1024} });
 
 // post structure, good enough to fool alpha
@@ -178,7 +176,7 @@ module.exports=function(app, prefix) {
         };
         resp.status(401).type('application/json').send(JSON.stringify(res));
       } else {
-        console.log('ADNO::users/ID/follow - user_id', followsid);
+        //console.log('ADNO::users/ID/follow - user_id', followsid);
         // data.user.id, data.follows_user.id
         dispatcher.setFollows({
           user: { id: usertoken.userid }, follows_user: { id: followsid },
@@ -288,7 +286,30 @@ module.exports=function(app, prefix) {
   });
   // create file (for attachments)
   app.post(prefix+'/files', upload.single('content'), function(req, resp) {
-    console.log('POSTfiles - upload got', req.file.buffer.length, 'bytes');
+    if (req.file) {
+      console.log('POSTfiles - file upload got', req.file.buffer.length, 'bytes');
+    } else {
+      // no files uploaded
+      var res={
+        "meta": {
+          "code": 400,
+          "error_message": "No file uploaded"
+        }
+      };
+      resp.status(400).type('application/json').send(JSON.stringify(res));
+      return
+    }
+    if (!req.file.buffer.length) {
+      // no files uploaded
+      var res={
+        "meta": {
+          "code": 400,
+          "error_message": "No file uploaded"
+        }
+      };
+      resp.status(400).type('application/json').send(JSON.stringify(res));
+      return
+    }
     //console.log('looking for type - params:', req.params, 'body:', req.body);
     // type is in req.body.type
     //console.log('POSTfiles - req token', req.token);
@@ -307,9 +328,14 @@ module.exports=function(app, prefix) {
         };
         resp.status(401).type('application/json').send(JSON.stringify(res));
       } else {
+        if (req.body.type === undefined) {
+          // spec doesn't say required
+          req.body.type = ''
+        }
         console.log('dialect.appdotnet_official.js:POSTfiles - uploading to pomf');
+        var uploadUrl = dispatcher.appConfig.provider_url + '/upload.php'
         request.post({
-          url: 'https://pomf.cat/upload.php',
+          url: uploadUrl,
           formData: {
             //files: fs.createReadStream(__dirname+'/git/caminte/media/mysql.png'),
             'files[]': {
@@ -324,6 +350,14 @@ module.exports=function(app, prefix) {
         }, function (err, uploadResp, body) {
           if (err) {
             console.log('dialect.appdotnet_official.js:POSTfiles - pomf upload Error!', err);
+            var res={
+              "meta": {
+                "code": 500,
+                "error_message": "Could not save file (Could not POST to POMF)"
+              }
+            };
+            resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
+            return;
           } else {
             //console.log('URL: ' + body);
             /*
@@ -341,30 +375,57 @@ module.exports=function(app, prefix) {
               description: 'No input file(s)'
             }
             */
-            //console.log('body', body);
-            var data=JSON.parse(body);
+            var data = {};
+            try {
+              data=JSON.parse(body);
+            } catch(e) {
+              console.log('couldnt json parse body', body);
+              var res={
+                "meta": {
+                  "code": 500,
+                  "error_message": "Could not save file (POMF did not return JSON as requested)"
+                }
+              };
+              resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
+              return;
+            }
+            if (!data.success) {
+              var res={
+                "meta": {
+                  "code": 500,
+                  "error_message": "Could not save file (POMF did not return success)"
+                }
+              };
+              resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
+              return;
+            }
             //, 'from', body
             console.log('dialect.appdotnet_official.js:POSTfiles - pomf result', data);
-            if (data.success) {
-              for(var i in data.files) {
-                var file=data.files[i];
-                // write this to the db dude
-                //file.url <= passes through
-                //file.size <= passes through
-                //file.name <= passes through
-                file.sha1 = file.hash; // hash is sha1
-                file.mime_type=req.file.mimetype;
-                // there's only image or other
-                file.kind=req.file.mimetype.match(/image/i)?'image':'other';
-                // if it's an image or video, we should get w/h
-                //console.log('type', req.body.type, typeof(req.body.type)); // it's string...
-                // warn if body.type is empty because it'll crash the server
-                file.type=req.body.type;
-                dispatcher.addFile(file, usertoken, req.apiParams, callbacks.fileCallback(resp, req.token));
-              }
+            for(var i in data.files) {
+              var file=data.files[i];
+              // write this to the db dude
+              // dispatcher.appConfig.provider_url+
+              // maybe pomf.cat doesn't add the prefix
+              // but mixtape does
+              // just normalize it (add and strip it, it'll make sure it's always there)
+              //file.url = dispatcher.appConfig.provider_url + file.url.replace(dispatcher.appConfig.provider_url, '');
+              // that probably won't be the download URL
+              file.url = file.url
+              //file.url <= passes through
+              //file.size <= passes through
+              //file.name <= passes through
+              file.sha1 = file.hash; // hash is sha1
+              file.mime_type=req.file.mimetype;
+              // there's only image or other
+              file.kind=req.file.mimetype.match(/image/i)?'image':'other';
+              // if it's an image or video, we should get w/h
+              //console.log('type', req.body.type, typeof(req.body.type)); // it's string...
+              // warn if body.type is empty because it'll crash the server
+              file.type = req.body.type;
+              dispatcher.addFile(file, usertoken, req.apiParams, callbacks.fileCallback(resp, req.token));
             }
-            //console.log('Regular:', fs.createReadStream(__dirname+'/git/caminte/media/mysql.png'));
           }
+            //console.log('Regular:', fs.createReadStream(__dirname+'/git/caminte/media/mysql.png'));
         });
       }
     });
@@ -658,14 +719,15 @@ module.exports=function(app, prefix) {
         return;
       }
       req.apiParams.tokenobj=usertoken;
+      console.log('dialect.appdotnet_official.js:PUTusersXx - body', req.body);
       //console.log('dialect.appdotnet_official.js:PUTusersX - creating channel of type', req.body.type);
       if (req.body.name === undefined || req.body.locale  === undefined ||
-        req.body.timezone  === undefined || req.body.description  === undefined ||
+        req.body.timezone  === undefined || req.body.description === undefined ||
         req.body.description.text === undefined) {
         var res={
           "meta": {
             "code": 400,
-            "error_message": "Require a type (JSON encoded)"
+            "error_message": "Requires name, locale, timezone, and description to change (JSON encoded)"
           }
         };
         resp.status(400).type('application/json').send(JSON.stringify(res));
@@ -792,12 +854,23 @@ module.exports=function(app, prefix) {
       }
       var ids=null;
       if (req.query.ids) {
-        //console.log('dialect.appdotnet_official.js:GETchannels - getting list of rooms');
         ids=req.query.ids.split(/,/);
+        //console.log('dialect.appdotnet_official.js:GETchannels - getting list of channels', ids);
         dispatcher.getChannel(ids, req.apiParams, callbacks.dataCallback(resp));
         return;
       }
-      //console.log('dialect.appdotnet_official.js:GETchannels - getting list of user subs for', userid);
+      if (usertoken===null) {
+        console.log('dialect.appdotnet_official.js:GETchannels - failed to get token:', req.token);
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      console.log('dialect.appdotnet_official.js:GETchannels - getting list of user subs for', userid);
       dispatcher.getUserSubscriptions(userid, req.apiParams, callbacks.dataCallback(resp));
     });
   });
@@ -884,6 +957,7 @@ module.exports=function(app, prefix) {
         req.apiParams.tokenobj=usertoken;
         userid=usertoken.userid;
       }
+      //console.log('dialect.appdotnet_official.js:GETchannels - channel_id', req.params.channel_id);
       dispatcher.getChannel(req.params.channel_id, req.apiParams, callbacks.dataCallback(resp));
     });
   });
@@ -907,7 +981,18 @@ module.exports=function(app, prefix) {
       //console.log('dialect.appdotnet_official.js:PUTchannels - found a token', usertoken);
       req.apiParams.tokenobj=usertoken;
       //userid=usertoken.userid;
-      console.log('dialect.appdotnet_official.js:PUTchannels - body', typeof(req.body), Object.keys(req.body));
+      //console.log('dialect.appdotnet_official.js:PUTchannels - body', typeof(req.body), Object.keys(req.body));
+      // The only keys that can be updated are annotations, readers, and writers
+      var updates = {};
+      if (req.body.writers) {
+        updates.writers = req.body.writers;
+      }
+      if (req.body.readers) {
+        updates.readers = req.body.readers;
+      }
+      if (req.body.annotations) {
+        updates.annotations = req.body.annotations;
+      }
       /*
       { auto_subscribe: true,
         writers: { immutable: false, any_user: true },
@@ -916,8 +1001,9 @@ module.exports=function(app, prefix) {
          [ { type: 'net.patter-app.settings', value: [Object] },
            { type: 'net.app.core.fallback_url', value: [Object] } ] }
       */
+      console.log('dialect.appdotnet_official.js:PUTchannels - updates', updates, 'notes', updates.annotations);
       // updateChannel: function(channelid, update, params, token, callback) {
-      dispatcher.updateChannel(req.params.channel_id, req.body, req.apiParams, usertoken, callbacks.dataCallback(resp));
+      dispatcher.updateChannel(req.params.channel_id, updates, req.apiParams, usertoken, callbacks.dataCallback(resp));
     });
   });
 
@@ -937,12 +1023,12 @@ module.exports=function(app, prefix) {
       }
       //console.log('dialect.appdotnet_official.js:DELETEchannels - found a token', usertoken);
       req.apiParams.tokenobj=usertoken;
+      // FIXME: enforce that req.params.channel_id is numeric
       //console.log('dialect.appdotnet_official.js:DELETEchannels - channel_id', req.params.channel_id);
       // deactiveChannel: function(channelid, params, token, callback) {
       dispatcher.deactiveChannel(req.params.channel_id, req.apiParams, usertoken, callbacks.dataCallback(resp));
     });
   });
-
 
   // subscribe to a channel (token: user / scope: public_messages or messages)
   app.post(prefix+'/channels/:channel_id/subscribe', function(req, resp) {
@@ -960,6 +1046,7 @@ module.exports=function(app, prefix) {
         return;
       }
       req.apiParams.tokenobj=usertoken;
+      console.log('dialect.appdotnet_official.js:POSTchannelsXsubscribe - user:', usertoken.userid, 'channel:', req.params.channel_id);
       //addChannelSubscription: function(token, channel_id, params, callback)
       dispatcher.addChannelSubscription(usertoken, req.params.channel_id, req.apiParams, callbacks.dataCallback(resp));
     });
@@ -968,7 +1055,7 @@ module.exports=function(app, prefix) {
   // unsubscribe to a channel (token: user / scope: public_messages or messages)
   app.delete(prefix+'/channels/:channel_id/subscribe', function(req, resp) {
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      //console.log('dialect.appdotnet_official.js:POSTchannelsXunsubscribe - got token:', usertoken);
+      //console.log('dialect.appdotnet_official.js:DELETEchannelsXsubscribe - got token:', usertoken);
       var userid='';
       if (usertoken==null) {
         var res={
@@ -981,7 +1068,8 @@ module.exports=function(app, prefix) {
         return;
       }
       req.apiParams.tokenobj=usertoken;
-      //addChannelSubscription: function(token, channel_id, params, callback)
+      console.log('dialect.appdotnet_official.js:DELETEchannelsXsubscribe - user:', usertoken.userid, 'channel:', req.params.channel_id);
+      //delChannelSubscription: function(token, channel_id, params, callback)
       dispatcher.delChannelSubscription(usertoken, req.params.channel_id, req.apiParams, callbacks.dataCallback(resp));
     });
   });
@@ -1041,6 +1129,7 @@ module.exports=function(app, prefix) {
         postdata.entities=req.body.entities;
       }
       if (req.body.annotations) {
+        //console.log('dialect.appdotnet_official.js:POSTchannelsXmessages - detected annotations', req.body.annotations)
         postdata.annotations=req.body.annotations;
       }
       if (req.body.destinations) {
@@ -1049,7 +1138,7 @@ module.exports=function(app, prefix) {
         postdata.destinations.push(usertoken.userid);
         // FIXME: also need to dedup this
       }
-      //console.log('dialect.appdotnet_official.js:POSTchannelsXmessages - creating message in channel', req.params.channel_id);
+      console.log('dialect.appdotnet_official.js:POSTchannelsXmessages - creating message in channel', req.params.channel_id);
       //addMessage: function(channel_id, postdata, params, token, callback) {
       dispatcher.addMessage(req.params.channel_id, postdata, req.apiParams, usertoken, callbacks.dataCallback(resp));
     });
@@ -1058,6 +1147,7 @@ module.exports=function(app, prefix) {
   app.get(prefix+'/channels/:channel_id/messages/:message_id', function(req, resp) {
     dispatcher.getChannelMessage(req.params.channel_id, req.params.message_id, req.apiParams, callbacks.dataCallback(resp));
   });
+
   app.get(prefix+'/config', function(req, resp) {
     // just call the callback directly. err and meta are optional params
     callbacks.dataCallback(resp)(dispatcher.getConfig())
