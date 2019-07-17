@@ -93,16 +93,19 @@ var localUserTokenModel = schemaToken.define('localUserToken', {
 //localUserTokenModel.validatesUniquenessOf('token', { message:'token is not unique'});
 
 // local apps
+// dupcliation of clientModel
 var oauthAppModel = schemaToken.define('oauthApp', {
   //accountid: { type: Number, index: true },
   client_id: { type: String, length: 32, index: true },
   secret: { type: String, length: 255 },
   shortname: { type: String, length: 255 },
-  displayname: { type: String, length: 255 }
+  displayname: { type: String, length: 255 },
+  token: { type: String, length: 255 } // app token
 });
 // authorized local app callbacks
 var oauthCallbackModel = schemaToken.define('oauthCallback', {
-  appid: { type: Number, index: true },
+  appid: { type: Number, index: true }, // deprecated
+  clientid: { type: Number, index: true },
   url: { type: String, length: 255 }
 });
 // I think it's better we have a combined table (localUserToken)
@@ -144,7 +147,8 @@ var clientModel = schemaData.define('client', {
   secret: { type: String, limit: 32 },
   userid: { type: Number },
   name: { type: String, limit: 255 },
-  link: { type: String, limit: 255 }
+  link: { type: String, limit: 255 },
+  accountid: { type: Number, index: true },
 });
 clientModel.validatesUniquenessOf('client_id', {message:'client_id is not unique'});
 
@@ -183,6 +187,11 @@ var userModel = schemaData.define('user', {
   country: { type: String, length: 2 },
 });
 userModel.validatesUniquenessOf('username', {message:'username is not unique'});
+
+var muteModel = schemaData.define('mute', {
+  userid: { type: Number, index: true },
+  muteeid: { type: Number }
+});
 
 /** post storage model
  * @constructs postModel
@@ -347,6 +356,7 @@ var noticeModel = schemaData.define('notice', {
   actionuserid: { type: Number }, // who took an action (star)
   type: { type: String, length: 18 }, // welcome,star,repost,reply,follow,broadcast_create,broadcast_subscribe,broadcast_unsubscribe
   typeid: { type: Number }, // postid(star,respot,reply),userid(follow)
+  altnum: { type: Number }, // postid(star,respot,reply),userid(follow)
 });
 
 
@@ -368,6 +378,16 @@ var fileModel = schemaData.define('file', {
   urlexpires: { type: Date },
   /* API END */
   last_updated: { type: Date },
+});
+
+var streamMarkersModel = schemaData.define('stream_markers', {
+  user_id: { type: Number, index: true },
+  top_id: { type: Number },
+  last_read_id: { type: Number },
+  name: { type: String, length: 32 },
+  percentage: { type: Number },
+  last_updated: { type: Date },
+  version: { type: Number },
 });
 
 // kind of a proxy cache
@@ -504,6 +524,7 @@ function generateUUID(string_length) {
   return randomstring;
 }
 
+
 // cheat macros
 function db_insert(rec, model, callback) {
   //console.log('dataaccess.caminte.js::db_insert - start');
@@ -554,6 +575,14 @@ function db_delete(id, model, callback) {
   });
 }
 function db_get(id, model, callback) {
+  id = parseInt(id);
+  if (isNaN(id)) {
+    console.log('dataaccess.camtine.js::db_get - id isnt number', id);
+    var stack = new Error().stack
+    console.log(stack);
+    callback([], "id is not a number");
+    return;
+  }
   model.findById(id, function(err, rec) {
     if (err) {
       console.log("db_get Error ", err);
@@ -747,7 +776,9 @@ function setparams(query, params, maxid, callback) {
     query=query.lt(params.before_id);
   }
   */
-  //console.log('dataaccess.caminte.js::setparams query', query.q);
+  if (query.debug) {
+    console.log('dataaccess.caminte.js::setparams query', query.q);
+  }
   var min_id=Number.MAX_SAFE_INTEGER, max_id=0;
   query.run({},function(err, objects) {
     //console.log('dataaccess.caminte.js::setparams -', query.model.modelName, 'query got', objects.length, 'only need', params.count);
@@ -830,7 +861,7 @@ module.exports = {
           if (callback) callback(user,err);
         });
       } else {
-        console.log('camtinejs::setUser - creating user');
+        //console.log('camtinejs::setUser - creating user');
         db_insert(new userModel(iuser), userModel, callback);
       }
     });
@@ -897,9 +928,9 @@ module.exports = {
       return;
     }
     var ref=this;
-    //console.log('dataaccess.sequalize.js:getUser - getting', userid);
+    //console.log('dataaccess.caminte.js:getUser - getting', userid);
     db_get(userid, userModel, function(user, err) {
-      //console.log('dataaccess.sequalize.js:getUser - got', user);
+      //console.log('dataaccess.caminte.js:getUser - got', user);
       if (user==null && err==null) {
         if (ref.next) {
           ref.next.getUser(userid, callback);
@@ -997,7 +1028,7 @@ module.exports = {
     }
     oauthAppModel.findOne({ where: { client_id: client_id, secret: client_secret } }, function(err, oauthApp) {
       if (err || !oauthApp) {
-        console.log('getAppCallbacks - err', err)
+        if (err) console.log('getAppCallbacks - err', err)
         callback(null, 'err or app not found');
         return;
       }
@@ -1188,6 +1219,9 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   },
   getClient: function(client_id, callback) {
     clientModel.findOne({ where: {client_id: client_id} }, function(err, client) {
+      if (client) {
+        delete client.secret;
+      }
       callback(client, err);
     });
   },
@@ -1198,6 +1232,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       name: source.name,
       link: source.link
     }, function(err, client) {
+      delete client.secret
       callback(client, err);
     });
   },
@@ -1336,6 +1371,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   delPost: function(postid, callback) {
     //function db_delete(id, model, callback) {
     //db_delete(postid, postModel, callback);
+    var ref = this;
     postModel.findById(postid, function(err, post) {
       if (err) {
         var meta={
@@ -1371,6 +1407,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   },
   updatePostCounts: function(postid, callback) {
     var ref=this;
+    // get a handle on the post we want to modify
     postModel.findById(postid, function(err, post) {
       // num_replies, num_stars, num_reposts
       // getReplies: function(postid, params, token, callback) {
@@ -1437,6 +1474,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
         notice.type='reply'; // star,repost,reply,follow
         // riposte is showing the original post
         notice.typeid=ipost.id; // postid(star,respot,reply),userid(follow)
+        notice.altnum = post.id;
         db_insert(notice, noticeModel);
       });
     }
@@ -1511,6 +1549,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   },
   // why do we need token here? we don't need it
   getReposts: function(postid, params, token, callback) {
+    //console.log('dataaccess.caminte.js::getReposts - postid', postid);
     var ref=this;
     // needs to also to see if we definitely don't have any
     // FIXME: is_deleted
@@ -1519,6 +1558,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       if ((posts==null || posts.length==0) && err==null) {
         // before we hit proxy, check empties
         // if there is one, there should only ever be one
+        // uhm shit changes
         emptyModel.findOne({ where: { type: 'repost', typeid: postid } }, function(err, empties) {
           //console.log('dataaccess.caminte.js::getPost - empties got',empties);
           if (empties===null) {
@@ -1553,6 +1593,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
           }
         });
       } else {
+        //console.log('dataaccess.caminte.js::getReposts - reposts count:', posts.length);
         callback(posts, err);
       }
     });
@@ -1560,7 +1601,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   getUserRepostPost(userid, thread_id, callback) {
     // did we repost any version of this repost
     //console.log('camintejs::getUserRepostPost - userid', userid, 'repost_of', repost_of);
-    postModel.findOne({ where: { userid: userid, thread_id: thread_id, repost_of: { ne: 0 } } }, function(err, post) {
+    postModel.findOne({ where: { userid: userid, thread_id: thread_id, repost_of: { ne: 0 }, is_deleted: 0 } }, function(err, post) {
       //console.log('camintejs::getUserRepostPost - ', userid, postid, posts)
       callback(post, err);
     });
@@ -1820,7 +1861,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     }
     var count=params.count;
     //console.log('mention/entity search for ',search);
-    console.log('mention/entity search for',k, v);
+    //console.log('dataaccess.camtine.js::getMentions - mention/entity search for',k, v);
     // , limit: count, order: 'id desc'
     // 41,681,824
     // to
@@ -2216,7 +2257,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       return;
     }
     var ref=this;
-    var criteria={ where: { id: id } };
+    var criteria={ where: { id: id, inactive: null } };
     if (params.channelParams && params.channelParams.types) {
       criteria.where['type']={ in: params.channelParams.types.split(/,/) };
       //console.log('dataaccess.caminte.js::getChannel - types', criteria.where['type']);
@@ -2224,13 +2265,19 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     if (id instanceof Array) {
       criteria.where['id']={ in: id };
     }
+    if (params.channelParams && params.channelParams.inactive) {
+      criteria.where['inactive']= { ne: null }
+    }
+    //console.log('dataaccess.caminte.js::getChannel - criteria', criteria);
     channelModel.find(criteria, function(err, channels) {
+      //console.log('dataaccess.caminte.js::getChannel - found', channels.length)
       if (channels==null && err==null) {
         if (ref.next) {
           ref.next.getChannel(id, callback);
           return;
         }
       }
+      //console.log('dataaccess.caminte.js::getChannel - channels', channels)
       if (id instanceof Array) {
         callback(channels, err);
       } else {
@@ -2303,11 +2350,26 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   /** messages */
   setMessage: function (msg, callback) {
     // If a Message has been deleted, the text, html, and entities properties will be empty and may be omitted.
-    messageModel.findOrCreate({
-      id: msg.id
-    }, msg, function(err, omsg) {
-      if (callback) {
-        callback(omsg, err);
+    //console.log('setMessage - id', msg.id, 'updates', msg)
+    // findOrCreate didn't work
+    // updateOrCreate expects a full object
+    messageModel.findOne({ where: { id: msg.id } }, function(err, omsg) {
+      function doCallback(err, fMsg) {
+        if (err) {
+          console.log('setMessage:::doCallback - err', err);
+        }
+        // if it's an update fMsg is number of rows affected
+        //console.log('setMessage:::doCallback - ', fMsg);
+        if (callback) {
+          callback(fMsg, err);
+        }
+      }
+      if (omsg) {
+        // update
+        messageModel.update({ where: { id: msg.id } }, msg, doCallback);
+      } else {
+        // create
+        messageModel.create(msg, doCallback);
       }
     });
   },
@@ -2354,24 +2416,31 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     last_updated: { type: Date },
   */
   addSubscription: function (channel_id, userid, callback) {
-    console.log('dataaccess.camintejs::addSubscription - channel_id', channel_id, 'userid', userid);
-    subscriptionModel.findOne({
+    //console.log('dataaccess.camintejs::addSubscription - channel_id', channel_id, 'userid', userid);
+    subscriptionModel.findOne({ where : {
       channelid: channel_id,
       userid: userid,
-    }, function(err, subscription) {
+    } }, function(err, subscription) {
       if (err) {
         console.log('dataaccess.camintejs::addSubscription - err', err);
       }
       //console.log('dataaccess.camintejs::addSubscription - subscription', subscription);
-      subscription.channelid=channel_id;
-      subscription.userid=err, subscription;
-      subscription.active=true;
-      subscription.last_updated=new Date();
-      if (!subscription || !subscription.created_at) {
+      // if you have a null created_at, we'll just keep making new records with this
+      // || !subscription.created_at
+      if (!subscription) {
+        subscription = new subscriptionModel
+        subscription.created_at=new Date();
+        subscription.channelid=channel_id;
+        subscription.userid=userid;
+      }
+      if (subscription.created_at == null) {
         subscription.created_at=new Date();
       }
+      subscription.active=true;
+      subscription.last_updated=new Date();
       subscription.save(function() {
         if (callback) {
+          //console.log('dataaccess.camintejs::addSubscription result', subscription);
           callback(subscription, err);
         }
       });
@@ -2540,7 +2609,9 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     });
   },
   getFiles: function(userid, params, callback) {
-    setparams(fileModel.find().where('userid', userid), params, 0, function(files, err, meta) {
+    var query = fileModel.find().where('userid', userid)
+    //query.debug = true
+    setparams(query, params, 0, function(files, err, meta) {
       callback(files, err, meta);
     });
   },
@@ -2624,10 +2695,21 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   },
   getEntities: function(type, id, callback) {
     //console.log('type: '+type+' id: '+id);
-    if (type==null) {
-      //var stack = new Error().stack
-      //console.log( stack )
-      console.track();
+    if (!type) {
+      console.log('dataaccess.caminte.js::getEntities - type', type, 'id', id);
+      console.trace('dataaccess.caminte.js::getEntities - no type');
+      callback([], 'invalid type', {
+        code: 500
+      });
+      return;
+    }
+    if (!id) {
+      console.log('dataaccess.caminte.js::getEntities - type', type, 'id', id);
+      console.trace('dataaccess.caminte.js::getEntities - no id');
+      callback([], 'invalid type', {
+        code: 500
+      });
+      return;
     }
     var res={
       mentions: [],
@@ -2692,7 +2774,14 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     db_insert(note, annotationModel, callback);
   },
   clearAnnotations: function(idtype, id, callback) {
-    annotationModel.find({where: { idtype: idtype, typeid: id }},function(err,oldAnnotations) {
+    //console.log('dataaccess.caminte.js::clearAnnotations - idtype', idtype, 'id', id)
+    annotationModel.remove({where: { idtype: idtype, typeid: id }}, function(err, oldAnnotations) {
+      if (callback) {
+        callback();
+      }
+    })
+    /*
+    annotationModel.find({where: { idtype: idtype, typeid: id }}, function(err, oldAnnotations) {
       for(var i in oldAnnotations) {
         var oldNote=oldAnnotations[i];
         // causes TypeError: Cannot read property 'constructor' of null
@@ -2711,6 +2800,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
         callback();
       }
     });
+    */
   },
   getAnnotations: function(idtype, id, callback) {
     // Todo: implement this.next calling
@@ -2726,6 +2816,13 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   updateUserCounts: function(userid, callback) {
     var ref=this;
     userModel.findById(userid, function(err, user) {
+      if (!user) {
+        console.log('updateUserCounts no user', user, 'for id', userid);
+        if (callback) {
+          callback();
+        }
+        return;
+      }
       // this may only return up to 20, we'll need to set count=-1
       postModel.count({ where: { userid: userid } }, function(err, postCount) {
         if (err) console.error('updateUserCounts - posts:', err);
