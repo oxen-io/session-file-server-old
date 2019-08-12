@@ -480,6 +480,14 @@ module.exports = {
       callback(null, null);
     }
   },
+  getSubscription: function(channel_id, user_id, callback) {
+    if (this.next) {
+      this.next.getSubscription(channel_id, user_id, callback);
+    } else {
+      console.log('dataaccess.base.js::getSubscription - write me!');
+      callback(null, null);
+    }
+  },
   getUserSubscriptions: function(userid, params, callback) {
     if (this.next) {
       this.next.getUserSubscriptions(userid, params, callback);
