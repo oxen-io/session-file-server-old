@@ -2849,6 +2849,10 @@ module.exports = {
     // function(userid, client_id, scopes, token, callback)
     this.cache.addAPIUserToken(userid, client_id, scopes, token, callback);
   },
+  createOrFindToken: function(userid, client_id, scopes, token, callback) {
+    // function(userid, client_id, scopes, token, callback)
+    this.cache.createOrFindUserToken(userid, client_id, scopes, token, callback);
+  },
   setUpstreamToken: function(userid, token, scopes, callback) {
     this.cache.setUpstreamUserToken(userid, token, scopes, callback);
   },
