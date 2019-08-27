@@ -89,6 +89,35 @@ module.exports = {
     }
   },
   /*
+   * user mutes
+   */
+  getMutes: function(userid, params, callback) {
+    if (this.next) {
+      this.next.getMutes(userid, params, callback);
+    } else {
+      console.log('dataaccess.base.js::getMutes - write me!');
+      callback(null, null);
+    }
+  },
+  addMute: function(userid, muteeid, params, callback) {
+    console.log('dataaccess.base::addMute', muteeid, 'for', userid, typeof(callback));
+    if (this.next) {
+      this.next.addMute(userid, muteeid, params, callback);
+    } else {
+      console.log('dataaccess.base.js::addMute - write me!');
+      callback(null, null);
+    }
+  },
+  delMute: function(userid, muteeid, params, callback) {
+    console.log('dataaccess.base::delMute', muteeid, 'for', userid, typeof(callback));
+    if (this.next) {
+      this.next.delMute(userid, muteeid, params, callback);
+    } else {
+      console.log('dataaccess.base.js::delMute - write me!');
+      callback(null, null);
+    }
+  },
+  /*
    * oauth local app / callbacks
    */
   getAppCallbacks: function(client_id, client_secret, callback) {
@@ -96,6 +125,30 @@ module.exports = {
       this.next.getAppCallbacks(client_id, client_secret, callback);
     } else {
       console.log('dataaccess.base.js::getAppCallbacks - write me!');
+      callback(null, null);
+    }
+  },
+  createSession: function(client_id, redirect_uri, response_type, requested_scopes, state, callback) {
+    if (this.next) {
+      this.next.createSession(client_id, redirect_uri, response_type, requested_scopes, state, callback);
+    } else {
+      console.log('dataaccess.base.js::createSession - write me!');
+      callback(null, null);
+    }
+  },
+  authSession: function(code, userid, username, upstream_token, localToken, callback) {
+    if (this.next) {
+      this.next.authSession(code, userid, username, upstream_token, localToken, callback);
+    } else {
+      console.log('dataaccess.base.js::authSession - write me!');
+      callback(null, null);
+    }
+  },
+  getSessionByCode: function(code, callback) {
+    if (this.next) {
+      this.next.getSessionByCode(code, callback);
+    } else {
+      console.log('dataaccess.base.js::getSessionByCode - write me!');
       callback(null, null);
     }
   },
@@ -109,6 +162,14 @@ module.exports = {
       this.next.addAPIUserToken(userid, client_id, scopes, token, callback);
     } else {
       console.log('dataaccess.base.js::addAPIUserToken - write me!');
+      callback(null, null);
+    }
+  },
+  createOrFindUserToken: function(userid, client_id, scopes, callback) {
+    if (this.next) {
+      this.next.createOrFindUserToken(userid, client_id, scopes, callback);
+    } else {
+      console.log('dataaccess.base.js::createOrFindUserToken - write me!');
       callback(null, null);
     }
   },
@@ -136,6 +197,41 @@ module.exports = {
       this.next.setUpstreamUserToken(userid, token, scopes, upstreamUserId, callback);
     } else {
       console.log('dataaccess.base.js::setUpstreamUserToken - write me!');
+      callback(null, null);
+    }
+  },
+  delUpstreamUserToken: function(token) {
+    if (this.next) {
+      this.next.delUpstreamUserToken(token);
+    } else {
+      console.log('dataaccess.base.js::delUpstreamUserToken - write me!');
+      callback(null, null);
+    }
+  },
+  getUpstreamUserToken: function(userid, callback) {
+    if (this.next) {
+      this.next.getUpstreamUserToken(userid, callback);
+    } else {
+      console.log('dataaccess.base.js::getUpstreamUserToken - write me!');
+      callback(null, null);
+    }
+  },
+  /*
+   * stream markers
+   */
+  getStreamMarker: function(userid, name, callback) {
+    if (this.next) {
+      this.next.getStreamMarker(userid, name, callback);
+    } else {
+      console.log('dataaccess.base.js::getStreamMarker - write me!');
+      callback(null, null);
+    }
+  },
+  setStreamMarker: function(userid, name, id, percentage, params, callback) {
+    if (this.next) {
+      this.next.setStreamMarker(userid, name, id, percentage, params, callback);
+    } else {
+      console.log('dataaccess.base.js::setStreamMarker - write me!');
       callback(null, null);
     }
   },
@@ -212,6 +308,54 @@ module.exports = {
   },
   getUpstreamClientToken: function() {
     console.log('dataaccess.base.js::getUpstreamClientToken - write me!');
+  },
+  findOrCreateUserStream: function(connectionId, tokenId, userId, autoDelete, callback) {
+    if (this.next) {
+      this.next.findOrCreateUserStream(connectionId, tokenId, userId, autoDelete, callback);
+    } else {
+      console.log('dataaccess.base.js::findOrCreateUserStream - write me!');
+      callback(null, null, null);
+    }
+  },
+  findOrCreateUserSubscription: function(connectionNumId, stream, params, callback) {
+    if (this.next) {
+      this.next.findOrCreateUserSubscription(connectionNumId, stream, params, callback);
+    } else {
+      console.log('dataaccess.base.js::findOrCreateUserSubscription - write me!');
+      callback(null, null, null);
+    }
+  },
+  userStreamUpdate: function(connectionId, update, callback) {
+    if (this.next) {
+      this.next.userStreamUpdate(connectionId, update, callback);
+    } else {
+      console.log('dataaccess.base.js::userStreamUpdate - write me!');
+      callback(null, null, null);
+    }
+  },
+  deleteUserStream: function(connectionNumId, callback) {
+    if (this.next) {
+      this.next.deleteUserStream(connectionNumId, callback);
+    } else {
+      console.log('dataaccess.base.js::deleteUserStream - write me!');
+      callback(null, null, null);
+    }
+  },
+  getUserStream: function(connectionNumId, callback) {
+    if (this.next) {
+      this.next.getUserStream(connectionNumId, callback);
+    } else {
+      console.log('dataaccess.base.js::getUserStream - write me!');
+      callback(null, null, null);
+    }
+  },
+  getAllUserStreams: function(callback) {
+    if (this.next) {
+      this.next.getAllUserStreams(callback);
+    } else {
+      console.log('dataaccess.base.js::getAllUserStreams - write me!');
+      callback(null, null, null);
+    }
   },
   /** user stream */
   /** app stream */
@@ -307,11 +451,11 @@ module.exports = {
       callback(null, null);
     }
   },
-  getUserStream: function(user, params, token, callback) {
+  getUserPostStream: function(user, params, token, callback) {
     if (this.next) {
-      this.next.getUserStream(user, params, token, callback);
+      this.next.getUserPostStream(user, params, token, callback);
     } else {
-      console.log('dataaccess.base.js::getUserStream - write me!');
+      console.log('dataaccess.base.js::getUserPostStream - write me!');
       callback(null, null);
     }
   },
@@ -407,6 +551,22 @@ module.exports = {
       callback(null, null);
     }
   },
+  searchChannels: function(query, params, callback) {
+    if (this.next) {
+      this.next.searchChannels(query, params, callback);
+    } else {
+      console.log('dataaccess.base.js::searchChannels - write me!');
+      callback(null, null);
+    }
+  },
+  getUserChannels: function(userid, params, callback) {
+    if (this.next) {
+      this.next.getUserChannels(userid, params, callback);
+    } else {
+      console.log('dataaccess.base.js::getUserChannels - write me!');
+      callback(null, null);
+    }
+  },
   getPMChannel: function(group, callback) {
     if (this.next) {
       this.next.getPMChannel(group, callback);
@@ -429,6 +589,14 @@ module.exports = {
       this.next.addMessage(msg, callback);
     } else {
       console.log('dataaccess.base.js::addMessage - write me!');
+      callback(null, null);
+    }
+  },
+  deleteMessage: function (message_id, callback) {
+    if (this.next) {
+      this.next.deleteMessage(message_id, callback);
+    } else {
+      console.log('dataaccess.base.js::deleteMessage - write me!');
       callback(null, null);
     }
   },
