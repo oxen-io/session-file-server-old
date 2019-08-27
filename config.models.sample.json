@@ -1,31 +1,22 @@
 {
+  "default": {
+    "comment": "memory, mysql, redis, sqlite3, postgres",
+    "type": "memory",
+    "options": {
+      "comment": "port, database, host, username, password"
+    }
+  },
   "authModel": {
     "version": 0,
-    "type": "redis",
-    "options": {
-      "port": 6379
-    }
   },
   "tokenModel": {
     "version": 0,
-    "type": "redis",
-    "options": {
-      "port": 6379
-    }
   },
   "rateModel": {
     "version": 0,
-    "type": "redis",
-    "options": {
-      "port": 6379
-    }
   },
   "dataModel": {
     "version": 0,
-    "type": "redis",
-    "options": {
-      "port": 6379
-    },
     "switches": {
       "storeHTML": true,
       "storeEntity": true
