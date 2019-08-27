@@ -7,8 +7,6 @@
  * http://www.camintejs.com / https://github.com/biggora/caminte
  * @type {Object}
  */
-var Schema = require('caminte').Schema;
-var request = require('request');
 
 // caminte can support:  mysql, sqlite3, riak, postgres, couchdb, mongodb, redis, neo4j, firebird, rethinkdb, tingodb
 // however AltAPI will officially support: sqlite, Redis or MySQL for long term storage
@@ -27,482 +25,547 @@ var request = require('request');
 // memory mode is only good for dev, after buckets get big the API stops responding
 // in sqlite3 mode, 50mb of diskspace holds 3736U 1582F 15437P 0C 0M 0s 175i 14239a 29922e
 
-// set up the (eventually configureable) model pools
-// 6379 is default redis port number
-/** schema data backend type */
-var schemaDataType = 'mysql';
-/** set up where we're storing the "network data" */
-var configData = { database: '', host: '', username: '', password: '' };
-var schemaData = new Schema(schemaDataType, configData); //port number depends on your configuration
-/** set up where we're storing the tokens */
-var configToken = { database: '', host: '', username: '', password: '' }
-var schemaToken = new Schema(schemaDataType, configToken); //port number depends on your configuration
+var Schema = require('caminte').Schema;
+//var request = require('request');
 
-if (schemaDataType==='mysql') {
-  //console.log('MySQL is active');
-  //charset: "utf8_general_ci"
-  // run a query "set names utf8"
-  schemaData.client.changeUser({ charset: 'utf8mb4' }, function(err) {
-    if (err) console.error('Couldnt set UTF8mb4', err);
-    //console.log('Set charset to utf8mb4 on Data');
+var upstreamUserTokenModel, localUserTokenModel, oauthAppModel, clientModel,
+userModel, postModel, entityModel, annotationModel, annotationValuesModel,
+channelModel, messageModel, subscriptionModel, followModel, interactionModel,
+starModel, noticeModel, fileModel, streamMarkersModel, emptyModel,
+appStreamModel, userStreamModel, userStreamSubscriptionModel, sessionModel;
+
+// set up the configureable model pools
+function start(nconf) {
+  // 6379 is default redis port number
+
+  // reconfigure path
+
+  /** schema data backend type */
+  var defaultSchemaType = nconf.get('database:default:type') || 'memory';
+  var defaultOptions = nconf.get('database:default:options');
+  //console.log('default type', defaultSchemaType)
+
+  /** set up where we're storing the "network data" */
+  var configData = nconf.get('database:tokenModel:options') || defaultOptions;
+  var schemaDataType = nconf.get('database:tokenModel:type') || defaultSchemaType;
+  //console.log('configuring data', configData)
+  var schemaData = new Schema(schemaDataType, configData);
+
+  /** set up where we're storing the tokens */
+  var configToken = nconf.get('database:dataModel:options') || defaultOptions;
+  var schemaTokenType = nconf.get('database:tokenModel:type') || defaultSchemaType;
+  //console.log('configuring token', configData)
+  var schemaToken = new Schema(schemaTokenType, configToken);
+
+  if (schemaDataType==='mysql') {
+    //console.log('MySQL is active');
+    //charset: "utf8_general_ci" / utf8mb4_general_ci
+    // run a query "set names utf8"
+    schemaData.client.changeUser({ charset: 'utf8mb4' }, function(err) {
+      if (err) console.error('Couldnt set UTF8mb4', err);
+      //console.log('Set charset to utf8mb4 on Data');
+    });
+    schemaToken.client.changeUser({ charset: 'utf8mb4' }, function(err) {
+      if (err) console.error('Couldnt set UTF8mb4', err);
+      //console.log('Set charset to utf8mb4 on Token');
+    });
+
+    // to enable emojis we need to run these
+    // alter table post MODIFY `text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+    // alter table post MODIFY `post` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+    // alter table message MODIFY `text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+    // alter table message MODIFY `post` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+  }
+
+  // Auth models and accessors can be moved into own file?
+  // so that routes.* can access them separately from everything!
+
+  // NOTE: all models automically have a default 'id' field that's an AutoIncrement
+
+  /**
+   * Token Models
+   */
+
+  /** upstreamUserToken storage model */
+  upstreamUserTokenModel = schemaToken.define('upstreamUserToken', {
+    userid: { type: Number, index: true },
+    /** comma separate list of scopes. Available scopes:
+      'basic','stream','write_post','follow','update_profile','public_messages','messages','files' */
+    scopes: { type: String, length: 255 },
+    token: { type: String, length: 98, index: true },
   });
-  schemaToken.client.changeUser({ charset: 'utf8mb4' }, function(err) {
-    if (err) console.error('Couldnt set UTF8mb4', err);
-    //console.log('Set charset to utf8mb4 on Token');
+  // scopes 'public_messages','messages','files':*
+  // but we can be multiple, not just one...
+  //localUserTokenModel.validatesInclusionOf('scopes', { in: ['basic','stream','write_post','follow','update_profile','public_messages','messages','files']});
+  upstreamUserTokenModel.validatesUniquenessOf('token', { message:'token is not unique'});
+
+  // localTokens
+  // we could add created_at,updated_at,last_used
+  // move out scopes to grant and link to grants
+  localUserTokenModel = schemaToken.define('localUserToken', {
+    userid: { type: Number, index: true },
+    token: { type: String, length: 98, index: true },
+    client_id: { type: String, length: 32, index: true },
+    /** comma separate list of scopes. Available scopes:
+      'basic','stream','write_post','follow','update_profile','public_messages','messages','files' */
+    scopes: { type: String, length: 255 },
+    created_at: { type: Date },
+    expires_at: { type: Date },
   });
-}
+  //  code: { type: String, length: 255 },
+  //  grantid: { type: Number, index: true },
+  // scopes 'public_messages','messages','files':*
+  // but we can be multiple, not just one...
+  //localUserTokenModel.validatesInclusionOf('scopes', { in: ['basic','stream','write_post','follow','update_profile','public_messages','messages','files']});
+  // token, client_id are unique
+  //localUserTokenModel.validatesUniquenessOf('token', { message:'token is not unique'});
 
-// Auth models and accessors can be moved into own file?
-// so that routes.* can access them separately from everything!
-
-// NOTE: all models automically have a default 'id' field that's an AutoIncrement
-
-/**
- * Token Models
- */
-
-/** upstreamUserToken storage model */
-var upstreamUserTokenModel = schemaToken.define('upstreamUserToken', {
-  userid: { type: Number, index: true },
-  /** comma separate list of scopes. Available scopes:
-    'basic','stream','write_post','follow','update_profile','public_messages','messages','files' */
-  scopes: { type: String, length: 255 },
-  token: { type: String, length: 98, index: true },
-});
-// scopes 'public_messages','messages','files':*
-// but we can be multiple, not just one...
-//localUserTokenModel.validatesInclusionOf('scopes', { in: ['basic','stream','write_post','follow','update_profile','public_messages','messages','files']});
-upstreamUserTokenModel.validatesUniquenessOf('token', { message:'token is not unique'});
-
-// localTokens
-// we could add created_at,updated_at,last_used
-// move out scopes to grant and link to grants
-var localUserTokenModel = schemaToken.define('localUserToken', {
-  userid: { type: Number, index: true },
-  token: { type: String, length: 98, index: true },
-  client_id: { type: String, length: 32, index: true },
-  /** comma separate list of scopes. Available scopes:
-    'basic','stream','write_post','follow','update_profile','public_messages','messages','files' */
-  scopes: { type: String, length: 255 },
-});
-//  code: { type: String, length: 255 },
-//  grantid: { type: Number, index: true },
-// scopes 'public_messages','messages','files':*
-// but we can be multiple, not just one...
-//localUserTokenModel.validatesInclusionOf('scopes', { in: ['basic','stream','write_post','follow','update_profile','public_messages','messages','files']});
-// token, client_id are unique
-//localUserTokenModel.validatesUniquenessOf('token', { message:'token is not unique'});
-
-// local apps
-// dupcliation of clientModel
-var oauthAppModel = schemaToken.define('oauthApp', {
-  //accountid: { type: Number, index: true },
-  client_id: { type: String, length: 32, index: true },
-  secret: { type: String, length: 255 },
-  shortname: { type: String, length: 255 },
-  displayname: { type: String, length: 255 },
-  token: { type: String, length: 255 } // app token
-});
-// authorized local app callbacks
-var oauthCallbackModel = schemaToken.define('oauthCallback', {
-  appid: { type: Number, index: true }, // deprecated
-  clientid: { type: Number, index: true },
-  url: { type: String, length: 255 }
-});
-// I think it's better we have a combined table (localUserToken)
-// we could put "code" into the localUserTokenModel
-// because we're not going to have more than one token per user
-/*
-// local app grants (could replace session?)
-var oauthGrantModel = schemaToken.define('oauthGrant', {
-  appid: { type: Number, index: true },
-  scope: { type: String, length: 255 },
-  userid: { type: Number, index: true },
-  code: { type: String, length: 255 },
-});
-*/
-// well localUserToken is a combo of grants and tokens
+  // local apps
+  // dupcliation of clientModel
+  oauthAppModel = schemaToken.define('oauthApp', {
+    //accountid: { type: Number, index: true },
+    client_id: { type: String, length: 32, index: true },
+    secret: { type: String, length: 255 },
+    shortname: { type: String, length: 255 },
+    displayname: { type: String, length: 255 },
+    token: { type: String, length: 255 } // app token
+  });
+  // authorized local app callbacks
+  oauthCallbackModel = schemaToken.define('oauthCallback', {
+    appid: { type: Number, index: true }, // deprecated
+    clientid: { type: Number, index: true },
+    url: { type: String, length: 255 }
+  });
+  // I think it's better we have a combined table (localUserToken)
+  // we could put "code" into the localUserTokenModel
+  // because we're not going to have more than one token per user
+  /*
+  // local app grants (could replace session?)
+  var oauthGrantModel = schemaToken.define('oauthGrant', {
+    appid: { type: Number, index: true },
+    scope: { type: String, length: 255 },
+    userid: { type: Number, index: true },
+    code: { type: String, length: 255 },
+  });
+  */
+  // well localUserToken is a combo of grants and tokens
 
 
-// DEPRECATE UserTokenModel, it became localUserToken
+  // DEPRECATE UserTokenModel, it became localUserToken
 
-/** appToken storage model */
-// let's only have one app_token per client (app)
-/*
-var appTokenModel = schemaToken.define('appToken', {
-  client_id: { type: String, length: 32 },
-  token: { type: String, lenghh: 98 },
-});
-appTokenModel.validatesUniquenessOf('token', {message:'token is not unique'});
-*/
+  /** appToken storage model */
+  // let's only have one app_token per client (app)
+  /*
+  var appTokenModel = schemaToken.define('appToken', {
+    client_id: { type: String, length: 32 },
+    token: { type: String, lenghh: 98 },
+  });
+  appTokenModel.validatesUniquenessOf('token', {message:'token is not unique'});
+  */
 
-/**
- * Network Data Models
- */
+  /**
+   * Network Data Models
+   */
 
-// this data needs to not use internal Pks
-// I'd like to be able to copy random tables from one server to another
-// to help bootstrap caches
+  // this data needs to not use internal Pks
+  // I'd like to be able to copy random tables from one server to another
+  // to help bootstrap caches
 
-// local clients (upstream is set in config and we can only have one upstream)
-/** client storage model */
-var clientModel = schemaData.define('client', {
-  client_id: { type: String, limit: 32, index: true }, // probably should be client_id
-  secret: { type: String, limit: 32 },
-  userid: { type: Number },
-  name: { type: String, limit: 255 },
-  link: { type: String, limit: 255 },
-  accountid: { type: Number, index: true },
-});
-/*
-  client_id: { type: String, length: 32, index: true },
-  secret: { type: String, length: 255 },
+  // local clients (upstream is set in config and we can only have one upstream)
+  /** client storage model */
+  clientModel = schemaData.define('client', {
+    client_id: { type: String, limit: 32, index: true }, // probably should be client_id
+    secret: { type: String, limit: 32 },
+    userid: { type: Number },
+    name: { type: String, limit: 255 },
+    link: { type: String, limit: 255 },
+    accountid: { type: Number, index: true },
+  });
+  /*
+    client_id: { type: String, length: 32, index: true },
+    secret: { type: String, length: 255 },
 
-  shortname: { type: String, length: 255 },
-  displayname: { type: String, length: 255 },
-*/
-clientModel.validatesUniquenessOf('client_id', {message:'client_id is not unique'});
+    shortname: { type: String, length: 255 },
+    displayname: { type: String, length: 255 },
+  */
+  clientModel.validatesUniquenessOf('client_id', {message:'client_id is not unique'});
 
-/** user storage model */
-var userModel = schemaData.define('user', {
-  /* API START */
-  username: { type: String, length: 21, index: true },
-  name: { type: String, length: 50 },
-  description: { type: schemaData.Text },
-  descriptionhtml: { type: schemaData.Text }, /* cache */
-  created_at: { type: Date },
-  timezone: { type: String, length: 64 },
-  // maybe remove this?
-  locale: { type: String, length: 16 },
-  // this will need to change, so we can support multiples?
-  avatar_image: { type: String, length: 255 },
-  avatar_width: { type: Number } ,
-  avatar_height: { type: Number } ,
-  cover_image: { type: String, length: 255 },
-  cover_width: { type: Number } ,
-  cover_height: { type: Number } ,
-  // is_default?
-  following: { type: Number, default: 0 }, /* cache */
-  followers: { type: Number, default: 0 }, /* cache */
-  posts: { type: Number, default: 0 }, /* cache */
-  stars: { type: Number, default: 0 }, /* cache */
-  deleted: { type: Date },
-  type: { type: String, length: 32 },
-  canonical_url: { type: String, length: 255 },
-  verified_domain: { type: String, length: 255 },
-  verified_link: { type: String, length: 255 },
-  /* API END */
-  last_updated: { type: Date },
-  stars_updated: { type: Date },
-  language: { type: String, length: 2 },
-  country: { type: String, length: 2 },
-});
-userModel.validatesUniquenessOf('username', {message:'username is not unique'});
+  /** user storage model */
+  userModel = schemaData.define('user', {
+    /* API START */
+    username: { type: String, length: 21, index: true },
+    name: { type: String, length: 50 },
+    description: { type: schemaData.Text },
+    descriptionhtml: { type: schemaData.Text }, /* cache */
+    created_at: { type: Date },
+    timezone: { type: String, length: 64 },
+    // maybe remove this?
+    locale: { type: String, length: 16 },
+    // this will need to change, so we can support multiples?
+    avatar_image: { type: String, length: 255 },
+    avatar_width: { type: Number } ,
+    avatar_height: { type: Number } ,
+    cover_image: { type: String, length: 255 },
+    cover_width: { type: Number } ,
+    cover_height: { type: Number } ,
+    // is_default?
+    following: { type: Number, default: 0 }, /* cache */
+    followers: { type: Number, default: 0 }, /* cache */
+    posts: { type: Number, default: 0 }, /* cache */
+    stars: { type: Number, default: 0 }, /* cache */
+    deleted: { type: Date },
+    type: { type: String, length: 32 },
+    canonical_url: { type: String, length: 255 },
+    verified_domain: { type: String, length: 255 },
+    verified_link: { type: String, length: 255 },
+    /* API END */
+    last_updated: { type: Date },
+    stars_updated: { type: Date },
+    language: { type: String, length: 2 },
+    country: { type: String, length: 2 },
+  });
+  userModel.validatesUniquenessOf('username', {message:'username is not unique'});
 
-var muteModel = schemaData.define('mute', {
-  userid: { type: Number, index: true },
-  muteeid: { type: Number }
-});
+  muteModel = schemaData.define('mute', {
+    userid: { type: Number, index: true },
+    muteeid: { type: Number }
+  });
 
-/** post storage model
- * @constructs postModel
- */
-var postModel = schemaData.define('post',
-  /** @lends postModel */
-  {
-  /** id of user */
-  userid: { type: Number, index: true },
-  /** text of post */
-  text: { type: schemaData.Text },
-  /** html of post */
-  html: { type: schemaData.Text }, /* cache */
-  /** post flagged as machine_only
-   * @type boolean */
-  machine_only: { type: Boolean, default: false, index: true },
-  /** id of post that it's a reply to
-   * @type {postid} */
-  reply_to: { type: Number }, // kind of want to index this
-  /** root id of post all replies are children of
-   * @type {postid} */
-  thread_id: { type: Number, index: true },
-  /** post flagged as deleted
-   * @type boolean */
-  is_deleted: { type: Boolean, default: false, index: true },
-  /** date/time post was created at
-   * @type Date */
-  created_at: { type: Date },
-  /** apparently we're string the client_id string here, may want an id here in the future */
-  client_id: { type: String, length: 32, index: true },
-  /** id of post it is a repost of
-   * @type {postid} */
-  repost_of: { type: Number, default: 0, index: true },
-  /** posts.app.net url */
-  canonical_url: { type: String },
-  /** num of replies */
-  num_replies: { type: Number, default: 0 },
-  /** num of reposts */
-  num_reposts: { type: Number, default: 0 },
-  /** num of stars */
-  num_stars: { type: Number, default: 0 }
-});
+  /** post storage model
+   * @constructs postModel
+   */
+  postModel = schemaData.define('post',
+    /** @lends postModel */
+    {
+    /** id of user */
+    userid: { type: Number, index: true },
+    /** text of post */
+    text: { type: schemaData.Text },
+    /** html of post */
+    html: { type: schemaData.Text }, /* cache */
+    /** post flagged as machine_only
+     * @type boolean */
+    machine_only: { type: Boolean, default: false, index: true },
+    /** id of post that it's a reply to
+     * @type {postid} */
+    reply_to: { type: Number }, // kind of want to index this
+    /** root id of post all replies are children of
+     * @type {postid} */
+    thread_id: { type: Number, index: true },
+    /** post flagged as deleted
+     * @type boolean */
+    is_deleted: { type: Boolean, default: false, index: true },
+    /** date/time post was created at
+     * @type Date */
+    created_at: { type: Date },
+    /** apparently we're string the client_id string here, may want an id here in the future */
+    client_id: { type: String, length: 32, index: true },
+    /** id of post it is a repost of
+     * @type {postid} */
+    repost_of: { type: Number, default: 0, index: true },
+    /** posts.app.net url */
+    canonical_url: { type: String },
+    /** num of replies */
+    num_replies: { type: Number, default: 0 },
+    /** num of reposts */
+    num_reposts: { type: Number, default: 0 },
+    /** num of stars */
+    num_stars: { type: Number, default: 0 }
+  });
 
-// total cache table (since I think we can extract from text),
-// we'll have an option to omitted its use
-// though we need it for hashtag look ups
-/** entity storage model */
-var entityModel = schemaData.define('entity', {
-  idtype: { type: String, length: 16, index: true }, // user, post, channel, message
-  typeid: { type: Number, index: true }, // causing problems?
-  type: { type: String, length: 16, index: true }, // link, hashtag, mention
-  pos: { type: Number },
-  len: { type: Number },
-  text: { type: String, length: 255, index: true }, // hashtag is stored here
-  alt: { type: String, length: 255, index: true },
-  altnum: { type: Number },
-});
+  // total cache table (since I think we can extract from text),
+  // we'll have an option to omitted its use
+  // though we need it for hashtag look ups
+  /** entity storage model */
+  entityModel = schemaData.define('entity', {
+    idtype: { type: String, length: 16, index: true }, // user, post, channel, message
+    typeid: { type: Number, index: true }, // causing problems?
+    type: { type: String, length: 16, index: true }, // link, hashtag, mention
+    pos: { type: Number },
+    len: { type: Number },
+    text: { type: String, length: 255, index: true }, // hashtag is stored here
+    alt: { type: String, length: 255, index: true },
+    altnum: { type: Number },
+  });
 
-/** annotation storage model */
-var annotationModel = schemaData.define('annotation', {
-  idtype: { type: String, index: true }, // user, post, channel, message
-  typeid: { type: Number, index: true }, // causing problems?
-  type: { type: String, length: 255, index: true },
-  value:  { type: schemaData.JSON },
-});
+  /** annotation storage model */
+  annotationModel = schemaData.define('annotation', {
+    idtype: { type: String, index: true }, // user, post, channel, message
+    typeid: { type: Number, index: true }, // causing problems?
+    type: { type: String, length: 255, index: true },
+    value:  { type: schemaData.JSON },
+  });
 
-// maybe not needed with JSON type
-/** annotation values storage model */
-var annotationValuesModel = schemaData.define('annotationvalues', {
-  annotationid: { type: Number, index: true },
-  key: { type: String, length: 255, index: true },
-  value: { type: schemaData.Text }, // kind of want to index this
-  memberof: { type: Number, index: true }
-});
+  // maybe not needed with JSON type
+  /** annotation values storage model */
+  annotationValuesModel = schemaData.define('annotationvalues', {
+    annotationid: { type: Number, index: true },
+    key: { type: String, length: 255, index: true },
+    value: { type: schemaData.Text }, // kind of want to index this
+    memberof: { type: Number, index: true }
+  });
 
-// inactive?
-/** channel storage model */
-var channelModel = schemaData.define('channel', {
-  ownerid: { type: Number, index: true },
-  type: { type: String, length: 255, index: true },
-  reader: { type: Number }, // 0=public,1=loggedin,2=selective
-  writer: { type: Number }, // 1=loggedin,2=selective
-  // editors are always seletcive
-  readedit: { type: Boolean, default: true }, // immutable?
-  writeedit: { type: Boolean, default: true }, // immutable?
-  editedit: { type: Boolean, default: true }, // immutable?
-  // could be store as json, since we're parsing either way...
-  readers: { type: schemaData.Text }, // comma separate list
-  // can't index because text (, index: true)
-  writers: { type: schemaData.Text }, // comma separate list (need index for PM channel lookup)
-  editors: { type: schemaData.Text }, // comma separate list
-  created_at: { type: Date }, // created_at isn't in the API
-  inactive: { type: Date }, // date made inactive
-  last_updated: { type: Date },
-});
+  // inactive?
+  /** channel storage model */
+  channelModel = schemaData.define('channel', {
+    ownerid: { type: Number, index: true },
+    type: { type: String, length: 255, index: true },
+    reader: { type: Number }, // 0=public,1=loggedin,2=selective
+    writer: { type: Number }, // 1=loggedin,2=selective
+    // editors are always seletcive
+    readedit: { type: Boolean, default: true }, // immutable?
+    writeedit: { type: Boolean, default: true }, // immutable?
+    editedit: { type: Boolean, default: true }, // immutable?
+    // could be store as json, since we're parsing either way...
+    readers: { type: schemaData.Text }, // comma separate list
+    // can't index because text (, index: true)
+    writers: { type: schemaData.Text }, // comma separate list (need index for PM channel lookup)
+    editors: { type: schemaData.Text }, // comma separate list
+    created_at: { type: Date }, // created_at isn't in the API
+    inactive: { type: Date }, // date made inactive
+    last_updated: { type: Date },
+  });
 
-/** message storage model */
-var messageModel = schemaData.define('message', {
-  channel_id: { type: Number, index: true },
-  html: { type: schemaData.Text }, /* cache */
-  text: { type: schemaData.Text },
-  machine_only: { type: Boolean, index: true },
-  client_id: { type: String, length: 32 },
-  thread_id: { type: Number, index: true },
-  userid: { type: Number, index: true },
-  reply_to: { type: Number }, // kind of want to index this
-  is_deleted: { type: Boolean, index: true },
-  created_at: { type: Date },
-});
+  /** message storage model */
+  messageModel = schemaData.define('message', {
+    channel_id: { type: Number, index: true },
+    html: { type: schemaData.Text }, /* cache */
+    text: { type: schemaData.Text },
+    machine_only: { type: Boolean, index: true },
+    client_id: { type: String, length: 32 },
+    thread_id: { type: Number, index: true },
+    userid: { type: Number, index: true },
+    reply_to: { type: Number }, // kind of want to index this
+    is_deleted: { type: Boolean, index: true },
+    created_at: { type: Date },
+  });
 
-/** subscription storage model */
-var subscriptionModel = schemaData.define('subscriptions', {
-  channelid: { type: Number, index: true },
-  userid: { type: Number, index: true },
-  created_at: { type: Date },
-  active: { type: Boolean, index: true },
-  last_updated: { type: Date },
-});
+  /** subscription storage model */
+  subscriptionModel = schemaData.define('subscriptions', {
+    channelid: { type: Number, index: true },
+    userid: { type: Number, index: true },
+    created_at: { type: Date },
+    active: { type: Boolean, index: true },
+    last_updated: { type: Date },
+  });
 
-/** follow storage model */
-var followModel = schemaData.define('follow', {
-  userid: { type: Number, index: true },
-  followsid: { type: Number, index: true }, // maybe not index this
-  active: { type: Boolean, index: true },
-  // aka pagenationid, we'll need this for meta.id too
-  referenceid: { type: Number, index: true }, // this only exists in meta.id and is required for deletes for app streaming
-  created_at: { type: Date }, // or this
-  last_updated: { type: Date },
-});
+  /** follow storage model */
+  followModel = schemaData.define('follow', {
+    userid: { type: Number, index: true },
+    followsid: { type: Number, index: true }, // maybe not index this
+    active: { type: Boolean, index: true },
+    // aka pagenationid, we'll need this for meta.id too
+    referenceid: { type: Number, index: true }, // this only exists in meta.id and is required for deletes for app streaming
+    created_at: { type: Date }, // or this
+    last_updated: { type: Date },
+  });
 
-// split up?
-// we don't need reposts here becauses have all that info with a repost_of column
-// since an entire post is created on repost
-// though repost could also write here in the future, making it easier to pull
-// stars are recorded only here
-/** interaction storage model */
-var interactionModel = schemaData.define('interaction', {
-  userid: { type: Number, index: true },
-  type: { type: String, length: 8, index: true }, // star,unstar,repost,unrepost
-  datetime: { type: Date },
-  idtype: { type: String, index: true }, // post (what about chnl,msg,user? not for existing types)
-  typeid: { type: Number, index: true }, // causing problems?
-  asthisid: { type: Number } // meta.id
-});
+  // split up?
+  // we don't need reposts here becauses have all that info with a repost_of column
+  // since an entire post is created on repost
+  // though repost could also write here in the future, making it easier to pull
+  // stars are recorded only here
+  /** interaction storage model */
+  interactionModel = schemaData.define('interaction', {
+    userid: { type: Number, index: true },
+    type: { type: String, length: 8, index: true }, // star,unstar,repost,unrepost
+    datetime: { type: Date },
+    idtype: { type: String, index: true }, // post (what about chnl,msg,user? not for existing types)
+    typeid: { type: Number, index: true }, // causing problems?
+    asthisid: { type: Number } // meta.id
+  });
 
-/** star storage model */
-// not currently used
-var starModel = schemaData.define('star', {
-  userid: { type: Number, index: true },
-  created_at: { type: Date },
-  postid: { type: Number, index: true },
-  // I don't think we need soft delets for fars
-  //is_deleted: { type: Boolean, default: false, index: true },
-});
+  /** star storage model */
+  // not currently used
+  starModel = schemaData.define('star', {
+    userid: { type: Number, index: true },
+    created_at: { type: Date },
+    postid: { type: Number, index: true },
+    // I don't think we need soft delets for fars
+    //is_deleted: { type: Boolean, default: false, index: true },
+  });
 
-// intermediate cache table for querying (a view of interactionModel)
-// we have to denormalize this for performance
-// takes more memory/storage but required if you want responsive interactions
-var noticeModel = schemaData.define('notice', {
-  event_date: { type: Date, index: true },
-  notifyuserid: { type: Number, index: true }, // who should be notified
-  actionuserid: { type: Number }, // who took an action (star)
-  type: { type: String, length: 18 }, // welcome,star,repost,reply,follow,broadcast_create,broadcast_subscribe,broadcast_unsubscribe
-  typeid: { type: Number }, // postid(star,respot,reply),userid(follow)
-  altnum: { type: Number }, // postid(star,respot,reply),userid(follow)
-});
+  // intermediate cache table for querying (a view of interactionModel)
+  // we have to denormalize this for performance
+  // takes more memory/storage but required if you want responsive interactions
+  noticeModel = schemaData.define('notice', {
+    event_date: { type: Date, index: true },
+    notifyuserid: { type: Number, index: true }, // who should be notified
+    actionuserid: { type: Number }, // who took an action (star)
+    type: { type: String, length: 18 }, // welcome,star,repost,reply,follow,broadcast_create,broadcast_subscribe,broadcast_unsubscribe
+    typeid: { type: Number }, // postid(star,respot,reply),userid(follow)
+    altnum: { type: Number }, // postid(star,respot,reply),userid(follow)
+  });
 
 
-/** file storage model */
-var fileModel = schemaData.define('file', {
-  /* API START */
-  userid: { type: Number, index: true },
-  created_at: { type: Date },
-  client_id: { type: String, length: 32 },
-  kind: { type: String, length: 255, index: true },
-  name: { type: String, length: 255 },
-  type: { type: String, length: 255, index: true }, // com.example.test
-  complete: { type: Boolean },
-  sha1: { type: String, length: 255 },
-  url: { type: String, length: 512 },
-  total_size: { type: Number },
-  size: { type: Number },
-  mime_type: { type: String, length: 255 },
-  urlexpires: { type: Date },
-  /* API END */
-  last_updated: { type: Date },
-});
+  /** file storage model */
+  fileModel = schemaData.define('file', {
+    /* API START */
+    userid: { type: Number, index: true },
+    created_at: { type: Date },
+    client_id: { type: String, length: 32 },
+    kind: { type: String, length: 255, index: true },
+    name: { type: String, length: 255 },
+    type: { type: String, length: 255, index: true }, // com.example.test
+    complete: { type: Boolean },
+    sha1: { type: String, length: 255 },
+    url: { type: String, length: 512 },
+    total_size: { type: Number },
+    size: { type: Number },
+    mime_type: { type: String, length: 255 },
+    urlexpires: { type: Date },
+    /* API END */
+    last_updated: { type: Date },
+  });
 
-var streamMarkersModel = schemaData.define('stream_markers', {
-  user_id: { type: Number, index: true },
-  top_id: { type: Number },
-  last_read_id: { type: Number },
-  name: { type: String, length: 32 },
-  percentage: { type: Number },
-  last_updated: { type: Date },
-  version: { type: Number },
-});
+  streamMarkersModel = schemaData.define('stream_markers', {
+    user_id: { type: Number, index: true },
+    top_id: { type: Number },
+    last_read_id: { type: Number },
+    name: { type: String, length: 32 },
+    percentage: { type: Number },
+    last_updated: { type: Date },
+    version: { type: Number },
+  });
 
-// kind of a proxy cache
-// we'll it's valid to check the upstream
-// maybe a time out
-// actually downloader is in charge of refreshing, as long as we kick that off
-// we can still use this
-// we know there's no data for this
-var emptyModel = schemaData.define('empty', {
-  type: { type: String, length: 16, index: true }, // repost, replies
-  typeid: { type: Number, index: true }, // postid
-  last_updated: { type: Date },
-});
+  // kind of a proxy cache
+  // we'll it's valid to check the upstream
+  // maybe a time out
+  // actually downloader is in charge of refreshing, as long as we kick that off
+  // we can still use this
+  // we know there's no data for this
+  emptyModel = schemaData.define('empty', {
+    type: { type: String, length: 16, index: true }, // repost, replies
+    typeid: { type: Number, index: true }, // postid
+    last_updated: { type: Date },
+  });
 
-//if firstrun (for sqlite3, mysql)
-if (schemaDataType=='mysql' || schemaDataType=='sqlite3') {
-  //schemaData.automigrate(function() {});
-  //schemaToken.automigrate(function() {});
-  // don't lose data
-  schemaData.autoupdate(function() {});
-  schemaToken.autoupdate(function() {});
-}
+  appStreamModel = schemaData.define('app_streams', {
+    client_id: { type: String, length: 32 }, // a client can have multiple appStreams
+    filter: { type: schemaData.JSON, }, // JSON
+    object_types: { type: String, }, // comma separated list of object types:
+    // post, star, user_follow, mute, block, stream_marker, message, channel, channel_subscription, token, file, user
+    //type: is always long_poll
+    key: { type: String, }, // user label
+  });
 
-// Auth Todo: localUser, localClient
-// Token Todo: userToken, appToken
-// Rate Todo: userTokenLimit, appTokenLimit
-// Data Todo: mutes, blocks, upstream_tokens
+  userStreamModel = schemaData.define('user_streams', {
+    userid: { type: Number, index: true }, // couldn't we get this through the token?
+    tokenid: { type: Number, index: true },
+    connection_id: { type: String, index: true },
+    auto_delete: { type: Boolean, index: true },
+    connection_closed_at: { type: Date },
+  });
+  userStreamSubscriptionModel = schemaData.define('user_streamsubscriptions', {
+    user_stream_id: { type: Number, index: true },
+    stream: { type: String, }, // endpoint
+    params: { type: schemaData.Text, }, // params
+  });
 
-/*
-setInterval(function() {
-  if (module.exports.connection) {
-    module.exports.connection.ping(function (err) {
-      if (err) {
-        console.log('lets_parser::monitor - reconnecting, no ping');
-        ref.conn(module.exports.last.host, module.exports.last.user,
-          module.exports.last.pass, module.exports.last.db);
-      }
-      //console.log(Date.now(), 'MySQL responded to ping');
-    })
-  }
-}, 60000);
-*/
+  sessionModel = schemaData.define('sessions', {
+    code: { type: String, index: true },
+    client_id: { type: String, }, // leave it as a string so login is optimized
+    redirect_uri: { type: String, },
+    response_type: { type: String, },
+    requested_scopes: { type: String, },
+    userid: { type: Number, index: true },
+    username: { type: String, },
+    state: { type: String, },
+    upstream_token: { type: String, },
+    local_token: { type: String, },
+  });
 
-/** minutely status report */
-// @todo name function and call it on startup
-var statusmonitor=function () {
-  if (schemaDataType=='mysql') {
-    schemaData.client.ping(function (err) {
-      if (err) {
-        console.log('trying to reconnect to data db');
-        schemaData = new Schema(schemaDataType, configData);
-      }
-    })
-  }
-  if (schemaDataType=='mysql') {
-    schemaToken.client.ping(function (err) {
-      if (err) {
-        console.log('trying to reconnect to token db');
-        schemaToken = new Schema(schemaDataType, configToken);
-      }
-    })
+  //if firstrun (for sqlite3, mysql)
+  if (schemaDataType=='mysql' || schemaDataType=='sqlite3') {
+    //schemaData.automigrate(function() {});
+    //schemaToken.automigrate(function() {});
+    // don't lose data
+    schemaData.autoupdate(function() {});
+    schemaToken.autoupdate(function() {});
   }
 
-  var ts=new Date().getTime();
-  // this is going to be really slow on innodb
-  userModel.count({}, function(err, userCount) {
-    followModel.count({}, function(err, followCount) {
-      postModel.count({}, function(err, postCount) {
-        channelModel.count({}, function(err, channelCount) {
-          messageModel.count({}, function(err, messageCount) {
-            subscriptionModel.count({}, function(err, subscriptionCount) {
-              interactionModel.count({}, function(err, interactionCount) {
-                annotationModel.count({}, function(err, annotationCount) {
-                  entityModel.count({}, function(err, entityCount) {
-                    noticeModel.count({}, function(err, noticeCount) {
-                      // break so the line stands out from the instant updates
-                      // dispatcher's output handles this for now
-                      //process.stdout.write("\n");
-                      // if using redis
-                      if (schemaDataType=='sqlite3') {
-                        schemaData.client.get('PRAGMA page_count;', function(err, crow) {
-                          //console.log('dataaccess.caminte.js::status sqlite3 page_count', row);
-                          schemaData.client.get('PRAGMA page_size;', function(err, srow) {
-                            var cnt=crow['page_count'];
-                            var psize=srow['page_size'];
-                            var size=cnt*psize;
-                            console.log('dataaccess.caminte.js::status sqlite3 data [',cnt,'x',psize,'] size: ', size);
+  // Auth Todo: localUser, localClient
+  // Token Todo: userToken, appToken
+  // Rate Todo: userTokenLimit, appTokenLimit
+  // Data Todo: mutes, blocks, upstream_tokens
+
+  /*
+  setInterval(function() {
+    if (module.exports.connection) {
+      module.exports.connection.ping(function (err) {
+        if (err) {
+          console.log('lets_parser::monitor - reconnecting, no ping');
+          ref.conn(module.exports.last.host, module.exports.last.user,
+            module.exports.last.pass, module.exports.last.db);
+        }
+        //console.log(Date.now(), 'MySQL responded to ping');
+      })
+    }
+  }, 60000);
+  */
+
+  /** minutely status report */
+  // @todo name function and call it on startup
+  var statusmonitor=function () {
+    if (schemaDataType=='mysql') {
+      schemaData.client.ping(function (err) {
+        if (err) {
+          console.log('trying to reconnect to data db');
+          schemaData = new Schema(schemaDataType, configData);
+        }
+      })
+    }
+    if (schemaDataType=='mysql') {
+      schemaToken.client.ping(function (err) {
+        if (err) {
+          console.log('trying to reconnect to token db');
+          schemaToken = new Schema(schemaDataType, configToken);
+        }
+      })
+    }
+
+    var ts=new Date().getTime();
+    // this is going to be really slow on innodb
+    userModel.count({}, function(err, userCount) {
+      followModel.count({}, function(err, followCount) {
+        postModel.count({}, function(err, postCount) {
+          channelModel.count({}, function(err, channelCount) {
+            messageModel.count({}, function(err, messageCount) {
+              subscriptionModel.count({}, function(err, subscriptionCount) {
+                interactionModel.count({}, function(err, interactionCount) {
+                  annotationModel.count({}, function(err, annotationCount) {
+                    entityModel.count({}, function(err, entityCount) {
+                      noticeModel.count({}, function(err, noticeCount) {
+                        // break so the line stands out from the instant updates
+                        // dispatcher's output handles this for now
+                        //process.stdout.write("\n");
+                        // if using redis
+                        if (schemaDataType=='sqlite3') {
+                          schemaData.client.get('PRAGMA page_count;', function(err, crow) {
+                            //console.log('dataaccess.caminte.js::status sqlite3 page_count', row);
+                            schemaData.client.get('PRAGMA page_size;', function(err, srow) {
+                              var cnt=crow['page_count'];
+                              var psize=srow['page_size'];
+                              var size=cnt*psize;
+                              console.log('dataaccess.caminte.js::status sqlite3 data [',cnt,'x',psize,'] size: ', size);
+                            });
                           });
-                        });
-                      }
-                      if (schemaDataType=='redis') {
-                        //console.dir(schemaAuth.client.server_info);
-                        // just need a redis info call to pull memory and keys stats
-                        // evicted_keys, expired_keys are interesting, keyspace_hits/misses
-                        // total_commands_proccesed, total_connections_received, connected_clients
-                        // update internal counters
-                        schemaData.client.info(function(err, res) {
-                          schemaData.client.on_info_cmd(err, res);
-                        });
-                        // then pull from counters
-                        console.log("dataaccess.caminte.js::status redis token "+schemaToken.client.server_info.used_memory_human+" "+schemaToken.client.server_info.db0);
-                        console.log("dataaccess.caminte.js::status redis data "+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
-                      }
-                      console.log('dataaccess.caminte.js::status '+userCount+'U '+followCount+'F '+postCount+'P '+channelCount+'C '+messageCount+'M '+subscriptionCount+'s '+interactionCount+'/'+noticeCount+'i '+annotationCount+'a '+entityCount+'e');
+                        }
+                        if (schemaDataType=='redis') {
+                          //console.dir(schemaAuth.client.server_info);
+                          // just need a redis info call to pull memory and keys stats
+                          // evicted_keys, expired_keys are interesting, keyspace_hits/misses
+                          // total_commands_proccesed, total_connections_received, connected_clients
+                          // update internal counters
+                          schemaData.client.info(function(err, res) {
+                            schemaData.client.on_info_cmd(err, res);
+                          });
+                          // then pull from counters
+                          console.log("dataaccess.caminte.js::status redis token "+schemaToken.client.server_info.used_memory_human+" "+schemaToken.client.server_info.db0);
+                          console.log("dataaccess.caminte.js::status redis data "+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
+                        }
+                        console.log('dataaccess.caminte.js::status '+userCount+'U '+followCount+'F '+postCount+'P '+channelCount+'C '+messageCount+'M '+subscriptionCount+'s '+interactionCount+'/'+noticeCount+'i '+annotationCount+'a '+entityCount+'e');
+                      });
                     });
                   });
                 });
@@ -512,10 +575,10 @@ var statusmonitor=function () {
         });
       });
     });
-  });
-};
-statusmonitor();
-setInterval(statusmonitor, 60*1000);
+  };
+  statusmonitor();
+  setInterval(statusmonitor, 60*1000);
+}
 
 // Not Cryptographically safe
 function generateToken(string_length) {
@@ -852,6 +915,7 @@ function setparams(query, params, maxid, callback) {
  */
 module.exports = {
   next: null,
+  start: start,
   /*
    * users
    */
@@ -1046,6 +1110,53 @@ module.exports = {
     });
     */
   },
+  getMutes: function(userid, params, callback) {
+    var userid = parseInt(userid)
+    if (isNaN(userid)) {
+      callback([], 'invalid userid');
+      return;
+    }
+    setparams(muteModel.find().where('userid', { in: userid }), params, 0, function(mutes, err, meta) {
+      callback(mutes, err, meta);
+    });
+  },
+  addMute: function(userid, muteeid, params, callback) {
+    console.log('dataaccess.caminte::addMute', muteeid, 'for', userid, typeof(callback));
+    var crit = { userid: userid, muteeid: muteeid }
+    muteModel.findOne({ where: crit }, function(err, mute) {
+      console.log('dataaccess.caminte::addMute - mute', mute);
+      if (err) console.log('dataaccess.caminte::addMute - err', err, mute);
+      if (!mute) {
+        console.log('dataaccess.caminte::addMute - creating mute');
+        muteModel.create(crit, function (cErr) {
+          if (cErr)  console.log('dataaccess.caminte::addMute - cErr', cErr);
+          callback(crit, err);
+        })
+      } else {
+        callback(mute, err);
+      }
+    })
+  },
+  delMute: function(userid, muteeid, params, callback) {
+    console.log('dataaccess.caminte::delMute', muteeid, 'for', userid, typeof(callback));
+    muteModel.findOne({ where: { userid: userid, muteeid: muteeid } }, function(err, mute) {
+      if (err)  console.log('dataaccess.caminte::delMute - err', err, mute);
+      if (mute) {
+        /*
+        muteModel.destroyById(mute.id, function(dErr) {
+          console.log('dataaccess.caminte::delMute - dErr', dErr);
+          callback(mute, err);
+        });
+        */
+        mute.destroy(function(dErr) {
+          if (dErr) console.log('dataaccess.caminte::delMute - err', dErr);
+          callback(mute, err);
+        });
+      } else {
+        callback(mute, err);
+      }
+    })
+  },
   /*
    * oauth local apps / callbacks
    */
@@ -1084,6 +1195,79 @@ module.exports = {
     });
   },
   /*
+   * session
+   */
+  createSession: function(client_id, redirect_uri, response_type, requested_scopes, state, callback) {
+    console.log('state', state, 'requested_scopes', requested_scopes);
+    var code = 'altapicode_' + generateToken(98);
+    sessionModel.create({
+      code: code,
+      client_id: client_id,
+      redirect_uri: redirect_uri,
+      response_type: response_type,
+      requested_scopes: requested_scopes?requested_scopes:'',
+      state: state?state:'',
+      userid: 0,
+      username: '',
+    }, function(err, obj) {
+      if (err) {
+        console.log('createSession - err', err);
+      }
+      //console.log('createSession - obj', obj);
+      callback(obj);
+    })
+  },
+  authSession: function(code, userid, username, upstream_token, localToken, callback) {
+    sessionModel.find({ where: { code: code } }, function(err, sessions) {
+      if (err) {
+        console.log('authSession - err', err);
+      }
+      if (sessions) {
+        if (sessions.length == 1) {
+          var ses = sessions[0];
+          ses.userid = userid;
+          ses.username = username;
+          ses.upstream_token = upstream_token;
+          ses.local_token = localToken;
+          ses.save(function(uErr) {
+            if (uErr) {
+              console.log('authSession - uErr', uErr);
+            }
+            callback(ses, uErr);
+          });
+        } else {
+          console.log('authSession - too many sessions for that code');
+          callback({}, 'too many sessions for that code');
+          return;
+        }
+      } else {
+        console.log('authSession - no sessions for that code');
+        callback({}, 'no sessions for that code');
+        return;
+      }
+    });
+  },
+  getSessionByCode: function(code, callback) {
+    sessionModel.find({ where: { code: code} }, function(err, sessions) {
+      if (err) {
+        console.log('authSession - err', err);
+      }
+      if (sessions) {
+        if (sessions.length == 1) {
+          callback(sessions[0], err);
+        } else {
+          console.log('authSession - too many sessions for that code');
+          callback({}, 'too many sessions for that code');
+          return;
+        }
+      } else {
+        console.log('authSession - no sessions for that code');
+        callback({}, 'no sessions for that code');
+        return;
+      }
+    });
+  },
+  /*
    * local user token
    */
   // should we really pass token in? it's cleaner separation if we do
@@ -1112,6 +1296,7 @@ module.exports = {
             usertoken.client_id=client_id;
             usertoken.scopes=scopes;
             usertoken.token=token;
+            usertoken.created_at=new Date();
             console.log('creating localUserToken', usertoken)
             /*usertoken.save(function() {
               callback(usertoken, null);
@@ -1148,6 +1333,34 @@ module.exports = {
         }
       }
     })
+  },
+  // allow a user to have more than one token
+  addUnconstrainedAPIUserToken: function(userid, client_id, scopes, token, expireInMins, callback) {
+    // make sure this token is not in use
+    localUserTokenModel.findOne({ where: { token: token }}, function(err, tokenUnique) {
+      if (err) {
+        console.log('caminte.js::addAPIUserToken - token lookup', err);
+        callback(null, 'token_lookup');
+        return;
+      }
+      // token is not in use, please create it
+      var usertoken=new localUserTokenModel;
+      usertoken.userid=userid;
+      usertoken.client_id=client_id;
+      usertoken.scopes=scopes;
+      usertoken.token=token;
+      usertoken.created_at=new Date();
+      if (expireInMins) {
+        usertoken.expires_at=new Date(Date.now() + expireInMins * 60 * 1000);
+      }
+      //expireInSecs
+      console.log('creating localUserToken', usertoken)
+      /*usertoken.save(function() {
+        callback(usertoken, null);
+      })*/
+      // this will call callback if set
+      db_insert(usertoken, localUserTokenModel, callback);
+    });
   },
   createOrFindUserToken: function(userid, client_id, scopes, callback) {
     //console.log('createOrFindUserToken', userid, client_id, scopes)
@@ -1290,8 +1503,47 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
           return;
         }
       }
-      callback(upstreamToken, user);
+      callback(upstreamToken, null);
     });
+  },
+  /*
+   * Stream Markers
+   */
+  getStreamMarker: function(userid, name, callback) {
+    streamMarkersModel.find({ where: { user_id: userid, name: name } }, function(err, markers) {
+      if (err) console.log('dataaccess.camintejs.js::getStreamMarker - err', err)
+      var marker = markers[0]
+      callback(marker, err);
+    });
+  },
+  setStreamMarker: function(userid, name, id, percentage, params, callback) {
+    var updObj = {
+      top_id: id,
+      last_updated: new Date()
+    };
+    if (percentage !== undefined) {
+      updObj.percentage = percentage;
+    }
+    streamMarkersModel.updateOrCreate({
+      user_id: userid,
+      name: name,
+    }, updObj, function(err, marker) {
+      if (err || !marker) console.log('dataaccess.camintejs.js::setStreamMarker - err', err)
+      if (marker.version === undefined) {
+        marker.version = 0;
+      }
+      if (marker.last_read_id === undefined) {
+        marker.last_read_id = 0;
+      }
+      if (marker.last_read_id < marker.top_id) {
+        marker.last_read_id = marker.top_id;
+      }
+      marker.version++;
+      marker.save(function() {
+        console.log('dataaccess.camintejs.js::setStreamMarker - marker', marker);
+        callback(marker, err);
+      })
+    })
   },
   /*
    * network clients?
@@ -1343,6 +1595,165 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     console.log('api_persistent_storage::getUpstreamClientToken - write me!');
   },
   /** user stream */
+  findOrCreateUserStream: function(connectionId, tokenId, userId, autoDelete, callback) {
+    //console.log('dataaccess.camintejs::findOrCreateUserStream - start', connectionId, tokenId);
+    //console.log('connectionId', connectionId)
+    //console.log('tokenId', tokenId)
+    //console.log('userId', userId)
+    //console.log('autoDelete', autoDelete)
+    // I don't think this is working
+    userStreamModel.find({ where: { connection_id: connectionId, tokenid: tokenId } }, function(err, streams) {
+      if (err) {
+        console.log('dataaccess.camintejs::findOrCreateUserStream - err', err);
+      }
+      if (!streams.length) {
+        // create one
+        var stream = { connection_id: connectionId, tokenid: tokenId, auto_delete: autoDelete, userid: userId }
+        userStreamModel.create(stream, function(err, createdStream) {
+          //console.log('dataaccess.camintejs::findOrCreateUserStream - created', createdStream);
+          callback(createdStream, err);
+        })
+      } else {
+        if (streams.length === 1) {
+          // update it
+          var stream = streams[0];
+          // actually just a cache for tokenId I think
+          if (stream.userid == userId) {
+            // we don't need to update, only set those things on creation
+            //stream.update({ id: stream.id }, {}, function(err, finalStream) {
+            //console.log('dataaccess.camintejs::findOrCreateUserStream - found', stream);
+            callback(stream, err);
+            //})
+          } else {
+            console.error('dataaccess.camintejs::findOrCreateUserStream - userid', userId, 'tried to change', stream.userid, 'stream', connectionId);
+            callback([], 'not your stream');
+          }
+        } else {
+          console.error('dataaccess.camintejs::findOrCreateUserStream - too many, connectionId:', connectionId, 'tokenId', tokenId);
+          callback([], 'too many');
+        }
+      }
+    })
+    /*
+    userStreamModel.findOrCreate({
+      connection_id: connectionId,
+      tokenid: tokenId,
+    }, {
+      auto_delete: autoDelete,
+      userid: userId
+    }, function(err, userStream) {
+      // if found, need to update auto_delete
+      callback(userStream, err);
+    });
+    */
+  },
+  findOrCreateUserSubscription: function(connectionNumId, stream, params, callback) {
+    console.log('dataaccess.camintejs::findOrCreateUserSubscription', connectionNumId, stream)
+    if (connectionNumId === undefined) {
+      console.log('dataaccess.camintejs::findOrCreateUserSubscription - connectionNumId is empty', connectionNumId, stream)
+      callback({}, 'empty connectionNumId');
+      return
+    }
+    // we can't scan for stream, it thinks it's a regex
+    userStreamSubscriptionModel.find({ where: { user_stream_id: connectionNumId, stream: { like: stream } } }, function(err, subscriptions) {
+      // subscription
+      if (err) {
+        console.log('dataaccess.camintejs::findOrCreateUserSubscription - err', err);
+      }
+      if (subscriptions.length) {
+        if (subscriptions.length === 1) {
+          // found
+          callback(subscriptions[0], err);
+        } else {
+          // too many
+          console.error('dataaccess.camintejs::findOrCreateUserSubscription - too many', subscriptions);
+          callback({}, 'too many');
+        }
+      } else {
+        userStreamSubscriptionModel.create({ user_stream_id: connectionNumId, stream: stream, params: params }, function(createErr, createdSub) {
+          //console.log('dataaccess.camintejs::findOrCreateUserSubscription - created', createdSub);
+          callback(createdSub, createErr);
+        })
+      }
+    })
+    // I'm not getting returns...
+    // stream isn't matchin
+    /*
+    userStreamSubscriptionModel.findOrCreate({
+      user_stream_id: connectionNumId,
+      stream: stream,
+    }, {
+      params: params
+    }, function(err, subscription) {
+      if (err) {
+        console.log('dataaccess.camintejs::findOrCreateUserSubscription - err', err);
+      }
+      console.log('dataaccess.camintejs::findOrCreateUserSubscription - findOrCreate', subscription)
+      // if found, need to update params
+      callback(subscription, err);
+    });
+    */
+  },
+  userStreamUpdate: function(connectionId, update, callback) {
+    userStreamModel.update({ where: { connection_id: connectionId } }, update, function(err, result) {
+      callback(result, err);
+    })
+  },
+  deleteUserStream: function(connectionNumId, callback) {
+    //console.log('deleteUserStream', connectionNumId);
+    userStreamModel.destroyById(connectionNumId, function(err) {
+      if (callback) callback(connectionNumId, err);
+    })
+  },
+  getUserStream: function(connectionNumId, callback) {
+    userStreamModel.findById(connectionNumId, function(err, userStream) {
+      callback(userStream, err);
+    })
+  },
+  getAllUserStreams: function(callback) {
+    //console.log('dataaccess.caminte.js::getAllUserStreams - start');
+    userStreamModel.all(function(err, userStreams) {
+      //console.log('dataaccess.caminte.js::getAllUserStreams - result', userStreams.length);
+      var ids = []
+      var tokens = []
+      for(var i in userStreams) {
+        var userStream=userStreams[i];
+        ids.push(userStream.id);
+        tokens.push(userStream.tokenid);
+      }
+      //console.log('dataaccess.caminte.js::getAllUserStreams - tokens', tokens.length, 'ids', ids.length)
+      var done = {
+        subs: false,
+        tokens: false,
+      }
+      function doneCheck(type, data) {
+        //console.log('dataaccess.caminte.js::getAllUserStreams:doneCheck - ', type, data.length)
+        done[type] = data;
+        var complete = true;
+        for(var i in done) {
+          if (done[i] === false) {
+            complete = false;
+            break;
+          }
+        }
+        if (complete) {
+          callback({
+            userStreams: userStreams,
+            subs: done.subs,
+            tokens: done.tokens,
+          }, err)
+        }
+      }
+      // look up subs
+      userStreamSubscriptionModel.find({ where: { user_stream_id: { in: ids } } }, function(subErr, subs) {
+        doneCheck('subs', subs);
+      })
+      // look up tokens
+      localUserTokenModel.find({ where: { id: { in: tokens } } }, function(tokenErr, tokens) {
+        doneCheck('tokens', tokens);
+      })
+    });
+  },
   /** app stream */
 
   /**
@@ -1786,7 +2197,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       }
     });
   },
-  getUserStream: function(userid, params, token, callback) {
+  getUserPostStream: function(userid, params, token, callback) {
     var ref=this;
     //var finalfunc=function(userid) {
       // get a list of followings
@@ -1817,7 +2228,23 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
         // what about since_id??
 
         // get a list of our reposts (OPTIMIZE ME: not dependent on followings)
-        postModel.find({ where: { userid: userid, repost_of: { ne: '0' } } }, function(err, ourReposts) {
+        var query = postModel.find().where('userid', userid).where('repost_of', { ne: 0 })
+        // in the range we're looking at
+        if (params.pageParams) {
+          // should speed this up
+          if (params.pageParams.since_id) {
+            query=query.gt('id', params.pageParams.since_id);
+          }
+          // probably not that important here
+          if (params.pageParams.before_id) {
+            // if not before end
+            if (params.pageParams.before_id!=-1) {
+              query=query.lt('id', params.pageParams.before_id);
+            }
+          }
+        }
+        //postModel.find({ where: { userid: userid, repost_of: { ne: '0' } } }, function(err, ourReposts) {
+        query.run({}, function(err, ourReposts) {
           var removePosts=[]
           for(var i in ourReposts) {
             removePosts.push(ourReposts[i].id);
@@ -1830,7 +2257,8 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
             }
             */
             //console.log('our reposts', ourRepostIds);
-
+            // make sure all reposts are only show once?
+            //
             // get a list of reposts in this criteria
             // check the thread_id for original to get user id
             // or
@@ -1839,15 +2267,32 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
             // well a repost can be of a repost
             // can either single out thread_id or recurse on reposts
             // thread_id in notRepostsOf and repost_of=0
+            //
+            // maybe we could get a list of repost_of values in page'd range...
             postModel.find({ where: { userid: { in: userids }, repost_of: 0, num_reposts: { gt: 0 } } }, function(err, theirPostsThatHaveBeenReposted) {
               var notRepostsOf=[]
               for(var i in theirPostsThatHaveBeenReposted) {
                 notRepostsOf.push(theirPostsThatHaveBeenReposted[i].id);
               }
+              query = postModel.find().where('id', { nin: removePosts }).where('repost_of', { nin: notRepostsOf }).where('userid',{ in: userids });
+              if (params.tokenobj) {
+                var mutedUserIDs = []
+                muteModel.find({ where: { 'userid': { in: params.tokenobj.userid } } }, function(err, mutes) {
+                  for(var i in mutes) {
+                    mutedUserIDs.push(mutes[i].muteeid)
+                  }
+                  query=query.where('userid', { nin: mutedUserIDs })
+                  //console.log('getChannelMessages - params', params);
+                  setparams(query, params, 0, callback);
+                })
+              } else {
+                setparams(query, params, 0, callback);
+              }
+
               // get a list of posts where their reposts of reposts
               //postModel.find({ where: { thread_id: { in: notRepostsOf }, repost_of: { ne: 0  } } }, function(err, repostsOfRepostsOfFollowingPosts) {
               //console.log('notRepostsOf', notRepostsOf);
-              setparams(postModel.find().where('id', { nin: removePosts }).where('repost_of', { nin: notRepostsOf }).where('userid',{ in: userids }), params, maxid, callback);
+              //setparams(query, params, maxid, callback);
               //})
             });
           //});
@@ -1916,8 +2361,23 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
             for(var i in posts) {
               postids.push(posts[i].id)
             }
+
             // call back with paging
-            setparams(postModel.find().where('id', { in: postids} ), params, 0, callback);
+            var query = postModel.find().where('id', { in: postids} );
+            if (params.tokenobj) {
+              var mutedUserIDs = []
+              muteModel.find({ where: { 'userid': { in: params.tokenobj.userid } } }, function(err, mutes) {
+                for(var i in mutes) {
+                  mutedUserIDs.push(mutes[i].muteeid)
+                }
+                query=query.where('userid', { nin: mutedUserIDs })
+                //console.log('getChannelMessages - params', params);
+                setparams(query, params, 0, callback);
+              })
+            } else {
+              setparams(query, params, 0, callback);
+            }
+            //setparams(query, params, 0, callback);
           });
         });
         //console.log('dataaccess.caminte.js::getUnifiedStream - write me, mention posts');
@@ -2021,8 +2481,30 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       //setparams(entityModel.find().where(search), params, maxid, callback);
       // this gave error
       //console.log('dataaccess.caminte.js::getMentions - max', maxid);
-      setparams(entityModel.find().where('idtype', 'post').where('type', 'mention').where(k, v),
-        params, 0, callback);
+
+      var query = entityModel.find().where('idtype', 'post').where('type', 'mention').where(k, v);
+      if (params.tokenobj) {
+        var mutedUserIDs = [];
+        muteModel.find({ where: { 'userid': { in: params.tokenobj.userid } } }, function(err, mutes) {
+          for(var i in mutes) {
+            mutedUserIDs.push(mutes[i].muteeid);
+          }
+          postModel.find({ where: { 'userid': { in: mutedUserIDs } } }, function(err, posts) {
+            var mutedPostIDs = [];
+            for(var i in posts) {
+              mutedPostIDs.push(posts[i].id);
+            }
+            query=query.where('typeid', { nin: mutedPostIDs });
+            //console.log('getChannelMessages - params', params);
+            setparams(query, params, 0, callback);
+          });
+        });
+      } else {
+        setparams(query, params, 0, callback);
+      }
+      //setparams(entityModel.find().where('idtype', 'post').where('type', 'mention').where(k, v),
+        //params, 0, callback);
+
     //});
     /*
     entityModel.find({ where: search, limit: count, order: 'id DESC' }, function(err, entities) {
@@ -2043,8 +2525,28 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
         //maxid=posts[0].id;
         //console.log('getGlobal - maxid becomes',maxid);
       //}
-      // we could consider filtering out reposts
-      setparams(postModel.all(), params, maxid, callback);
+      // filtering out reposts
+      // but we may want them if time delayed
+      // we just don't want a bunch of reposts in the same 20...
+      // that's going to take some serious logic
+      var query = postModel.all();
+      //query.debug = true;
+      if (params.tokenobj) {
+        var mutedUserIDs = [];
+        muteModel.find({ where: { 'userid': { in: params.tokenobj.userid } } }, function(err, mutes) {
+          for(var i in mutes) {
+            mutedUserIDs.push(mutes[i].muteeid);
+          }
+          query=query.where('userid', { nin: mutedUserIDs });
+          //console.log('dataaccess.caminte::getGlobal - mutedUserIDs', mutedUserIDs);
+          //console.log('getChannelMessages - params', params);
+          setparams(query, params, 0, callback);
+        });
+      } else {
+        setparams(query, params, 0, callback);
+      }
+      //setparams(query, params, maxid, callback);
+      //setparams(postModel.find().where('repost_of', 0), params, maxid, callback);
       // this optimized gets a range
       /*
       if (posts.length) {
@@ -2412,6 +2914,57 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
         callback(channels[0], err);
       }
     });
+  },
+  searchChannels: function(criteria, params, callback) {
+    var query = channelModel.find();
+    if (criteria.type) {
+      query = query.where('type', criteria.type);
+    }
+    if (criteria.ownerid) {
+      query = query.where('ownerid', criteria.ownerid);
+    }
+    if (params.channelParams && params.channelParams.inactive) {
+      query = query.where('inactive', { ne: null });
+    } else {
+      query = query.where('inactive', null);
+    }
+    // paging is broken because no channel permissions handle after query
+    // actually no because we insert blank stubs
+    //console.log('dataaccess.caminte.js::searchChannels - query', query.q);
+    setparams(query, params, 0, function(channels, err, meta) {
+      callback(channels, err, meta);
+    });
+  },
+  getUserChannels: function(userid, params, callback) {
+    if (userid==undefined) {
+      console.log('dataaccess.caminte.js::getUserChannels - id is undefined');
+      callback(null, 'dataaccess.caminte.js::getUserChannels - id is undefined');
+      return;
+    }
+    var ref=this;
+    var criteria={ where: { ownerid: userid, inactive: null } };
+    if (params.channelParams && params.channelParams.types) {
+      //console.log('dataaccess.caminte.js::getUserChannels - type param', params.channelParams.types);
+      criteria.where['type']={ in: params.channelParams.types.split(/,/) };
+      //console.log('dataaccess.caminte.js::getUserChannels - types', criteria.where['type']);
+    }
+    if (params.channelParams && params.channelParams.inactive) {
+      criteria.where['inactive']= { ne: null }
+    }
+    //console.log('dataaccess.caminte.js::getUserChannels - criteria', criteria);
+    channelModel.find(criteria, function(err, channels) {
+      //console.log('dataaccess.caminte.js::getUserChannels - result', channels);
+      if (err) {
+        console.log('dataaccess.caminte.js::getUserChannels - err', err);
+      }
+      if (channels==null && err==null) {
+        if (ref.next) {
+          ref.next.getUserChannels(userid, params, callback);
+          return;
+        }
+      }
+      callback(channels, err);
+    });
     return;
   },
   // group is an array of user IDs
@@ -2532,6 +3085,17 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       }
     });
   },
+  deleteMessage: function (message_id, callback) {
+    messageModel.update({ where: { id: message_id } }, { is_deleted: 1}, function(err, omsg) {
+      if (err) {
+        console.log('dataaccess.camtine.js::deleteMessage - err', err)
+      }
+      if (callback) {
+        // omsg is the number of records updated
+        callback(omsg, err);
+      }
+    });
+  },
   getMessage: function(id, callback) {
     if (id==undefined) {
       callback(null, 'dataaccess.caminte.js::getMessage - id is undefined');
@@ -2565,10 +3129,12 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   getChannelMessages: function(channelid, params, callback) {
     var ref=this;
     var query=messageModel.find().where('channel_id', channelid);
-    if (params.is_deleted) {
+    //console.log('dataaccess.caminte.js::getChannelMessages - params', params)
+    if (params.generalParams.deleted) {
     } else {
       query=query.where('is_deleted', 0)
     }
+    //console.log('dataaccess.caminte.js::getChannelMessages - query', query)
     //console.log('dataaccess.camintejs::getChannelMessages - channelid', channelid, 'token', params.tokenobj)
     if (params.tokenobj && params.tokenobj.userid) {
       var mutedUserIDs = []
