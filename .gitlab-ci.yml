@@ -1,0 +1,14 @@
+variables:
+  GIT_STRATEGY: fetch
+
+test:
+  type: test
+  image: node:10-alpine
+  tags:
+    - docker
+  before_script:
+    - npm install
+    - npm install -g mocha
+  script:
+    - node app.js &
+    - sleep 10 && mocha
