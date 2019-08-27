@@ -8,7 +8,7 @@ test:
     - docker
   before_script:
     - npm install
-    - npm install mocha
+    - npm install -g mocha
   script:
     - node app.js &
     - mocha
