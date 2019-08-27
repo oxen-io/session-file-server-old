@@ -1,5 +1,5 @@
 
-function sendrepsonse(json, resp) {
+function sendresponse(json, resp) {
   var ts=new Date().getTime();
   var diff = ts-resp.start;
   if (diff > 1000) {
@@ -146,7 +146,7 @@ module.exports = {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res), resp);
+      sendresponse(JSON.stringify(res), resp);
     }
   },
 
@@ -168,7 +168,7 @@ module.exports = {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res), resp);
+      sendresponse(JSON.stringify(res), resp);
     }
   },
 
@@ -190,7 +190,7 @@ module.exports = {
         res.meta={ code: 200 };
       }
       //console.log('ADNO.CB::usersCallback - res', res);
-      sendrepsonse(JSON.stringify(res), resp);
+      sendresponse(JSON.stringify(res), resp);
     }
   },
 
@@ -206,7 +206,7 @@ module.exports = {
       if (meta) {
         res.meta=meta;
       }
-      sendrepsonse(JSON.stringify(res), resp);
+      sendresponse(JSON.stringify(res), resp);
     }
   },
 
@@ -236,7 +236,7 @@ module.exports = {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res), resp);
+      sendresponse(JSON.stringify(res), resp);
     }
   },
 
@@ -251,7 +251,7 @@ module.exports = {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res), resp);
+      sendresponse(JSON.stringify(res), resp);
     }
   },
 
@@ -267,7 +267,7 @@ module.exports = {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res), resp);
+      sendresponse(JSON.stringify(res), resp);
     }
   },
 
@@ -283,7 +283,7 @@ module.exports = {
       if (res.meta==undefined) {
         res.meta={ code: 200 };
       }
-      sendrepsonse(JSON.stringify(res), resp);
+      sendresponse(JSON.stringify(res), resp);
     }
   },
 
@@ -291,7 +291,7 @@ module.exports = {
     return function(oembed, err) {
       // there's no data/meta envelope for oembed
       //console.log('ADNO::oembed got ',oembed);
-      sendrepsonse(JSON.stringify(oembed), resp);
+      sendresponse(JSON.stringify(oembed), resp);
     }
   },
 }
