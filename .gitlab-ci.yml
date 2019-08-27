@@ -1,0 +1,12 @@
+variables:
+  GIT_STRATEGY: fetch
+
+test:
+  type: test
+  image: ubuntu:latest
+  tags:
+    - docker
+  before_script:
+    - npm install
+  script:
+    - mocha
