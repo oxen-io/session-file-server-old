@@ -1979,18 +1979,39 @@ module.exports = {
   addChannel: function(api, params, token, callback) {
     //console.log('dispatcher::addChannel', params, token);
     var ref=this;
-    // Currently, the only keys we use from your JSON will be readers, writers, annotations, and type.
-    // The owner will be auto-subscribed to this channel.
-    //apiToChannel: function(api, meta, callback) {
-    api.owner={};
-    this.apiToChannel(api, {}, function(channel, err, meta) {
-      delete channel.id;
-      ref.cache.addChannel(token.userid, channel, function(channel, createErr, createMeta) {
-        ref.setAnnotations('channel', channel.id, api.annotations, function() {
-          ref.channelToAPI(channel, params, token, callback, createMeta);
+    function createChannel() {
+      // Currently, the only keys we use from your JSON will be readers, writers, annotations, and type.
+      // The owner will be auto-subscribed to this channel.
+      //apiToChannel: function(api, meta, callback) {
+      api.owner={};
+      ref.apiToChannel(api, {}, function(channel, err, meta) {
+        delete channel.id;
+        ref.cache.addChannel(token.userid, channel, function(channelRes, createErr, createMeta) {
+          console.log('dispatcher::addChannel', channelRes.id);
+          ref.setAnnotations('channel', channelRes.id, api.annotations, function() {
+            ref.channelToAPI(channelRes, params, token, callback, createMeta);
+          });
         });
       });
-    });
+    }
+    if (api.type == 'net.app.core.pm') {
+      var group = [token.userid];
+      for(var i in api.writers.user_ids) {
+        group.push(api.writers.user_ids[i]);
+      }
+      console.log('dispatcher.addChannel - detecting pm channel creation, dedupe check for', group);
+      // destinations is input string (comma sep list: @,ints)
+      this.cache.getPMChannel(group, function(nChannel_id, err, createMeta) {
+        console.log('dispatcher.addChannel - dedupe result', nChannel_id);
+        if (nChannel_id) {
+          ref.getChannel(nChannel_id, params, callback);
+        } else {
+          createChannel();
+        }
+      })
+    } else {
+      createChannel();
+    }
   },
   deactiveChannel: function(channelid, params, token, callback) {
     console.log('dispatcher::deactiveChannel', channelid, params, token);
@@ -2081,6 +2102,43 @@ module.exports = {
     }
     return allowed;
   },
+  getUserChannels: function(params, tokenobj, callback) {
+    //console.log('dispatcher::getUserChannels - tokenobj', tokenobj)
+    if (!tokenobj.userid) {
+      callback([], 'not user token');
+      return;
+    }
+    var ref=this;
+    //console.log('dispatcher::getUserChannels - userid', tokenobj.userid)
+    //console.log('dispatcher::getUserChannels - params', params)
+    this.cache.getUserChannels(tokenobj.userid, params, function(channels, err, meta) {
+      if (err) console.error('dispatcher.js::getUserChannels - getUserChannels', err)
+      //console.log('dispatcher::getUserChannels - channels', channels.length)
+      if (!channels.length) {
+        callback([], null);
+        return;
+      }
+      var apis=[];
+      for(var i in channels) {
+        var channel=channels[i];
+        // channel, params, tokenObj, callback, meta
+        //console.log('dispatcher::getUserChannels - convert obj', channels[i], 'to API');
+        // channelToAPI: function (channel, params, tokenObj, callback, meta) {
+        //console.log('asking for', channels[i].id)
+        //channels[i].debug = true
+        ref.channelToAPI(channels[i], params, params.tokenobj?params.tokenobj:{}, function(api, cErr, meta2) {
+          if (cErr) console.error('dispatcher.js::getUserChannels - channelToAPI', cErr)
+          //console.log('dispatcher.js::getUserChannels - got API')
+          apis.push(api);
+          //console.log('dispatcher.js::getUserChannels - ', channels.length, '/', apis.length);
+          if (channels.length == apis.length) {
+            //console.log('dispatcher.js::getUserChannels - returning array');
+            callback(apis, err || cErr);
+          }
+        }, meta);
+      }
+    })
+  },
   /**
    * get channel data for specified channel id
    * @param {number} id - the id of channel you're requesting
@@ -2163,6 +2221,45 @@ module.exports = {
       //console.log('dispatcher.js::getChannel - non array');
       // channelToAPI: function (channel, params, tokenObj, callback, meta) {
       ref.channelToAPI(channels, params, params.tokenobj?params.tokenobj:{}, callback, meta);
+    });
+  },
+  channelSearch: function(criteria, params, tokenObj, callback) {
+    var ref = this;
+    this.cache.searchChannels(criteria, params, function(channels, err, meta) {
+      if (!channels.length) {
+        callback([], err, meta);
+        return;
+      }
+      var apis=[];
+      for(var i in channels) {
+        var channel=channels[i];
+        // we can do a quick security check here before pulling it all
+        // omitting options will fuck with meta tho
+        // we'll insert dummy stubs
+        var allowed=ref.checkChannelAccess(channel, tokenObj.userid);
+        // block if not allowed
+        if (!allowed) {
+          apis.push({ id: channel.id, readers: { user_ids: [] }, writers: { user_ids: [] }, editors: { user_ids: [] } });
+          if (channels.length == apis.length) {
+            //console.log('dispatcher.js::getChannel - returning array');
+            callback(apis, err);
+          }
+          continue;
+        }
+        // channel, params, tokenObj, callback, meta
+        //console.log('dispatcher.js::channelSearch - channel', channel)
+        ref.channelToAPI(channel, params, tokenObj, function(api, cErr) {
+          apis.push(api);
+          // todo: sorting by popularity (number of subscriptions)
+          // todo: sorting by activity (by recent message)
+
+          //console.log('dispatcher.js::getChannel - ', channels.length, '/', apis.length);
+          if (channels.length == apis.length) {
+            //console.log('dispatcher.js::getChannel - returning array');
+            callback(apis, err || cErr);
+          }
+        });
+      }
     });
   },
   //
@@ -2442,6 +2539,10 @@ module.exports = {
           ref.cache.addMessage(message, function(msg ,err, meta) {
             if (err) {
               console.log('dispatcher.js::addMessage - err', err);
+              callback([], err, {
+                code: 500,
+              });
+              return
             }
             if (postdata.annotations) {
               console.log('dispatcher.js::addMessage - detected annotations', channel_id)
@@ -2497,6 +2598,96 @@ module.exports = {
       console.log('dispatcher.js::addMessage - not pm channel', channel_id);
       continueAddMessage(channel_id);
     }
+  },
+  deleteMessage: function(message_id, channel_id, params, tokenObj, callback) {
+    //console.log('dispatcher.js::deleteMessage - channel_id', channel_id);
+    if (!channel_id) {
+      console.log('dispatcher.js::deleteMessage - no channel');
+      callback([], 'no channel passed in', {
+        code: tokenobj?403:401,
+      });
+      return;
+    }
+    if (!tokenObj || !tokenObj.userid) {
+      console.log('dispatcher.js::deleteMessage - no token');
+      callback([], 'no token passed in', {
+        code: 401,
+      });
+      return;
+    }
+    var ref=this;
+    //console.log('dispatcher.js::deleteMessage - checking channel', channel_id, 'permission for token user', tokenobj?tokenobj.userid:0)
+    ref.cache.getChannel(channel_id, params, function(channel, channelErr, channelMeta) {
+      if (!ref.checkWriteChannelAccess(channel, tokenObj?tokenObj.userid:0)) {
+        console.log('dispatcher.js::deleteMessage - denying channel access')
+        callback({}, 'access denied to channel', {
+          code: 403,
+        });
+        return;
+      }
+      // is this your message
+      ref.getMessage(message_id, params, tokenObj, function(apiMsg, apiErr, apiMeta) {
+        if (!apiMsg) {
+          console.log('dispatcher.js::deleteMessage -', message_id, 'not found');
+          callback({}, 'message not found', {
+            code: 404,
+          });
+          return;
+        }
+        if (!apiMsg.user) {
+          console.log('dispatcher.js::deleteMessage - ', message_id, ' has no user', apiMsg);
+          callback({}, 'message not found', {
+            code: 404,
+          });
+          return;
+        }
+        if (apiMsg.user.id != tokenObj.userid) {
+          console.log('dispatcher.js::deleteMessage - denying message access');
+          callback({}, 'access denied to message', {
+            code: 403,
+          });
+          return;
+        }
+        ref.cache.deleteMessage(message_id, function(msg, err, meta) {
+          //console.log('dispatcher.js::deleteMessage - api1', msg);
+          apiMsg.is_deleted = true;
+          callback(apiMsg, apiErr, apiMeta);
+          /*
+          ref.cache.getMessage(message_id, function(message, err, meta) {
+            ref.messageToAPI(message, params, tokenObj, function(api, err) {
+              //console.log('dispatcher.js::deleteMessage - api2', api);
+              callback(api, err);
+            }, meta);
+          });
+          */
+        });
+      });
+    })
+  },
+  getMessage: function(mids, params, tokenObj, callback) {
+    //console.log('dispatcher.js::getMessage - mids', mids);
+    var ref=this;
+    this.cache.getMessage(mids, function(messages, err, meta) {
+      // make messages an array if not
+      if (!(messages instanceof Array)) {
+        messages = [ messages ];
+      }
+      //console.log('dispatcher.js::getMessage - messages', messages.length);
+      //if (!messages.length) {
+        //console.log('dispatcher.js::getMessage - messages', messages);
+      //}
+      var apis = [];
+      for(var i in messages) {
+        var message = messages[i];
+        // messageToAPI: function(message, params, tokenObj, callback, meta) {
+        ref.messageToAPI(message, params, tokenObj, function(api, err) {
+          apis.push(api);
+          if (apis.length == messages.length) {
+            callback(api, err, meta);
+          }
+        }, meta);
+      }
+    })
   },
   /**
    * get messages for specified channel id
@@ -4395,6 +4586,13 @@ module.exports = {
         callback();
       }
     });
+  },
+  /** stream marker */
+  getStreamMarker: function(name, usertoken, params, callback) {
+    this.cache.getStreamMarker(usertoken.userid, name, callback);
+  },
+  setStreamMarker: function(name, id, percentage, usertoken, params, callback) {
+    this.cache.setStreamMarker(usertoken.userid, name, id, percentage, params, callback);
   },
   /** text process */
   // postcontext (bool) means this is a post
