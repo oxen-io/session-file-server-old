@@ -3,7 +3,7 @@ variables:
 
 test:
   type: test
-  image: ubuntu:latest
+  image: node:10-alpine
   tags:
     - docker
   before_script:
