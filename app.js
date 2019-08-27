@@ -4,11 +4,13 @@
 var path = require('path');
 var nconf = require('nconf');
 
+// FIXME: need way to single out a single IP or token
+
 // Look for a config file
 var config_path = path.join(__dirname, '/config.json');
 // and a model file
 var config_model_path = path.join(__dirname, '/config.models.json');
-nconf.argv().env('__').file({file: config_path}).file('model', {file: config_model_path});
+nconf.argv().env('__').file({file: config_path});
 
 /** set up express framework */
 var express = require('express');
@@ -47,6 +49,7 @@ if (upstream_client_id!='NotSet') {
   proxy = require('./dataaccess.proxy.js');
 }
 var db=require('./dataaccess.caminte.js');
+db.start(nconf);
 var cache=require('./dataaccess.base.js');
 var dispatcher=require('./dispatcher.js');
 var dialects=[];
@@ -61,6 +64,7 @@ dispatcher.appConfig = {
   provider: nconf.get('pomf:provider') || 'pomf.cat',
   provider_url: nconf.get('pomf:provider_url') || 'https://pomf.cat/',
 }
+
 console.log('configuring app as', dispatcher.appConfig)
 // app.net defaults
 dispatcher.config=nconf.get('dataModel:config') || {
@@ -115,25 +119,29 @@ app.use(bodyParser.urlencoded({
 }));
 
 app.all('/*', function(req, res, next){
-
-    origin = req.get('Origin') || '*';
-    res.set('Access-Control-Allow-Origin', origin);
-    res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.set('Access-Control-Expose-Headers', 'Content-Length');
-    res.set('Access-Control-Allow-Credentials', 'true');
-    res.set('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization'); // add the list of headers your site allows.
-    if ('OPTIONS' == req.method) {
-      var ts=new Date().getTime();
-      console.log('app.js - OPTIONS requests served in', (ts-res.start)+'ms');
-      return res.sendStatus(200);
+  res.start=new Date().getTime();
+  origin = req.get('Origin') || '*';
+  res.set('Access-Control-Allow-Origin', origin);
+  res.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.set('Access-Control-Expose-Headers', 'Content-Length');
+  res.set('Access-Control-Allow-Credentials', 'true');
+  res.set('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization'); // add the list of headers your site allows.
+  if (req.method === 'OPTIONS') {
+    var ts=new Date().getTime();
+    var diff = ts-res.start
+    if (diff > 100) {
+      console.log('app.js - OPTIONS requests served in', (diff)+'ms', req.path);
     }
-    next();
+    return res.sendStatus(200);
+  }
+  next();
 });
 
 /**
  * Set up middleware to check for prettyPrint
  * This is run on each incoming request
  */
+var hits = 0
 app.use(function(req, res, next) {
   res.start=new Date().getTime();
   res.path=req.path;
@@ -143,6 +151,17 @@ app.use(function(req, res, next) {
     if (req.query.access_token) {
       //console.log('app.js - Authquery',req.query.access_token);
       req.token=req.query.access_token;
+      if (typeof(req.token) == 'object') {
+        req.token = req.token.filter(function (x, i, a) {
+          return a.indexOf(x) == i;
+        });
+        if (req.token.length == 1) {
+          console.warn('reduced multiple similar access_token params')
+          req.token = req.token[0] // deArray it
+        } else {
+          console.log('multiple access_tokens?!? unique list: ', req.token)
+        }
+      }
       // probably should validate the token here
       /*
       console.log('app.js - getUserClientByToken',req.token);
@@ -180,25 +199,19 @@ app.use(function(req, res, next) {
       }
     }
   }
+
   // debug incoming requests
   if (dispatcher.notsilent && upstream_client_id!='NotSet') {
     process.stdout.write("\n");
   }
   // not any of these
-  if (!(req.path.match(/\/channels/) || req.path.match(/\/posts\/\d+\/replies/) ||
-    req.path.match(/users\/@[A-z]+\/posts/))) {
-    console.log('Request for '+req.path);
+  /*
+  if (!(req.path.match(/^\/channels/) || req.path.match(/^\/posts\/\d+\/replies/) ||
+    req.path.match(/^\/users\/@[A-z]+\/posts/) || req.path.match(/^\/users\/\@/) ||
+    req.path == '/posts/stream/global' || req.path == '/users/me/files')) {
+    console.log(hits, 'Request for '+req.path);
   }
-  // set defaults
-  //  Defaults to false except when you specifically request a Post from a muted user or when you specifically request a muted user's stream.
-  var generalParams={};
-  generalParams.muted=false;
-  generalParams.deleted=true;
-  // Defaults to false for "My Stream" and true everywhere else.
-  generalParams.directed_posts=true;
-  generalParams.machine=false;
-  generalParams.starred_by=false;
-  generalParams.reposters=false;
+  */
 
   // map to bool but handle '0' and '1' just like 'true' and 'false'
   function stringToBool(str) {
@@ -208,6 +221,25 @@ app.use(function(req, res, next) {
     // handle ints and bool types too
     return str?true:false;
   }
+  // set defaults
+  //  Defaults to false except when you specifically request a Post from a muted user or when you specifically request a muted user's stream.
+  var generalParams={};
+  generalParams.muted=false;
+  generalParams.deleted=true; // include_deleted (posts say defaults to true)
+  if (req.query.include_deleted!==undefined) {
+    //console.log("Overriding include_deleted to", req.query.include_deleted);
+    if (req.query.include_deleted instanceof Array) {
+      generalParams.deleted=stringToBool(req.query.include_deleted.pop());
+    } else {
+      generalParams.deleted=stringToBool(req.query.include_deleted);
+    }
+  }
+
+  // Defaults to false for "My Stream" and true everywhere else.
+  generalParams.directed_posts=true;
+  generalParams.machine=false;
+  generalParams.starred_by=false;
+  generalParams.reposters=false;
 
   generalParams.annotations=false;
   if (req.query.include_annotations!==undefined) {
@@ -217,12 +249,12 @@ app.use(function(req, res, next) {
 
   generalParams.post_annotations=false;
   if (req.query.include_post_annotations!==undefined) {
-    console.log("Overriding include_post_annotations to", req.query.include_post_annotations);
+    //console.log("Overriding include_post_annotations to", req.query.include_post_annotations);
     generalParams.post_annotations=stringToBool(req.query.include_post_annotations);
   }
   generalParams.user_annotations=false;
   if (req.query.include_user_annotations!==undefined) {
-    console.log("Overriding include_user_annotations to", req.query.include_user_annotations);
+    //console.log("Overriding include_user_annotations to", req.query.include_user_annotations);
     generalParams.user_annotations=stringToBool(req.query.include_user_annotations);
   }
   generalParams.html=true;
@@ -240,13 +272,18 @@ app.use(function(req, res, next) {
   var channelParams={};
   channelParams.types='';
   if (req.query.channel_types) {
-    console.log("Overriding channel_types to "+req.query.channel_types);
+    //console.log("Overriding channel_types to "+req.query.channel_types);
     channelParams.types=req.query.channel_types;
+  }
+  channelParams.inactive = false;
+  if (req.query.include_inactive) {
+    //console.log("Overriding include_inactive to "+req.query.include_inactive);
+    channelParams.inactive=stringToBool(req.query.include_inactive);
   }
   var fileParams={};
   fileParams.types='';
   if (req.query.file_types) {
-    console.log("Overriding file_types to "+req.query.file_types);
+    //console.log("Overriding file_types to "+req.query.file_types);
     fileParams.types=req.query.channel_types;
   }
   var stremFacetParams={};
@@ -259,12 +296,12 @@ app.use(function(req, res, next) {
   }
   pageParams.before_id=false;
   if (req.query.before_id) {
-    console.log("Overriding before_id to "+req.query.before_id);
+    //console.log("Overriding before_id to "+req.query.before_id);
     pageParams.before_id=parseInt(req.query.before_id);
   }
   pageParams.count=20;
   if (req.query.count) {
-    console.log("Overriding count to "+req.query.count);
+    //console.log("Overriding count to "+req.query.count);
     pageParams.count=Math.min(Math.max(req.query.count, -200), 200);
   }
   // stream marker supported endpoints only
@@ -289,7 +326,7 @@ app.use(function(req, res, next) {
     res.prettyPrint=1;
   }
   res.JSONP=req.query.callback || '';
-  req.cookies = new Cookies( req, res);
+  req.cookies = new Cookies(req, res);
   next();
 });
 
