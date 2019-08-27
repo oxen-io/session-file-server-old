@@ -842,6 +842,14 @@ module.exports = {
       callback(null, null);
     }
   },
+  getChannelDeletions: function(channel_id, callback) {
+    if (this.next) {
+      this.next.getChannelDeletions(channel_id, callback);
+    } else {
+      console.log('dataaccess.base.js::getChannelDeletions - write me!');
+      callback(null, null);
+    }
+  },
   getNotices: function(userid, params, tokenObj, callback) {
     if (this.next) {
       this.next.getNotices(userid, params, tokenObj, callback);
