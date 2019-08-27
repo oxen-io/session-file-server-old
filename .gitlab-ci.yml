@@ -11,4 +11,4 @@ test:
     - npm install -g mocha
   script:
     - node app.js &
-    - mocha
+    - sleep 10 && mocha
