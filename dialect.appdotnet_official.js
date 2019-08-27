@@ -78,6 +78,24 @@ module.exports=function(app, prefix) {
       resp.status(401).type('application/json').send(JSON.stringify(res));
     }
   });
+  app.post(prefix+'/posts/marker', function(req, resp) {
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('usertoken', usertoken);
+      if (usertoken==null) {
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      console.log('dialect.*.js::POSTpostsMarker', req.body);
+      dispatcher.setStreamMarker(req.body.name, req.body.id, req.body.percentage, usertoken, req.apiParams, callbacks.dataCallback(resp));
+    });
+  })
   app.get(prefix+'/users/:user_id/interactions', function(req, resp) {
     // req.token
     // req.token convert into userid/sourceid
@@ -134,7 +152,71 @@ module.exports=function(app, prefix) {
 
         // I don't think we want to pass the full token
         // wut? why not?
-        dispatcher.getFiles(req.params.user_id, req.apiParams, callbacks.dataCallback(resp));
+
+        dispatcher.getFiles(usertoken.userid, req.apiParams, callbacks.dataCallback(resp));
+      }
+    });
+  });
+
+  // Token: Any, Scope: no specified
+  // app tokens can use user_id query to specify which users
+  app.get(prefix+'/users/:user_id/muted', function(req, resp) {
+    // req.token
+    // req.token convert into userid/sourceid
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('usertoken', usertoken);
+      if (usertoken==null) {
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        dispatcher.getMutes(req.params.user_id, req.apiParams, usertoken, callbacks.dataCallback(resp));
+      }
+    });
+  });
+
+  app.post(prefix+'/users/:user_id/mute', function(req, resp) {
+    // req.token
+    // req.token convert into userid/sourceid
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('usertoken', usertoken);
+      if (usertoken==null) {
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        dispatcher.addMute(req.params.user_id, req.apiParams, usertoken, callbacks.dataCallback(resp));
+      }
+    });
+  });
+
+
+  app.delete(prefix+'/users/:user_id/mute', function(req, resp) {
+    // req.token
+    // req.token convert into userid/sourceid
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('usertoken', usertoken);
+      if (usertoken==null) {
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        dispatcher.deleteMute(req.params.user_id, req.apiParams, usertoken, callbacks.dataCallback(resp));
       }
     });
   });
@@ -673,7 +755,11 @@ module.exports=function(app, prefix) {
   // ids are usually numeric but also can be @username
   app.get(prefix+'/users', function(req, resp) {
     if (!req.token) {
-      dispatcher.getUsers(req.query.ids.split(/,/), req.apiParams, callbacks.usersCallback(resp));
+      var ids = req.query.ids
+      if (ids && ids.match(/,/)) {
+        ids = ids.split(/,/)
+      }
+      dispatcher.getUsers(ids, req.apiParams, callbacks.usersCallback(resp));
       return;
     }
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
@@ -682,7 +768,16 @@ module.exports=function(app, prefix) {
         //console.log('dialect.appdotnet_official.js:GETusers/ID - found a token');
         req.apiParams.tokenobj=usertoken;
       }
-      if (!req.query.ids) req.query.ids='';
+      if (!req.query.ids) {
+        var res={
+          "meta": {
+            "code": 400,
+            "error_message": "Call requires and id to lookup"
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
       dispatcher.getUsers(req.query.ids.split(/,/), req.apiParams, callbacks.usersCallback(resp));
     });
   });
@@ -733,23 +828,43 @@ module.exports=function(app, prefix) {
         resp.status(400).type('application/json').send(JSON.stringify(res));
         return;
       }
-      // These are required fields
-      var userobj={
-        name: req.body.name,
-        locale: req.body.locale,
-        timezone: req.body.timezone,
-        description: {
-          text: req.body.description.text,
-        },
-      };
-      // optional fields
-      if (req.body.annotations) {
-        userobj.annotations = req.body.annotations;
-      }
-      userobj.id = usertoken.userid;
-      dispatcher.updateUser(userobj, Date.now()/1000, callbacks.dataCallback(resp));
+      //console.log('dialect.appdotnet_official.js:PUTusersXx - description.text', req.body.description.text)
+      // user param to load everything
+      //console.log('dialect.appdotnet_official.js:PUTusersXx - userid', usertoken.userid)
+      dispatcher.getUser(usertoken.userid, { generalParams: { annotations: true, include_html: true } }, function(userObj, err) {
+        // These are required fields
+        /*
+        var userobj={
+          name: req.body.name,
+          locale: req.body.locale,
+          timezone: req.body.timezone,
+          description: {
+            text: req.body.description.text,
+          },
+        };
+        */
+        userObj.name = req.body.name;
+        userObj.locale = req.body.locale;
+        userObj.timezone = req.body.timezone;
+        userObj.description.text = req.body.description.text;
+        // optional fields
+        if (req.body.annotations) {
+          // spec says we need to add/update (delete if set/blank)
+          // actually there'll be a type but no value
+          // deletes / preprocess
+          for(var i in req.body.annotations) {
+            var note = req.body.annotations[i]
+            if (note.type && note.value === undefined) {
+              console.log('dialect.appdotnet_official.js:PUTusersXx - need to delete', note.type);
+            }
+          }
+          userObj.annotations = req.body.annotations;
+        }
+        //userObj.id = usertoken.userid;
+        console.log('dialect.appdotnet_official.js:PUTusersXx - userobj', userObj);
+        dispatcher.updateUser(userObj, Date.now()/1000, callbacks.dataCallback(resp));
+      });
       //dispatcher.addChannel(channel, req.apiParams, usertoken, callbacks.dataCallback(resp));
-      console.log('dialect.appdotnet_official.js:PUTusersXx - body', req.body);
     });
   });
   // partially update a user (Token: User Scope: update_profile)
@@ -768,17 +883,39 @@ module.exports=function(app, prefix) {
         return;
       }
       req.apiParams.tokenobj=usertoken;
-      console.log('dialect.appdotnet_official.js:PATCHusersX - body', req.body);
+      //console.log('dialect.appdotnet_official.js:PATCHusersX - bodyType['+req.body+']');
+      //console.log('dialect.appdotnet_official.js:PATCHusersX - body ', req.body);
+      //var bodyObj = JSON.parse(req.body)
+      var bodyObj = req.body
+      /*
+      for(var i in req.body) {
+        console.log('dialect.appdotnet_official.js:PATCHusersX -', i, '=', req.body[i]);
+      }
+      */
+      //console.log('dialect.appdotnet_official.js:PATCHusersX - test', req.body.annotations);
       var request={
-        name: req.body.name,
-        locale: req.body.locale,
-        timezone: req.body.timezone,
-        description: req.body.description,
+        //name: req.body.name,
+        //locale: req.body.locale,
+        //timezone: req.body.timezone,
+        //description: req.body.description,
+      }
+      if (bodyObj.name) {
+        request.name = bodyObj.name
+      }
+      if (bodyObj.locale) {
+        request.locale = bodyObj.locale
+      }
+      if (bodyObj.timezone) {
+        request.timezone = bodyObj.timezone
+      }
+      if (bodyObj.description) {
+        request.description = bodyObj.description
       }
       // optional fields
       if (req.body.annotations) {
         request.annotations = req.body.annotations;
       }
+      console.log('dialect.appdotnet_official.js:PATCHusersX - request', request);
       //console.log('dialect.appdotnet_official.js:PATCHusersX - creating channel of type', req.body.type);
       dispatcher.patchUser(request, req.apiParams, usertoken, callbacks.dataCallback(resp));
     });
@@ -875,11 +1012,34 @@ module.exports=function(app, prefix) {
     });
   });
 
+  // token: user, scope: public_messages or messages
+  app.get(prefix+'/users/me/channels', function(req, resp) {
+    //console.log('dialect.appdotnet_official.js:GETusersMEchannels - token:', req.token);
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('dialect.appdotnet_official.js:GETusersMEchannels - got token:', usertoken);
+      if (usertoken===null) {
+        console.log('dialect.appdotnet_official.js:GETchannels - failed to get token:', req.token, typeof(req.token));
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      //console.log('dialect.appdotnet_official.js:GETusersMEchannels - found a token', usertoken);
+      req.apiParams.tokenobj=usertoken;
+      //console.log('dialect.appdotnet_official.js:GETusersMEchannels - getting list of user subs for', usertoken.userid);
+      dispatcher.getUserChannels(req.apiParams, usertoken, callbacks.dataCallback(resp));
+    });
+  });
+
   // Create a channel (token: user)
   app.post(prefix+'/channels', function(req, resp) {
-    //console.log('dialect.appdotnet_official.js:POSTchannels - token', req.token)
+    console.log('dialect.appdotnet_official.js:POSTchannels - token', req.token)
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      //console.log('dialect.appdotnet_official.js:POSTchannels - usertoken', usertoken)
+      console.log('dialect.appdotnet_official.js:POSTchannels - usertoken', usertoken)
       if (usertoken===null) {
         var res={
           "meta": {
@@ -914,13 +1074,13 @@ module.exports=function(app, prefix) {
     });
   });
 
-  // search for posts (Token: Any)
+  // search for channels (Token: User, Scope: public_messages or messages)
   app.get(prefix+'/channels/search', function(req, resp) {
-    //console.log('dialect.appdotnet_official.js:postsStream - start', req.token);
+    //console.log('dialect.appdotnet_official.js:channelsSearch - start', req.token);
     // don't we already handle this in the middleware
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
       //console.log('usertoken',usertoken);
-      //if (usertoken==null) {
+      if (usertoken==null) {
         //console.log('dialect.appdotnet_official.js:channelsSearch - no token');
         // could be they didn't log in through a server restart
         var res={
@@ -930,21 +1090,41 @@ module.exports=function(app, prefix) {
           }
         };
         resp.status(401).type('application/json').send(JSON.stringify(res));
-      /*
-      } else {
-        //console.log('dialect.appdotnet_official.js:postsStream - getUserStream', req.token);
-        //dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp));
-        dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams,
-            usertoken, function(posts, err, meta) {
-          //console.log('dialect.appdotnet_official.js:postsStream - sending');
-          var func=callbacks.postsCallback(resp, req.token);
-          //console.log('getUserStream', posts);
-          func(posts, err, meta);
-        });
+        return;
       }
-      */
+      //console.log('dialect.appdotnet_official.js:channelsSearch - getUserStream', req.token);
+      //dispatcher.getUserStream(usertoken.userid, req.apiParams.pageParams, req.token, callbacks.postsCallback(resp));
+      var critera = {
+      }
+      if (req.query.type) {
+        critera.type = req.query.type;
+      }
+      if (req.query.creator_id) {
+        critera.ownerid = req.query.creator_id;
+      }
+      dispatcher.channelSearch(critera, req.apiParams, usertoken,
+          function(channels, err, meta) {
+        //console.log('dialect.appdotnet_official.js:channelsSearch - sending');
+        var func=callbacks.dataCallback(resp, req.token);
+        //console.log('getUserStream', posts);
+        func(channels, err, meta);
+      });
     });
   });
+
+  app.get(prefix+'/channels/messages', function(req, resp) {
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('dialect.appdotnet_official.js:GETchannelsMESSAGES - got token:', usertoken);
+      var userid='';
+      if (usertoken!=null) {
+        //console.log('dialect.appdotnet_official.js:GETchannelsMESSAGES - found a token', usertoken);
+        req.apiParams.tokenobj=usertoken;
+        userid=usertoken.userid;
+      }
+      //console.log('dialect.appdotnet_official.js:GETchannelsMESSAGES - ids', req.query.ids);
+      dispatcher.getMessage(req.query.ids.split(/,/), req.apiParams, usertoken, callbacks.dataCallback(resp));
+    });
+  })
 
   // channel_id 1383 was always good for testing
   // Retrieve a Channel && Retrieve multiple Channels
@@ -1074,6 +1254,26 @@ module.exports=function(app, prefix) {
     });
   });
 
+
+  // Retrieve users subscribed to a Channel (Token: Any, Scope: public_messages or messages)
+  app.get(prefix+'/channels/:channel_id/subscribers', function(req, resp) {
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      var userid='';
+      if (usertoken==null) {
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      req.apiParams.tokenobj=usertoken;
+      dispatcher.getChannelSubscriptions(req.params.channel_id, req.apiParams, callbacks.dataCallback(resp));
+    });
+  });
+
   // Retrieve multiple Messages (Token: User, Scope: public_messages or messages)
   // how do you receive public messages in a public channel?
   app.get(prefix+'/channels/:channel_id/messages', function(req, resp) {
@@ -1143,6 +1343,30 @@ module.exports=function(app, prefix) {
       dispatcher.addMessage(req.params.channel_id, postdata, req.apiParams, usertoken, callbacks.dataCallback(resp));
     });
   });
+
+  // delete message in channel
+  app.delete(prefix+'/channels/:channel_id/messages/:message_id', function(req, resp) {
+    //console.log('dialect.appdotnet_official.js:DELETEmessages - channel', req.params.channel_id, 'message', req.params.message_id);
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('dialect.appdotnet_official.js:DELETEmessages - got token:', usertoken);
+      var userid='';
+      if (usertoken==null) {
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      //console.log('dialect.appdotnet_official.js:DELETEmessages - found a token', usertoken);
+      req.apiParams.tokenobj=usertoken;
+      //console.log('dialect.appdotnet_official.js:DELETEmessages - channel_id', req.params.channel_id);
+      dispatcher.deleteMessage(req.params.message_id, req.params.channel_id, req.apiParams, usertoken, callbacks.dataCallback(resp));
+    });
+  });
+
   // Retrieve the Messages in a Channel
   app.get(prefix+'/channels/:channel_id/messages/:message_id', function(req, resp) {
     dispatcher.getChannelMessage(req.params.channel_id, req.params.message_id, req.apiParams, callbacks.dataCallback(resp));
