@@ -11,7 +11,7 @@ setInterval(function () {
   var ts=new Date().getTime();
   process.stdout.write("\n");
   var ref=module.exports;
-  console.log('rate.limit report, resetting in', ts-ref.resetAt, 'ms');
+  console.log('rate.limit report, resetting in', (ts-ref.resetAt).toLocaleString(), 'ms');
   // just need a redis info call to pull memory and keys stats
 }, 60*1000);
 
