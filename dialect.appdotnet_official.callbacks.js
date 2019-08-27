@@ -1,7 +1,12 @@
 
 function sendrepsonse(json, resp) {
   var ts=new Date().getTime();
-  console.log(resp.path+' served in '+(ts-resp.start)+'ms');
+  var diff = ts-resp.start;
+  if (diff > 1000) {
+    // this could be to do the client's connection speed
+    // how because we stop the clock before we send the response...
+    console.log(resp.path+' served in '+(ts-resp.start)+'ms');
+  }
   if (resp.prettyPrint) {
     json=JSON.stringify(JSON.parse(json),null,4);
   }
@@ -13,7 +18,7 @@ function sendrepsonse(json, resp) {
 
 function ISODateString(d) {
   if (!d || !d.getUTCFullYear) {
-    console.log('created_at is type (!date): ',d,typeof(d));
+    //console.log('created_at is type (!date): ',d,typeof(d));
     return d;
   }
   function pad(n){return n<10 ? '0'+n : n}
@@ -116,7 +121,7 @@ function formatpost(post, token) {
 module.exports = {
   'postsCallback' : function(resp, token) {
     return function(posts, err, meta) {
-      console.log('dialect.appdotnet_official.callback.js::postsCallback - in posts callback',posts.length);
+      //console.log('dialect.appdotnet_official.callback.js::postsCallback - in posts callback',posts.length);
       for(var i in posts) {
         var post=posts[i];
         //console.log('dialect.appdotnet_official.callback.js::postsCallback - looking at ',post.id,post.created_at,post.userid);
