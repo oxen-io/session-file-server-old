@@ -2648,7 +2648,7 @@ module.exports = {
           });
           return;
         }
-        ref.cache.deleteMessage(message_id, function(msg, err, meta) {
+        ref.cache.deleteMessage(message_id, channel_id, function(msg, err, meta) {
           //console.log('dispatcher.js::deleteMessage - api1', msg);
           apiMsg.is_deleted = true;
           callback(apiMsg, apiErr, apiMeta);

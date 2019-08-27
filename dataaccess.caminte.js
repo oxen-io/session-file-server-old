@@ -368,7 +368,7 @@ function start(nconf) {
   /** interaction storage model */
   interactionModel = schemaData.define('interaction', {
     userid: { type: Number, index: true },
-    type: { type: String, length: 8, index: true }, // star,unstar,repost,unrepost
+    type: { type: String, length: 8, index: true }, // star,unstar,repost,unrepost,delete
     datetime: { type: Date },
     idtype: { type: String, index: true }, // post (what about chnl,msg,user? not for existing types)
     typeid: { type: Number, index: true }, // causing problems?
@@ -3085,10 +3085,20 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       }
     });
   },
-  deleteMessage: function (message_id, callback) {
+  deleteMessage: function (message_id, channel_id, callback) {
     messageModel.update({ where: { id: message_id } }, { is_deleted: 1}, function(err, omsg) {
       if (err) {
         console.log('dataaccess.camtine.js::deleteMessage - err', err)
+      } else {
+        // log delete interaction
+        interaction=new interactionModel();
+        interaction.userid=channel_id;
+        interaction.type='delete';
+        interaction.datetime=Date.now();
+        interaction.idtype='message';
+        interaction.typeid=message_id;
+        //interaction.asthisid=omsg.channel_id;
+        interaction.save();
       }
       if (callback) {
         // omsg is the number of records updated
@@ -3884,6 +3894,11 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       */
       callback(interactions, err);
     });
+  },
+  getChannelDeletions: function(channel_id, params, callback) {
+    //console.log('dataaccess.caminte.js::getChannelDeletions - ', channel_id)
+    var query = interactionModel.find().where('userid', channel_id).where('type', 'delete').where('idtype', 'message');
+    setparams(query, params, 0, callback);
   },
   // user: userid
   getNotices: function(user, params, tokenObj, callback) {
