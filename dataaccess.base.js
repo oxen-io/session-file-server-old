@@ -592,9 +592,9 @@ module.exports = {
       callback(null, null);
     }
   },
-  deleteMessage: function (message_id, callback) {
+  deleteMessage: function (message_id, channel_id, callback) {
     if (this.next) {
-      this.next.deleteMessage(message_id, callback);
+      this.next.deleteMessage(message_id, channel_id, callback);
     } else {
       console.log('dataaccess.base.js::deleteMessage - write me!');
       callback(null, null);
