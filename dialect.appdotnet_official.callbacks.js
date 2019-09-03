@@ -16,6 +16,29 @@ function sendresponse(json, resp) {
   resp.send(json);
 }
 
+function sendObject(obj, resp) {
+  var ts=new Date().getTime();
+  var diff = ts-resp.start;
+  if (diff > 1000) {
+    // this could be to do the client's connection speed
+    // how because we stop the clock before we send the response...
+    console.log(resp.path+' served in '+(ts-resp.start)+'ms');
+  }
+
+  if (obj.meta==undefined) {
+    obj.meta={ code: 200 };
+  }
+
+  if (obj.meta && obj.meta.code) {
+    resp.status(obj.meta.code);
+  }
+
+  resp.type('application/json');
+  resp.setHeader("Access-Control-Allow-Origin", "*");
+
+  resp.send(JSON.stringify(obj,null,resp.prettyPrint?4:null));
+}
+
 function ISODateString(d) {
   if (!d || !d.getUTCFullYear) {
     //console.log('created_at is type (!date): ',d,typeof(d));
@@ -143,10 +166,7 @@ module.exports = {
         meta: meta,
         data: posts
       };
-      if (res.meta==undefined) {
-        res.meta={ code: 200 };
-      }
-      sendresponse(JSON.stringify(res), resp);
+      sendObject(res, resp);
     }
   },
 
@@ -165,10 +185,7 @@ module.exports = {
         meta: meta,
         data: users
       };
-      if (res.meta==undefined) {
-        res.meta={ code: 200 };
-      }
-      sendresponse(JSON.stringify(res), resp);
+      sendObject(res, resp);
     }
   },
 
@@ -186,11 +203,8 @@ module.exports = {
         meta: meta,
         data: users
       };
-      if (res.meta==undefined) {
-        res.meta={ code: 200 };
-      }
       //console.log('ADNO.CB::usersCallback - res', res);
-      sendresponse(JSON.stringify(res), resp);
+      sendObject(res, resp);
     }
   },
 
@@ -206,7 +220,7 @@ module.exports = {
       if (meta) {
         res.meta=meta;
       }
-      sendresponse(JSON.stringify(res), resp);
+      sendObject(res, resp);
     }
   },
 
@@ -233,10 +247,7 @@ module.exports = {
         meta: meta,
         data: formatuser(user, token)
       };
-      if (res.meta==undefined) {
-        res.meta={ code: 200 };
-      }
-      sendresponse(JSON.stringify(res), resp);
+      sendObject(res, resp);
     }
   },
 
@@ -248,10 +259,7 @@ module.exports = {
         meta: meta,
         data: formattoken(data)
       };
-      if (res.meta==undefined) {
-        res.meta={ code: 200 };
-      }
-      sendresponse(JSON.stringify(res), resp);
+      sendObject(res, resp);
     }
   },
 
@@ -264,10 +272,7 @@ module.exports = {
         meta: meta,
         data: data
       };
-      if (res.meta==undefined) {
-        res.meta={ code: 200 };
-      }
-      sendresponse(JSON.stringify(res), resp);
+      sendObject(res, resp);
     }
   },
 
@@ -280,10 +285,7 @@ module.exports = {
         meta: meta,
         data: data
       };
-      if (res.meta==undefined) {
-        res.meta={ code: 200 };
-      }
-      sendresponse(JSON.stringify(res), resp);
+      sendObject(res, resp);
     }
   },
 
