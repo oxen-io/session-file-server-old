@@ -2283,8 +2283,6 @@ module.exports = {
         mentions: [],
         hashtags: []
       },
-      text: message.text,
-      html: message.html,
       id: message.id,
       machine_only: message.machine_only?true:false,
       num_replies: 0,
@@ -2293,6 +2291,12 @@ module.exports = {
     };
     if (message.is_deleted) {
       api.is_deleted = true
+      delete api.text;
+      delete api.html;
+    } else {
+      api.text = message.text;
+      api.html = message.html;
+      api.source = {};
     }
     var ref=this;
 
@@ -2400,9 +2404,14 @@ module.exports = {
         });
       }
     }
-    loadEntites(message, function() {
+
+    if (message.is_deleted) {
       setDone('entities');
-    })
+    } else {
+      loadEntites(message, function() {
+        setDone('entities');
+      })
+    }
 
     loadUser(message.userid, params, function(user, userErr, userMeta) {
       api.user=user;
@@ -2414,7 +2423,8 @@ module.exports = {
       setDone('user');
       //callback(api, null);
     });
-    if (params.generalParams.annotations || params.generalParams.post_annotations) {
+
+    if (!message.is_deleted && (params.generalParams.annotations || params.generalParams.post_annotations)) {
       loadAnnotation(message.id, function(apiNotes, noteErr, noteMeta) {
         //console.log('dispatcher.js::messageToAPI - loading annotations', apiNotes.length)
         api.annotations = apiNotes;
