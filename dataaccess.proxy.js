@@ -38,6 +38,7 @@ setInterval(function () {
 module.exports = {
   next: null,
   dispatcher: null,
+  apiroot: '',
   /*
    * users
    */
