@@ -189,6 +189,14 @@ module.exports = {
       callback(null, null);
     }
   },
+  getAPITokenByUsername: function(username, callback) {
+    if (this.next) {
+      this.next.getAPITokenByUsername(username, callback);
+    } else {
+      console.log('dataaccess.base.js::getAPITokenByUsername - write me!');
+      callback(null, null);
+    }
+  },
   getAPIUserToken: function(token, callback) {
     if (this.next) {
       this.next.getAPIUserToken(token, callback);
