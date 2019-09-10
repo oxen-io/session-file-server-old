@@ -2881,7 +2881,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     if (channel.editedit) {
       obj.editedit=channel.editedit;
     }
-    console.log('dataaccess.caminte.js::addChannel - final obj', obj)
+    //console.log('dataaccess.caminte.js::addChannel - final obj', obj)
     channelModel.create(obj, function(err, ochnl) {
       if (err) {
         console.log('dataaccess.caminte.js::addChannel - create err', err);
@@ -2924,7 +2924,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     if (params.channelParams && params.channelParams.inactive) {
       criteria.where['inactive']= { ne: null }
     }
-    console.log('dataaccess.caminte.js::getChannel - criteria', criteria);
+    //console.log('dataaccess.caminte.js::getChannel - criteria', criteria);
     channelModel.find(criteria, function(err, channels) {
       //console.log('dataaccess.caminte.js::getChannel - found', channels.length)
       if (channels==null && err==null) {
@@ -2941,15 +2941,16 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
         // we don't want inactive
         for(var i in channels) {
           var channel = channels[i]
+          //console.log('dataaccess.caminte.js::getChannel - channel', channel);
           // is it active?
-          if (channel.inactive !== null) {
+          if (channel.inactive === null) {
             // add active channels
             nchannels.push(channel)
           }
         }
       }
 
-      //console.log('dataaccess.caminte.js::getChannel - channels', channels)
+      //console.log('dataaccess.caminte.js::getChannel - nchannels', nchannels)
       if (id instanceof Array) {
         callback(nchannels, err);
       } else {
