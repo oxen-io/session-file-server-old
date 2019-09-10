@@ -2910,7 +2910,10 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       return;
     }
     var ref=this;
-    var criteria={ where: { id: id, inactive: null } };
+    // null is an object... which breaks the memory type driver rn
+    // we'll remove this for now and do our own filtering for now
+    // , inactive: null
+    var criteria={ where: { id: id } };
     if (params.channelParams && params.channelParams.types) {
       criteria.where['type']={ in: params.channelParams.types.split(/,/) };
       //console.log('dataaccess.caminte.js::getChannel - types', criteria.where['type']);
@@ -2930,11 +2933,27 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
           return;
         }
       }
+      var nchannels = []
+      if (params.channelParams && params.channelParams.inactive) {
+        // we want inactive
+        nchannels = channels;
+      } else {
+        // we don't want inactive
+        for(var i in channels) {
+          var channel = channels[i]
+          // is it active?
+          if (channel.inactive !== null) {
+            // add active channels
+            nchannels.push(channel)
+          }
+        }
+      }
+
       //console.log('dataaccess.caminte.js::getChannel - channels', channels)
       if (id instanceof Array) {
-        callback(channels, err);
+        callback(nchannels, err);
       } else {
-        callback(channels[0], err);
+        callback(nchannels[0], err);
       }
     });
   },
