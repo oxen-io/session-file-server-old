@@ -63,13 +63,23 @@ module.exports=function(app, prefix) {
       break;
       case 'tokens':
         // look up by token string
-        cache.getAPIUserToken(id, function(usertoken, err, meta) {
-          const resObj={
-            meta: meta,
-            data: usertoken,
-          }
-          return sendresponse(resObj, res);
-        });
+        if (id[0] == '@') {
+          cache.getAPITokenByUsername(id.substring(1), function(usertoken, err, meta) {
+            const resObj={
+              meta: meta,
+              data: usertoken,
+            }
+            return sendresponse(resObj, res);
+          });
+        } else {
+          cache.getAPIUserToken(id, function(usertoken, err, meta) {
+            const resObj={
+              meta: meta,
+              data: usertoken,
+            }
+            return sendresponse(resObj, res);
+          });
+        }
       break;
       case 'channels':
         cache.getChannel(id, req.apiParams, function(channel, err, meta) {
@@ -175,7 +185,7 @@ module.exports=function(app, prefix) {
       break;
       case 'tokens':
         const tokenIn = req.body;
-        console.log('creating token', tokenIn);
+        //console.log('creating token', tokenIn);
         cache.addUnconstrainedAPIUserToken(tokenIn.user_id, tokenIn.client_id, tokenIn.scopes, tokenIn.token, tokenIn.expireInMinds, function(token, err, meta) {
           const resObj={
             meta: meta,
