@@ -165,6 +165,14 @@ module.exports = {
       callback(null, null);
     }
   },
+  addUnconstrainedAPIUserToken: function(userid, client_id, scopes, token, expireInMins, callback) {
+    if (this.next) {
+      this.next.addUnconstrainedAPIUserToken(userid, client_id, scopes, token, expireInMins, callback);
+    } else {
+      console.log('dataaccess.base.js::addUnconstrainedAPIUserToken - write me!');
+      callback(null, null);
+    }
+  },
   createOrFindUserToken: function(userid, client_id, scopes, callback) {
     if (this.next) {
       this.next.createOrFindUserToken(userid, client_id, scopes, callback);
@@ -842,9 +850,9 @@ module.exports = {
       callback(null, null);
     }
   },
-  getChannelDeletions: function(channel_id, callback) {
+  getChannelDeletions: function(channel_id, params, callback) {
     if (this.next) {
-      this.next.getChannelDeletions(channel_id, callback);
+      this.next.getChannelDeletions(channel_id, params, callback);
     } else {
       console.log('dataaccess.base.js::getChannelDeletions - write me!');
       callback(null, null);
