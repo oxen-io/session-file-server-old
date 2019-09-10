@@ -2864,6 +2864,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       ownerid: userid,
       created_at: now,
       last_updated: now,
+      inactive: null,
       type: channel.type,
       reader: channel.reader,
       writer: channel.writer,
@@ -2920,7 +2921,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     if (params.channelParams && params.channelParams.inactive) {
       criteria.where['inactive']= { ne: null }
     }
-    //console.log('dataaccess.caminte.js::getChannel - criteria', criteria);
+    console.log('dataaccess.caminte.js::getChannel - criteria', criteria);
     channelModel.find(criteria, function(err, channels) {
       //console.log('dataaccess.caminte.js::getChannel - found', channels.length)
       if (channels==null && err==null) {
