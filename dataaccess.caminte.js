@@ -72,9 +72,10 @@ function start(nconf) {
 
     // to enable emojis we need to run these
     // alter table post MODIFY `text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
-    // alter table post MODIFY `post` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+    // alter table post MODIFY `html` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
     // alter table message MODIFY `text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
-    // alter table message MODIFY `post` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+    // alter table message MODIFY `html` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+    // TODO: user name
   }
 
   // Auth models and accessors can be moved into own file?
@@ -1013,13 +1014,6 @@ module.exports = {
       callback(null, 'dataaccess.caminte.js:getUser - userid isn\'t set');
       return;
     }
-    if (isNaN(userid)) {
-      console.log('dataaccess.caminte.js:getUser - userid isn\'t a number');
-      var stack = new Error().stack
-      console.error(stack)
-      callback(null, 'dataaccess.caminte.js:getUser - userid isn\'t a number');
-      return;
-    }
     if (callback==undefined) {
       console.log('dataaccess.caminte.js:getUser - callback is undefined');
       var stack = new Error().stack
@@ -1031,6 +1025,13 @@ module.exports = {
     if (userid[0]==='@') {
       //console.log('dataaccess.caminte.js:getUser - getting by username');
       this.getUserID(userid.substr(1), callback);
+      return;
+    }
+    if (isNaN(userid)) {
+      console.log('dataaccess.caminte.js:getUser - userid isn\'t a number');
+      var stack = new Error().stack
+      console.error(stack)
+      callback(null, 'dataaccess.caminte.js:getUser - userid isn\'t a number');
       return;
     }
     var ref=this;
@@ -1297,7 +1298,8 @@ module.exports = {
             usertoken.scopes=scopes;
             usertoken.token=token;
             usertoken.created_at=new Date();
-            console.log('creating localUserToken', usertoken)
+            // this doesn't output anything useful at all
+            //console.log('creating localUserToken', usertoken)
             /*usertoken.save(function() {
               callback(usertoken, null);
             })*/
@@ -1413,6 +1415,26 @@ module.exports = {
       db_delete(usertoken.id, localUserTokenModel, callback);
     });
   },
+  // should only be used by the admin API
+  getAPITokenByUsername: function(username, callback) {
+    //console.log('dataaccess.camintejs.js::getAPITokenByUsername - username:', username);
+    if (username==undefined) {
+      console.log('dataaccess.camintejs.js::getAPITokenByUsername - username not defined');
+      return callback(null, 'username undefined');
+    }
+    this.getUserID(username, function(user, err) {
+      if (!user) {
+        return callback(null, err);
+      }
+      localUserTokenModel.findOne({ where: { userid: user.id }, limit: 1 }, function(err, usertoken) {
+        if (err) {
+          console.log('dataaccess.camintejs.js::getAPIUserToken - err', err, 'usertoken', usertoken);
+        }
+        //console.log('dataaccess.camintejs.js::getAPIUserToken - found:', usertoken);
+        callback(usertoken, err);
+      });
+    });
+  },
   getAPIUserToken: function(token, callback) {
     //console.log('dataaccess.camintejs.js::getAPIUserToken - Token:', token);
     if (token==undefined) {
@@ -1451,8 +1473,8 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
 dispatcher @1494199407211 Memory+[833.86 k] Heap[24.78 M] uptime: 298876.034
 dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
 */
-    // why is there more than one?
-    // if we get more than one, than we callback multiple times
+    // what if there more than one?
+    // if we get more than one, than we callback multiple times?
     localUserTokenModel.findOne({ where: { token: token }, limit: 1 }, function(err, usertoken) {
       if (err) {
         console.log('dataaccess.camintejs.js::getAPIUserToken - err', err, 'usertoken', usertoken);
@@ -3086,10 +3108,12 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     });
   },
   deleteMessage: function (message_id, channel_id, callback) {
+    //console.log('dataaccess.camtine.js::deleteMessage - start', message_id, channel_id)
     messageModel.update({ where: { id: message_id } }, { is_deleted: 1}, function(err, omsg) {
       if (err) {
         console.log('dataaccess.camtine.js::deleteMessage - err', err)
       } else {
+        //console.log('dataaccess.camtine.js::deleteMessage - loggin interaction')
         // log delete interaction
         interaction=new interactionModel();
         interaction.userid=channel_id;
@@ -3100,7 +3124,9 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
         //interaction.asthisid=omsg.channel_id;
         interaction.save();
       }
+      //console.log('dataaccess.camtine.js::deleteMessage - check cb')
       if (callback) {
+        //console.log('dataaccess.camtine.js::deleteMessage - cb', omsg)
         // omsg is the number of records updated
         callback(omsg, err);
       }
@@ -3896,7 +3922,11 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     });
   },
   getChannelDeletions: function(channel_id, params, callback) {
-    //console.log('dataaccess.caminte.js::getChannelDeletions - ', channel_id)
+    //console.log('dataaccess.caminte.js::getChannelDeletions - ', channel_id);
+    if (callback === undefined) {
+      console.error('dataaccess.caminte.js::getChannelDeletions - no callback passed in');
+      return;
+    }
     var query = interactionModel.find().where('userid', channel_id).where('type', 'delete').where('idtype', 'message');
     setparams(query, params, 0, callback);
   },
