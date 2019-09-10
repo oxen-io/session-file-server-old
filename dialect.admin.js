@@ -19,6 +19,8 @@ const sendresponse = (json, resp) => {
   resp.send(json);
 }
 
+// FIXME verification of modKey
+
 module.exports=function(app, prefix) {
   //var dispatcher=app.dispatcher;
   // set cache based on dispatcher object
@@ -27,7 +29,7 @@ module.exports=function(app, prefix) {
   // get listing
   app.get(prefix + '/:model', (req, res) => {
     const model = req.params.model;
-    console.log('model', model);
+    console.log('admin::list model', model);
     switch(model) {
       case 'channels':
         cache.searchChannels({}, req.apiParams, function(channels, err, meta) {
@@ -48,7 +50,7 @@ module.exports=function(app, prefix) {
   app.get(prefix + '/:model/:id', (req, res) => {
     const model = req.params.model;
     const id = req.params.id;
-    console.log('model', model, 'id', id);
+    console.log('admin::findOne model', model, 'id', id);
     switch(model) {
       case 'users':
         cache.getUser(id, function(user, err, meta) {
@@ -159,7 +161,7 @@ module.exports=function(app, prefix) {
   // create record
   app.post(prefix + '/:model', (req, res) => {
     const model = req.params.model;
-    console.log('model', model);
+    console.log('admin::create model', model);
     switch(model) {
       case 'users':
         // "password" (2nd) parameter is not saved/used
@@ -192,7 +194,7 @@ module.exports=function(app, prefix) {
   app.patch(prefix + '/:model/:id', (req, res) => {
     const model = req.params.model;
     const id = req.params.id;
-    console.log('model', model, 'id', id);
+    console.log('admin::update model', model, 'id', id);
     switch(model) {
       case 'channels':
         cache.getChannel(id, req.apiParams, function(channel, err, meta) {
@@ -214,7 +216,7 @@ module.exports=function(app, prefix) {
   app.delete(prefix + '/:model/:id', (req, res) => {
     const model = req.params.model;
     const id = req.params.id;
-    console.log('model', model, 'id', id);
+    console.log('admin::delete model', model, 'id', id);
     switch(model) {
       default:
         res.status(200).end("{}");
