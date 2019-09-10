@@ -4,6 +4,8 @@
 var path = require('path');
 var nconf = require('nconf');
 
+//var longjohn = require('longjohn');
+
 // FIXME: need way to single out a single IP or token
 
 // Look for a config file
@@ -37,6 +39,16 @@ var api_client_id= nconf.get('web:api_client_id') || '';
 var auth_base=nconf.get('auth:base') || 'https://account.app.net/oauth/';
 var auth_client_id=nconf.get('auth:client_id') || upstream_client_id;
 var auth_client_secret=nconf.get('auth:client_secret') || upstream_client_secret;
+
+var admin_port=nconf.get('admin:port') || 3000;
+var admin_listen=nconf.get('admin:listen') || '127.0.0.1';
+var admin_modkey=nconf.get('admin:modKey');
+
+var octets=admin_listen.split('.');
+if (octets[0] != '127' && octets[0] != '10' && octets[0] != '172' && octets[0] != '192') {
+  console.error('Cannot listen on',admin_listen,'private or loopback only!', octets);
+  admin_listen='127.0.0.1';
+}
 
 // Todo: make these modular load modules from config file
 
@@ -111,14 +123,7 @@ var pageParams=['since_id','before_id','count','last_read','last_read_inclusive'
 var channelParams=['channel_types'];
 var fileParams=['file_types'];
 
-/** need this for POST parsing */
-// heard this writes to /tmp and doesn't scale.. need to confirm if current versions have this problem
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({
-  extended: true
-}));
-
-app.all('/*', function(req, res, next){
+function corsMiddleware(req, res, next){
   res.start=new Date().getTime();
   origin = req.get('Origin') || '*';
   res.set('Access-Control-Allow-Origin', origin);
@@ -135,14 +140,14 @@ app.all('/*', function(req, res, next){
     return res.sendStatus(200);
   }
   next();
-});
+}
 
 /**
  * Set up middleware to check for prettyPrint
  * This is run on each incoming request
  */
 var hits = 0
-app.use(function(req, res, next) {
+function adnMiddleware(req, res, next) {
   res.start=new Date().getTime();
   res.path=req.path;
   //console.dir(req); // super express debug
@@ -328,7 +333,42 @@ app.use(function(req, res, next) {
   res.JSONP=req.query.callback || '';
   req.cookies = new Cookies(req, res);
   next();
+}
+
+// temporary hack middleware for debugging
+/*
+app.all('/*', function(req, res, next) {
+  console.debug('DBGrequest', req.path)
+  if (req.method == 'POST') {
+    //console.debug('DBGbody', req)
+    var body = '';
+
+    req.on('data', function (data) {
+      body += data;
+
+      // Too much POST data, kill the connection!
+      // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
+      if (body.length > 1e6)
+        req.connection.destroy();
+    });
+
+    req.on('end', function () {
+      console.log('post body', body)
+      // use post['blah'], etc.
+    });
+  }
+  next();
 });
+*/
+
+/** need this for POST parsing */
+// heard this writes to /tmp and doesn't scale.. need to confirm if current versions have this problem
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
+app.all('/*', corsMiddleware);
+app.use(adnMiddleware);
 
 /**
  * support both styles of calling API
@@ -421,6 +461,28 @@ app.get('/', function(req, resp) {
  * Launch the server!
  */
 app.listen(webport);
+
+
+if (admin_modkey) {
+  // create an internal server
+  var internalServer = express();
+  internalServer.use(bodyParser.json());
+  internalServer.use(bodyParser.urlencoded({
+    extended: true
+  }));
+  //internalServer.all('/*', corsMiddleware);
+  internalServer.use(adnMiddleware);
+
+  var internal_mounts={};
+
+  internal_mounts.admin=require('./dialect.admin');
+  internalServer.dispatcher=dispatcher;
+  internal_mounts.admin(internalServer, '');
+  console.log('Mounting admin at / on '+admin_listen+':'+admin_port);
+  internalServer.listen(admin_port, admin_listen);
+} else {
+  console.log("admin:modKey not set in config. No admin set up!");
+}
 
 /** set up upstream */
 if (upstream_client_id!='NotSet') {
