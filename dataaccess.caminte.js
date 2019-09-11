@@ -151,6 +151,10 @@ function start(nconf) {
   */
   // well localUserToken is a combo of grants and tokens
 
+  // Auth models and accessors can be moved into own file?
+  // so that routes.* can access them separately from everything!
+
+  // NOTE: all models automically have a default 'id' field that's an AutoIncrement
 
   // DEPRECATE UserTokenModel, it became localUserToken
 
@@ -2177,51 +2181,68 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     // thread_id or reply_to?
 
     //, id: { ne: postid }
-    // FIXME: make pageable
-    setparams(postModel.find().where('thread_id', postid).where('repost_of', 0), params, 0, function(posts, err, meta) {
-    //postModel.find({ where: { thread_id: postid, repost_of: { ne: postid } }, limit: params.count, order: "id DESC" }, function(err, posts) {
-      //console.log('found '+posts.length,'err',err);
-      if ((posts==null || posts.length==0) && err==null) {
-        // before we hit proxy, check empties
-        // if there is one, there should only ever be one
-        emptyModel.findOne({ where: { type: 'replies', typeid: postid } }, function(err, empties) {
-          //console.log('dataaccess.caminte.js::getReplies - empties got',empties);
-          if (empties===null) {
+    // setparams should handle the is_deleted
+    var query = postModel.find().where('thread_id', postid).where('repost_of', 0)
 
-            if (ref.next) {
-              //console.log('dataaccess.caminte.js::getReplies - next');
-              ref.next.getReplies(postid, params, token, function(pdata, err, meta) {
-                // set empties
-                console.log('dataaccess.caminte.js::getReplies - proxy.getReposts got length',pdata.length,'postid',postid);
-                // 0 or the original post
-                if (pdata.length<2) {
-                  // no reposts
-                  console.log('dataaccess.caminte.js::getReplies - proxy.getReposts got none');
-                  // createOrUpdate? upsert?
-                  var empty=new emptyModel;
-                  empty.type='replies';
-                  empty.typeid=postid;
-                  // .getTime();
-                  empty.last_updated=new Date();
-                  db_insert(empty, emptyModel);
-                }
-                callback(pdata, err, meta);
-              });
-              return;
+    function finishGetReplies() {
+      setparams(query, params, 0, function(posts, err, meta) {
+      //postModel.find({ where: { thread_id: postid, repost_of: { ne: postid } }, limit: params.count, order: "id DESC" }, function(err, posts) {
+        //console.log('found '+posts.length,'err',err);
+        if ((posts==null || posts.length==0) && err==null) {
+          // before we hit proxy, check empties
+          // if there is one, there should only ever be one
+          emptyModel.findOne({ where: { type: 'replies', typeid: postid } }, function(err, empties) {
+            //console.log('dataaccess.caminte.js::getReplies - empties got',empties);
+            if (empties===null) {
+
+              if (ref.next) {
+                //console.log('dataaccess.caminte.js::getReplies - next');
+                ref.next.getReplies(postid, params, token, function(pdata, err, meta) {
+                  // set empties
+                  console.log('dataaccess.caminte.js::getReplies - proxy.getReposts got length',pdata.length,'postid',postid);
+                  // 0 or the original post
+                  if (pdata.length<2) {
+                    // no reposts
+                    console.log('dataaccess.caminte.js::getReplies - proxy.getReposts got none');
+                    // createOrUpdate? upsert?
+                    var empty=new emptyModel;
+                    empty.type='replies';
+                    empty.typeid=postid;
+                    // .getTime();
+                    empty.last_updated=new Date();
+                    db_insert(empty, emptyModel);
+                  }
+                  callback(pdata, err, meta);
+                });
+                return;
+              } else {
+                // no way to get data
+                callback(null, null);
+              }
             } else {
-              // no way to get data
-              callback(null, null);
+              console.log('dataaccess.caminte.js::getReplies - used empty cache');
+              // we know it's empty
+              callback([], null, meta);
             }
-          } else {
-            console.log('dataaccess.caminte.js::getReplies - used empty cache');
-            // we know it's empty
-            callback([], null);
-          }
-        });
-      } else {
-        callback(posts, err);
-      }
-    });
+          });
+        } else {
+          callback(posts, err, meta);
+        }
+      });
+    }
+    if (params.tokenobj) {
+      var mutedUserIDs = []
+      muteModel.find({ where: { 'userid': { in: params.tokenobj.userid } } }, function(err, mutes) {
+        for(var i in mutes) {
+          mutedUserIDs.push(mutes[i].muteeid)
+        }
+        query=query.where('userid', { nin: mutedUserIDs })
+        //console.log('getChannelMessages - params', params);
+        finishGetReplies()
+      })
+    } else {
+      finishGetReplies()
+    }
   },
   getUserPostStream: function(userid, params, token, callback) {
     var ref=this;
