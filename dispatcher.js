@@ -211,7 +211,15 @@ module.exports = {
           function finishCreatingPost() {
             ref.setEntities('post', dbpost.id, post.entities, function() {
               //console.log('dispatcher.js::addPost - Entities set', post.entities.links);
-              ref.postToAPI(dbpost, {}, tokenObj, callback, meta);
+              ref.postToAPI(dbpost, {}, tokenObj, function(apiPost, err, meta) {
+                module.exports.pumpStreams({
+                  id:   dbpost.id,
+                  type: 'post',
+                  op:   'add',
+                  actor: post.userid
+                }, apiPost);
+                callback(apiPost, err, meta);
+              }, meta);
             });
           }
 
@@ -456,6 +464,17 @@ module.exports = {
       */
     }
     dataPost.created_at=new Date(post.created_at); // fix incoming created_at iso date to Date
+
+    function finishSending(dataPost, err, meta) {
+      module.exports.pumpStreams({
+        id:   post.id,
+        type: 'post',
+        op:   'add', // really isn't an update
+        actor: post.user.id
+      }, dataPost)
+      callback(dataPost, err, meta);
+    }
+
     //console.log('dispatcher::setPost - user is', post.userid);
     if (post.source) {
       var ref=this;
@@ -468,11 +487,11 @@ module.exports = {
           dataPost.client_id=client.client_id;
         }
         //console.log('dispatcher.js::setPost datapost id is '+dataPost.id);
-        ref.cache.setPost(dataPost, callback);
+        ref.cache.setPost(dataPost, finishSending);
       });
     } else {
       //console.log('dispatcher.js::setPost datapost id is '+dataPost.id);
-      this.cache.setPost(dataPost, callback);
+      this.cache.setPost(dataPost, finishSending);
     }
 
     if (post.annotations) {
@@ -2610,7 +2629,6 @@ module.exports = {
             // OPT: if no streams and no callback, no need for API conversion
             ref.messageToAPI(msg, params, tokenobj, function(api, err) {
               //console.log('dispatcher.js::addMessage - api', api);
-              /*
               module.exports.pumpStreams({
                 id:   msg.id,
                 type: 'message',
@@ -2618,7 +2636,6 @@ module.exports = {
                 actor: msg.userid,
                 channel_id: channel_id
               }, api);
-              */
               ref.setEntities('message', msg.id, message.entities, function() {
                 // if current, extract annotations too
                 if (callback) {
@@ -2788,24 +2805,43 @@ module.exports = {
           callback([], err);
           return;
         }
-        // FIXME: doesn't perserve order does it? nope
-        var apis={};
-        var apiCount = 0;
-        for(var i in messages) {
-          // channel, params, tokenObj, callback, meta
-          ref.messageToAPI(messages[i], params, params.tokenobj, function(message, cErr) {
-            //console.log('dispatcher.js::getChannelMessages - pushing', message.id)
-            //apis.push(message);
-            apis[message.id] = message;
-            apiCount++;
-            if (messages.length == apiCount) {
-              var list = []
-              for(var i in messages) {
-                list.push(apis[messages[i].id]);
+        function finishMessages() {
+          // FIXME: doesn't perserve order does it? nope
+          var apis={};
+          var apiCount = 0;
+          for(var i in messages) {
+            // channel, params, tokenObj, callback, meta
+            ref.messageToAPI(messages[i], params, params.tokenobj, function(message, cErr) {
+              //console.log('dispatcher.js::getChannelMessages - pushing', message.id)
+              //apis.push(message);
+              apis[message.id] = message;
+              apiCount++;
+              if (messages.length == apiCount) {
+                var list = []
+                for(var i in messages) {
+                  list.push(apis[messages[i].id]);
+                }
+                callback(list, err || cErr);
               }
-              callback(list, err || cErr);
+            });
+          }
+        }
+        if (params.tokenobj && params.tokenobj.userid) {
+          ref.cache.getStreamMarker(params.tokenobj.userid, "channel:"+cid, function(marker, mErr) {
+            meta = {
+              code: 200,
+              marker: {
+                name: "channel:"+cid
+              }
             }
-          });
+            if (marker !== undefined) {
+              //console.log('dispatcher.js::getChannelMessages - got marker', marker);
+              meta.marker = marker;
+            }
+            finishMessages()
+          })
+        } else {
+          finishMessages()
         }
       });
     });
@@ -4961,7 +4997,44 @@ module.exports = {
     data=false;
     meta=false;
     json=false;
-  }
+  },
+  pumpStreams: function(options, data) {
+    console.log('dispatcher::pumpStreams -', options)
+    // op isn't used (add/del), type is only used in the meta
+    function checkKey(key, op, type) {
+      console.log('dispatcher::pumpStreams - checking', key);
+      // see if there's any connections we need to pump
+      if (module.exports.pumps[key]) {
+        console.log('pumping', key, 'with', module.exports.pumps[key].length);
+        // FIXME: by queuing all connections that data needs to be set on
+        for(var i in module.exports.pumps[key]) {
+          var connId = module.exports.pumps[key][i];
+          // push non-db object data to connection
+          // is_deleted, deleted_id
+          // subscription_ids
+          var wrap = {
+            meta: {
+              connection_id: connId,
+              type: type
+            },
+            data: data
+          }
+          module.exports.streamEngine.handlePublish(connId, wrap);
+        }
+      }
+    }
+    // { id: x, type: 'post', op: 'add', actor: 153 }
+    // { id: x, type: 'post', op: 'del', }
+    // conver to key
+    if (options.type == 'message') {
+      checkKey('channel.'+options.channel_id+'.message', options.op, 'message');
+    } else {
+      checkKey(options.type+'.'+options.id, options.op, 'post');
+      if (options.type == 'post') {
+        checkKey('user.'+options.actor+'.post', options.op, 'post');
+      }
+    }
+  },
   /**
    * This callback is displayed as part of Dispatcher class
    * @callback setPostCallback
