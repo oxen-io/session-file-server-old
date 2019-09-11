@@ -865,6 +865,9 @@ function setparams(query, params, maxid, callback) {
   }
   var min_id=Number.MAX_SAFE_INTEGER, max_id=0;
   query.run({},function(err, objects) {
+    if (err) {
+      console.error('dataaccess.caminte.js::setparams - err', err);
+    }
     //console.log('dataaccess.caminte.js::setparams -', query.model.modelName, 'query got', objects.length, 'only need', params.count);
     // first figure out "more"
     // if got less than what we requested, we may not have it cached
@@ -905,6 +908,7 @@ function setparams(query, params, maxid, callback) {
       more: more
     };
     // was .reverse on posts, but I don't think that's right for id DESC
+    //console.log('dataaccess.caminte.js::setparams -', query.model.modelName, 'query got', objects.length, 'only need', params.count);
     callback(objects, err, imeta);
   });
 }
@@ -2882,6 +2886,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       obj.editedit=channel.editedit;
     }
     //console.log('dataaccess.caminte.js::addChannel - final obj', obj)
+    // not sure create works with memory driver...
     channelModel.create(obj, function(err, ochnl) {
       if (err) {
         console.log('dataaccess.caminte.js::addChannel - create err', err);
@@ -3343,10 +3348,13 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
   },
   getChannelSubscriptions: function(channelid, params, callback) {
     if (channelid==undefined) {
+      console.log('dataaccess.caminte.js::getChannelSubscriptions - channel id is undefined');
       callback(null, 'dataaccess.caminte.js::getChannelSubscriptions - channel id is undefined');
       return;
     }
+    //console.log('dataaccess.caminte.js::getChannelSubscriptions - channelid', channelid);
     var query=subscriptionModel.find().where('channelid', channelid).where('active', true);
+    //console.log('dataaccess.caminte.js::getChannelSubscriptions - query', query);
     applyParams(query, params, callback);
     /*
     if (this.next) {
