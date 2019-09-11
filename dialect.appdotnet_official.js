@@ -6,6 +6,8 @@ this file is responsible for the dialect for the associate mountpoint
 we're responsible for filteirng models to make sure we only return what matches the dialect's spec
 */
 var callbacks = require('./dialect.appdotnet_official.callbacks.js');
+var ratelimiter = require('./ratelimiter.js');
+
 // for pomf support
 var request=require('request');
 var multer  = require('multer');
@@ -305,42 +307,45 @@ module.exports=function(app, prefix) {
       }
     }
     */
-    console.log('ADNO::POST/posts - params', req.body);
-    var postdata={
-      text: req.body.text,
-    };
-    if (req.body.reply_to) { // this is optional
-      postdata.reply_to=req.body.reply_to;
-      console.log('setting reply_to', postdata.reply_to);
-    }
-    if (req.body.entities) {
-      postdata.entities=req.body.entities;
-    }
-    if (req.body.annotations) {
-      postdata.annotations=req.body.annotations;
-    }
-    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      if (err) {
-        console.error('ADNO::POST/posts - token err', err);
+    ratelimiter.rateLimit(1, 1, function() {
+      console.log('ADNO::POST/posts - params', req.body);
+      var postdata={
+        text: req.body.text,
+      };
+      if (req.body.reply_to) { // this is optional
+        postdata.reply_to=req.body.reply_to;
+        console.log('setting reply_to', postdata.reply_to);
       }
-      if (usertoken==null) {
-        console.log('dialect.appdotnet_official.js:POST/posts - no token for', req.token);
-        // could be they didn't log in through a server restart
-        var res={
-          "meta": {
-            "code": 401,
-            "error_message": "Call requires authentication: Authentication required to fetch token."
-          }
-        };
-        resp.status(401).type('application/json').send(JSON.stringify(res));
-      } else {
-        //console.log('dialect.appdotnet_official.js:postsStream - usertoken', usertoken);
-        // if we set here we don't really need to pass token
-        postdata.userid=usertoken.userid;
-        postdata.client_id=usertoken.client_id;
-        console.log('ADNO::POST/posts - postObject', postdata);
-        dispatcher.addPost(postdata, usertoken, callbacks.postCallback(resp, req.token));
+      if (req.body.entities) {
+        postdata.entities=req.body.entities;
       }
+      if (req.body.annotations) {
+        postdata.annotations=req.body.annotations;
+      }
+      dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+        if (err) {
+          console.error('ADNO::POST/posts - token err', err);
+        }
+        if (usertoken==null) {
+          console.log('dialect.appdotnet_official.js:POST/posts - no token for', req.token);
+          // could be they didn't log in through a server restart
+          var res={
+            "meta": {
+              "code": 401,
+              "error_message": "Call requires authentication: Authentication required to fetch token."
+            }
+          };
+          resp.status(401).type('application/json').send(JSON.stringify(res));
+        } else {
+          //console.log('dialect.appdotnet_official.js:postsStream - usertoken', usertoken);
+          // if we set here we don't really need to pass token
+          postdata.userid=usertoken.userid;
+          postdata.client_id=usertoken.client_id;
+          console.log('ADNO::POST/posts - postObject', postdata);
+          dispatcher.addPost(postdata, usertoken, callbacks.postCallback(resp, req.token));
+          ratelimiter.logRequest(1, 1);
+        }
+      });
     });
   });
   app.delete(prefix+'/posts/:post_id', function(req, resp) {
@@ -1037,9 +1042,9 @@ module.exports=function(app, prefix) {
 
   // Create a channel (token: user)
   app.post(prefix+'/channels', function(req, resp) {
-    console.log('dialect.appdotnet_official.js:POSTchannels - token', req.token)
+    //console.log('dialect.appdotnet_official.js:POSTchannels - token', req.token);
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      console.log('dialect.appdotnet_official.js:POSTchannels - usertoken', usertoken)
+      //console.log('dialect.appdotnet_official.js:POSTchannels - usertoken', usertoken);
       if (usertoken===null) {
         var res={
           "meta": {
@@ -1270,6 +1275,7 @@ module.exports=function(app, prefix) {
         return;
       }
       req.apiParams.tokenobj=usertoken;
+      //console.log('dialect.appdotnet_official.js:GETchannelsXsubscribers - valid token');
       dispatcher.getChannelSubscriptions(req.params.channel_id, req.apiParams, callbacks.dataCallback(resp));
     });
   });
