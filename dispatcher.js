@@ -104,7 +104,7 @@ function escapeHTML(s) {
 }
 
 // what calls this?? I think global did
-function postsToADN(posts, token) {
+function postsToADN(posts, params, token) {
   // data is an array of entities
   var apiposts={}, postcounter=0;
   //console.log('dispatcher.js:getUserPosts - mapping '+posts.length);
@@ -112,7 +112,7 @@ function postsToADN(posts, token) {
     posts.map(function(current, idx, Arr) {
       //console.log('dispatcher.js:getUserPosts - map postid: '+current.id);
       // get the post in API foromat
-      ref.postToAPI(current, {}, token, function(post, err, postmeta) {
+      ref.postToAPI(current, params, token, function(post, err, postmeta) {
         apiposts[post.id]=post;
         postcounter++;
         // join
@@ -180,6 +180,14 @@ module.exports = {
    * @type {boolean}
    */
   notsilent: true,
+  /**
+   * redis connection for websocket streams
+   */
+  redisClient: null,
+  /**
+   * websocket stream pumps
+   */
+  pumps: {},
   /** posts */
   // tokenObj isn't really used at this point...
   // difference between stream and api?
@@ -1284,7 +1292,7 @@ module.exports = {
       //params.pageParams.count+=1; // add one at the end to check if there's more
       // before_id
       //console.log('dispatcher.js::getUserStream - count', params.count);
-      ref.cache.getUserStream(userid, params, tokenObj, function(posts, err, meta) {
+      ref.cache.getUserPostStream(userid, params, tokenObj, function(posts, err, meta) {
         // data is an array of entities
         var apiposts={}, postcounter=0;
         //if (posts) console.log('dispatcher.js:getUserStream - mapping '+posts.length);
@@ -1634,23 +1642,23 @@ module.exports = {
         raccess=0;
       }
     } else {
-      api.readers={ user_ids: '' };
+      api.readers={ user_ids: [] };
     }
     if (api.writers) {
       if (api.writers.any_user) {
         waccess=1;
       }
     } else {
-      api.writers={ user_ids: '' };
+      api.writers={ user_ids: [] };
     }
     if (api.readers.user_ids == undefined) {
-      api.readers.user_ids='';
+      api.readers.user_ids=[];
     }
     if (api.writers.user_ids == undefined) {
-      api.writers.user_ids='';
+      api.writers.user_ids=[];
     }
     if (api.editors.user_ids == undefined) {
-      api.editors.user_ids='';
+      api.editors.user_ids=[];
     }
     var channel={
       id: api.id,
@@ -1658,9 +1666,9 @@ module.exports = {
       type: api.type,
       reader: raccess,
       writer: waccess,
-      readers: api.readers.user_ids,
-      writers: api.writers.user_ids,
-      editors: api.editors.user_ids,
+      readers: api.readers.user_ids.join(','),
+      writers: api.writers.user_ids.join(','),
+      editors: api.editors.user_ids.join(','),
     };
     callback(channel, null, meta);
   },
@@ -1675,6 +1683,7 @@ module.exports = {
       callback([], 'null data');
       return;
     }
+    //console.log('channel', channel)
     var api={
       counts: {
         messages: 0,
@@ -1706,6 +1715,18 @@ module.exports = {
         you: false,
       },
       type: channel.type,
+    }
+    var idx = api.readers.user_ids.indexOf("")
+    if (idx != -1) {
+      api.readers.user_ids.splice(idx, 1)
+    }
+    idx = api.editors.user_ids.indexOf("")
+    if (idx != -1) {
+      api.editors.user_ids.splice(idx, 1)
+    }
+    idx = api.writers.user_ids.indexOf("")
+    if (idx != -1) {
+      api.writers.user_ids.splice(idx, 1)
     }
     // make sure ownerid isn't in the writers
     // we need it in the db this way for PM channel search
@@ -2168,7 +2189,7 @@ module.exports = {
         }
         var apis=[];
         for(var i in channels) {
-          var channel=channels[i]
+          var channel=channels[i];
           // we can do a quick security check here before pulling it all
           // omitting options will fuck with meta tho
           /*
@@ -2479,8 +2500,9 @@ module.exports = {
   addMessage: function(channel_id, postdata, params, tokenobj, callback) {
     console.log('dispatcher.js::addMessage - channel_id', channel_id);
     var ref=this;
+    // change channel permissions
     function continueAddMessage(channel_id) {
-      console.log('dispatcher.js::addMessage - checking channel', channel_id, 'permission for token user', tokenobj?tokenobj.userid:0)
+      //console.log('dispatcher.js::addMessage - checking channel', channel_id, 'permission for token user', tokenobj?tokenobj.userid:0)
       ref.cache.getChannel(channel_id, params, function(channel, channelErr, channelMeta) {
         if (channelErr) console.error('dispatcher::addMessage - channelErr', channelErr)
         if (!channel) {
@@ -2496,6 +2518,18 @@ module.exports = {
         continueAddMessage2(channel_id);
       })
     }
+
+    function getMessageThreadID(reply_to, cb) {
+      ref.cache.getMessage(reply_to, function(message, err) {
+        if (err) {
+          console.error('message getThreadID', err);
+          return cb();
+        }
+        cb(message.thread_id);
+      })
+    }
+
+    // actually create message record
     function continueAddMessage2(channel_id) {
       console.log('continueAddMessage2', channel_id)
       // why does annotations force channel_id 0?
@@ -2515,6 +2549,10 @@ module.exports = {
         is_deleted: false,
         created_at: new Date()
       };
+      if (postdata.reply_to) {
+        // ok if it's a reply, set it
+        message.reply_to = postdata.reply_to;
+      }
 
       function getEntities(message, cb) {
         ref.textProcess(message.text, message.entities, true, function(textProc, err) {
@@ -2555,11 +2593,11 @@ module.exports = {
               return
             }
             if (postdata.annotations) {
-              console.log('dispatcher.js::addMessage - detected annotations', channel_id)
+              //console.log('dispatcher.js::addMessage - detected annotations', channel_id)
               // fix up channel_id for msg pump
               msg.channel_id = channel_id
               ref.setAnnotations('message', msg.id, postdata.annotations, function() {
-                console.log('write channel_id', channel_id)
+                //console.log('write channel_id', channel_id)
                 ref.cache.setMessage({
                   id: msg.id,
                   channel_id: channel_id
@@ -2961,13 +2999,19 @@ module.exports = {
    */
   getChannelSubscriptions: function(channelid, params, callback) {
     var ref = this;
+    //console.log('dispatcher.js::getChannelSubscriptions - start');
     this.cache.getChannelSubscriptions(channelid, params, function(subs, err, meta) {
+      if (!subs.length) {
+        callback([], '', meta);
+      }
       var list = [];
       for(var i in subs) {
         var sub = subs[i].userid;
         // FIXME: remove N+1
+        //console.log('dispatcher.js::getChannelSubscriptions - user', sub);
         ref.getUser(sub, params, function(user, uErr, uMeta) {
           list.push(user);
+          //console.log('dispatcher.js::getChannelSubscriptions -', list.length, subs.length);
           if (list.length == subs.length) {
             callback(list, '', meta);
           }
@@ -3909,6 +3953,7 @@ module.exports = {
       if (err) {
         console.log('dispatcher.js::getUser - cant normalize user', user, err);
       }
+      // maybe just spare caminte all together and just callback now
       if (!userid) userid = 0 // don't break caminte
       ref.cache.getUser(userid, function(userobj, userErr, userMeta) {
         if (userErr) {
