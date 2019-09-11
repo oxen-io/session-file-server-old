@@ -5,6 +5,8 @@ rateLimit(function() {
   });
 });
 */
+// FIXME: we have to use a database model
+// nah use redis and it's expirations
 
 // minutely status report
 setInterval(function () {
@@ -39,6 +41,7 @@ module.exports = {
     if (this.rateCounters[isAuth]===undefined) this.rateCounters[isAuth]={};
     var callsleft=this.rateCounters[isAuth][isWrite];
     console.log('callsleft for', isAuth, isWrite, 'are', callsleft);
+    // FIXME: nginx is going to time this shit out
     if (callsleft<1) {
       var delay=this.resetAt-Date.now();
       console.log('delaying call by', delay);
