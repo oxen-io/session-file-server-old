@@ -64,6 +64,10 @@ var db=require('./dataaccess.caminte.js');
 db.start(nconf);
 var cache=require('./dataaccess.base.js');
 var dispatcher=require('./dispatcher.js');
+var streamEngine = false
+if (nconf.get('stream:host')) {
+  streamEngine = require('./streams.js');
+}
 var dialects=[];
 // Todo: message queue
 
@@ -111,6 +115,17 @@ if (proxy) {
   // set up proxy object
   proxy.apiroot=apiroot;
   proxy.dispatcher=dispatcher; // upload dispatcher
+}
+if (streamEngine) {
+  // enable stream daemon
+  dispatcher.streamEngine = streamEngine;
+  streamEngine.cache = cache;
+  streamEngine.dispatcher = dispatcher;
+  // set up redis
+  streamEngine.init({
+    host: nconf.get('stream:host'),
+    port: nconf.get('stream:port') || 6379,
+  });
 }
 
 /** set up query parameters */
@@ -332,6 +347,26 @@ function adnMiddleware(req, res, next) {
   }
   res.JSONP=req.query.callback || '';
   req.cookies = new Cookies(req, res);
+  if (req.query.connection_id==="null") {
+    console.log('middleware connection_id querystring is null');
+  }
+  if (req.query.connection_id && req.query.connection_id!=="null") {
+    if (streamEngine) {
+      console.log('app.js hijacking request because connection_id', req.query.connection_id, req.token, 'on', req.path);
+      streamEngine.handleSubscription(req, res);
+      return;
+    } else {
+      console.log('streamEngine is not enabled');
+      var resObj={
+        "meta": {
+          "code": 404,
+          "error_message": "Not enabled"
+        }
+      };
+      res.status(404).type('application/json').send(JSON.stringify(resObj));
+      return;
+    }
+  }
   next();
 }
 
