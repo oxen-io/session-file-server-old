@@ -169,7 +169,7 @@ module.exports = {
         // upload fresh proxy data back into dataSource
         //console.log('dataccess.proxy.js:getUser - writing to user db ',res.data.id);
         ref.dispatcher.updateUser(res.data, new Date().getTime(), function(user, err) {
-          console.log('dataccess.proxy.js:getUser - proxy response received');
+          //console.log('dataccess.proxy.js:getUser - proxy response received');
           if (user==null & err==null) {
             if (this.next) {
               this.next.getUser(userid, callback);
@@ -185,6 +185,49 @@ module.exports = {
         });
       } else {
         console.log('dataccess.proxy.js:getUser - request failure');
+        console.log('error', e);
+        console.log('statusCode', r.statusCode);
+        console.log('body', body);
+        callback(null, e, null);
+      }
+    });
+  },
+  getUsers: function(userids, params, callback) {
+    if (userids==undefined) {
+      callback(null, 'dataccess.proxy.js:getUsers - userids is undefined');
+      return;
+    }
+    if (!userids) {
+      callback(null, 'dataccess.proxy.js:getUsers - userids isn\'t set');
+      return;
+    }
+    var ref=this;
+    console.log('dataccess.proxy.js:getUsers - proxying users '+userids);
+    proxycalls++;
+    request.get({
+      url: ref.apiroot+'/users?ids='+userids.join(',')
+    }, function(e, r, body) {
+      if (!e && r.statusCode == 200) {
+        var res=JSON.parse(body);
+        // upload fresh proxy data back into dataSource
+        //console.log('dataccess.proxy.js:getUser - writing to user db ',res.data.id);
+        ref.dispatcher.updateUser(res.data, new Date().getTime(), function(users, err) {
+          //console.log('dataccess.proxy.js:getUsers - proxy response received');
+          if (users==null & err==null) {
+            if (this.next) {
+              this.next.getUsers(userids, params, callback);
+              return;
+            }
+          } else if (err) {
+            console.log("dataccess.proxy.js:getUsers - User Update err: ",err);
+          //} else {
+            //console.log("User Updated");
+          }
+          // finally reutrn
+          callback(users, err, res.meta);
+        });
+      } else {
+        console.log('dataccess.proxy.js:getUsers - request failure');
         console.log('error', e);
         console.log('statusCode', r.statusCode);
         console.log('body', body);
