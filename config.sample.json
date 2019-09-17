@@ -21,10 +21,6 @@
       {
         "destination": "",
         "dialect": "appdotnet_official"
-      },
-      {
-        "destination": "/stream/0",
-        "dialect": "appdotnet_official"
       }
     ]
   },

@@ -115,80 +115,7 @@ function formatuser(user, token) {
   return user;
 }
 
-function formatpost(post, token) {
-  // cast fields to make sure they're the correct type
-
-  // Now to cast
-  if (post) {
-    post.id=''+post.id; // cast to String
-    post.num_replies=parseInt(0+post.num_replies); // cast to Number
-    post.num_reposts=parseInt(0+post.num_reposts); // cast to Number
-    post.num_stars=parseInt(0+post.num_stars); // cast to Number
-    post.machine_only=post.machine_only?true:false;
-    post.is_deleted=post.is_deleted?true:false;
-    post.thread_id=''+post.thread_id; // cast to String (Number is too big for js?)
-    if (post.reply_to) {
-      post.reply_to=''+post.reply_to; // cast to String (Number is too big for js?)
-    }
-    // remove microtime
-    post.created_at=ISODateString(post.created_at);
-    if (token) {
-      // boolean (and what about the non-existent state?)
-      post.you_reposted=post.you_reposted?true:false;
-      post.you_starred=post.you_starred?true:false;
-    }
-  }
-  return post;
-}
-
 module.exports = {
-  'postsCallback' : function(resp, token) {
-    return function(posts, err, meta) {
-      //console.log('dialect.appdotnet_official.callback.js::postsCallback - in posts callback',posts.length);
-      for(var i in posts) {
-        var post=posts[i];
-        //console.log('dialect.appdotnet_official.callback.js::postsCallback - looking at ',post.id,post.created_at,post.userid);
-        posts[i]=formatpost(post, token);
-        if (post.repost_of) {
-          // this is an object...
-          post.repost_of.user=formatuser(post.repost_of.user, token);
-          post.repost_of=formatpost(post.repost_of, token)
-        }
-        if (typeof(post.user)=='undefined') {
-          console.log('dialect.appdotnet_official.callback.js::postsCallback - missing user for post '+i);
-          posts[i].user={};
-        } else {
-          posts[i].user=formatuser(post.user, token);
-        }
-      }
-      // meta order: min_id, code, max_id, more
-      var res={
-        meta: meta,
-        data: posts
-      };
-      sendObject(res, resp);
-    }
-  },
-
-  'posts2usersCallback' : function(resp, token) {
-    // posts is a hack, we're converting things like global to user lists
-    // we need to not do this...
-    return function(posts, err, meta) {
-      var users=[];
-      // if any return fucking nothing (null) kill them (don't push them)
-      for(var i in posts) {
-        users.push(formatuser(posts[i].user, token));
-      }
-      //console.log('returning', users);
-      // meta order: min_id, code, max_id, more
-      var res={
-        meta: meta,
-        data: users
-      };
-      sendObject(res, resp);
-    }
-  },
-
   'usersCallback' : function(resp, token) {
     return function(unformattedUsers, err, meta) {
       var users=[];
@@ -204,22 +131,6 @@ module.exports = {
         data: users
       };
       //console.log('ADNO.CB::usersCallback - res', res);
-      sendObject(res, resp);
-    }
-  },
-
-  'postCallback' : function(resp, token) {
-    return function(post, err, meta) {
-      var res={
-        meta: { code: 200 },
-        data: formatpost(post, token)
-      };
-      if (post && post.user) {
-        res.data.user=formatuser(post.user, token);
-      }
-      if (meta) {
-        res.meta=meta;
-      }
       sendObject(res, resp);
     }
   },

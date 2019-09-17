@@ -416,10 +416,6 @@ var mounts=nconf.get('web:mounts') || [
   {
     "destination": "",
     "dialect": "appdotnet_official"
-  },
-  {
-    "destination": "/stream/0",
-    "dialect": "appdotnet_official"
   }
 ];
 var dialects={};
@@ -444,40 +440,6 @@ app.apiroot=apiroot;
 
 // only can proxy if we're set up as a client or an auth_base not app.net
 console.log('upstream_client_id', upstream_client_id)
-if (upstream_client_id!='NotSet' || auth_base!='https://account.app.net/oauth/') {
-  var oauthproxy=require('./routes.oauth.proxy.js');
-  oauthproxy.auth_base=auth_base;
-  oauthproxy.setupoauthroutes(app, cache);
-} else {
-  // Not Cryptographically safe
-  function generateToken(string_length) {
-    var chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXTZabcdefghiklmnopqrstuvwxyz";
-    var randomstring = '';
-    for (var x=0;x<string_length;x++) {
-      var letterOrNumber = Math.floor(Math.random() * 2);
-      if (letterOrNumber == 0) {
-        var newNum = Math.floor(Math.random() * 9);
-        randomstring += newNum;
-      } else {
-        var rnum = Math.floor(Math.random() * chars.length);
-        randomstring += chars.substring(rnum, rnum+1);
-      }
-    }
-    return randomstring;
-  }
-  app.get('/oauth/authenticate', function(req, resp) {
-    resp.redirect(req.query.redirect_uri+'#access_token='+generateToken());
-  });
-}
-
-app.get('/signup', function(req, resp) {
-  fs.readFile(__dirname+'/templates/signup.html', function(err, data) {
-    if (err) {
-      throw err;
-    }
-    resp.send(data.toString());
-  });
-});
 
 /** include homepage route */
 app.get('/', function(req, resp) {
