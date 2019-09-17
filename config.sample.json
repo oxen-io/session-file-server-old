@@ -21,6 +21,10 @@
       {
         "destination": "",
         "dialect": "appdotnet_official"
+      },
+      {
+        "destination": "",
+        "dialect": "loki"
       }
     ]
   },

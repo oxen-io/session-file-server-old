@@ -416,7 +416,11 @@ var mounts=nconf.get('web:mounts') || [
   {
     "destination": "",
     "dialect": "appdotnet_official"
-  }
+  },
+  {
+    "destination": "",
+    "dialect": "loki"
+  },
 ];
 var dialects={};
 for(var i in mounts) {
