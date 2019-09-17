@@ -5,24 +5,24 @@
   "description": "App.net Alternative API",
   "main": "app.js",
   "dependencies": {
-    "body-parser": "1.14.x",
+    "body-parser": "^1.19.0",
     "caminte": "0.0.33",
     "cookies": "0.5.x",
     "event-stream": "3.3.x",
-    "express": "4.13.x",
+    "express": "^4.17.1",
     "human-format": "0.5.x",
     "multer": "^1.3.0",
-    "mysql": "2.9.x",
+    "mysql": "^2.14.0",
     "nconf": "0.8.x",
     "qs": "5.2.x",
     "redis": "2.2.x",
-    "request": "2.65.x",
+    "request": "^2.68.0",
     "rus-diff": "1.1.x",
     "setimmediate": "1.0.x",
     "underscore": "1.8.x"
   },
   "devDependencies": {
-    "jsdoc": "3.3.x"
+    "jsdoc": "^3.6.3"
   },
   "repository": {
     "type": "git",
