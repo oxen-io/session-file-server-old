@@ -9,7 +9,7 @@ var callbacks = require('./dialect.appdotnet_official.callbacks.js');
 var ratelimiter = require('./ratelimiter.js');
 
 // for pomf support
-var request=require('request');
+var request = require('request');
 var multer  = require('multer');
 var storage = multer.memoryStorage()
 var upload = multer({ storage: storage, limits: {fileSize: 100*1024*1024} });
@@ -81,6 +81,338 @@ module.exports=function(app, prefix) {
     }
   });
 
+  // Token: Any, Scope: none in the docs
+  app.get(prefix+'/users/search', function(req, resp) {
+    // req.token
+    // req.token convert into userid/sourceid
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('usertoken', usertoken);
+      if (usertoken==null) {
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+      } else {
+        // q or query?
+        dispatcher.userSearch(req.query.q, req.apiParams, usertoken, callbacks.usersCallback(resp, req.token));
+      }
+    });
+  });
+
+  // retreive multiple users (Token: any)
+  // /reference/resources/user/lookup/#retrieve-multiple-users
+  // ids are usually numeric but also can be @username
+  app.get(prefix+'/users', function(req, resp) {
+    if (!req.token) {
+      var ids = req.query.ids
+      if (ids && ids.match(/,/)) {
+        ids = ids.split(/,/);
+      }
+      if (typeof(ids) === 'string') {
+        ids = [ ids ];
+      }
+      console.log('dialect.appdotnet_official.js:GETusers/ID - ids', ids)
+      dispatcher.getUsers(ids, req.apiParams, callbacks.usersCallback(resp));
+      return;
+    }
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('dialect.appdotnet_official.js:GETusers/ID - ', usertoken);
+      if (usertoken!=null) {
+        //console.log('dialect.appdotnet_official.js:GETusers/ID - found a token');
+        req.apiParams.tokenobj=usertoken;
+      }
+      if (!req.query.ids) {
+        var res={
+          "meta": {
+            "code": 400,
+            "error_message": "Call requires and id to lookup"
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      dispatcher.getUsers(req.query.ids.split(/,/), req.apiParams, callbacks.usersCallback(resp));
+    });
+  });
+
+  app.get(prefix+'/users/:user_id', function(req, resp) {
+    //console.log('dialect.appdotnet_official.js:GETusersX - token', req.token);
+    if (!req.token) {
+      dispatcher.getUser(req.params.user_id, req.apiParams, callbacks.dataCallback(resp));
+      return;
+    }
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('dialect.appdotnet_official.js:GETusers/ID - ', usertoken);
+      if (usertoken!=null) {
+        //console.log('dialect.appdotnet_official.js:GETusers/ID - found a token');
+        req.apiParams.tokenobj=usertoken;
+      }
+      dispatcher.getUser(req.params.user_id, req.apiParams, callbacks.userCallback(resp));
+    });
+  });
+
+  // Token: User Scope: update_profile
+  app.put(prefix+'/users/me', function updateUser(req, resp) {
+    //console.log('dialect.appdotnet_official.js:PUTusersX - token', req.token)
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('dialect.appdotnet_official.js:PUTusersX - usertoken', usertoken)
+      if (usertoken===null) {
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      req.apiParams.tokenobj=usertoken;
+      console.log('dialect.appdotnet_official.js:PUTusersXx - body', req.body);
+      //console.log('dialect.appdotnet_official.js:PUTusersX - creating channel of type', req.body.type);
+      if (req.body.name === undefined || req.body.locale  === undefined ||
+        req.body.timezone  === undefined || req.body.description === undefined ||
+        req.body.description.text === undefined) {
+        var res={
+          "meta": {
+            "code": 400,
+            "error_message": "Requires name, locale, timezone, and description to change (JSON encoded)"
+          }
+        };
+        resp.status(400).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      //console.log('dialect.appdotnet_official.js:PUTusersXx - description.text', req.body.description.text)
+      // user param to load everything
+      //console.log('dialect.appdotnet_official.js:PUTusersXx - userid', usertoken.userid)
+      dispatcher.getUser(usertoken.userid, { generalParams: { annotations: true, include_html: true } }, function(userObj, err) {
+        // These are required fields
+        /*
+        var userobj={
+          name: req.body.name,
+          locale: req.body.locale,
+          timezone: req.body.timezone,
+          description: {
+            text: req.body.description.text,
+          },
+        };
+        */
+        userObj.name = req.body.name;
+        userObj.locale = req.body.locale;
+        userObj.timezone = req.body.timezone;
+        userObj.description.text = req.body.description.text;
+        // optional fields
+        if (req.body.annotations) {
+          // spec says we need to add/update (delete if set/blank)
+          // actually there'll be a type but no value
+          // deletes / preprocess
+          for(var i in req.body.annotations) {
+            var note = req.body.annotations[i]
+            if (note.type && note.value === undefined) {
+              console.log('dialect.appdotnet_official.js:PUTusersXx - need to delete', note.type);
+            }
+          }
+          userObj.annotations = req.body.annotations;
+        }
+        //userObj.id = usertoken.userid;
+        console.log('dialect.appdotnet_official.js:PUTusersXx - userobj', userObj);
+        dispatcher.updateUser(userObj, Date.now()/1000, callbacks.dataCallback(resp));
+      });
+      //dispatcher.addChannel(channel, req.apiParams, usertoken, callbacks.dataCallback(resp));
+    });
+  });
+
+  app.post(prefix+'/users/me/avatar', upload.single('avatar'), function updateUserAvatar(req, resp) {
+    if (!req.file) {
+      // no files uploaded
+      var res={
+        "meta": {
+          "code": 400,
+          "error_message": "No file uploaded"
+        }
+      };
+      resp.status(400).type('application/json').send(JSON.stringify(res));
+      return;
+    }
+    console.log('POSTavatar - file upload got', req.file.buffer.length, 'bytes');
+    if (!req.file.buffer.length) {
+      // no files uploaded
+      var res={
+        "meta": {
+          "code": 400,
+          "error_message": "No file uploaded"
+        }
+      };
+      resp.status(400).type('application/json').send(JSON.stringify(res));
+      return;
+    }
+    //console.log('looking for type - params:', req.params, 'body:', req.body);
+    // type is in req.body.type
+    //console.log('POSTfiles - req token', req.token);
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      if (err) {
+        console.log('dialect.appdotnet_official.js:POSTavatar - token err', err);
+      }
+      if (usertoken==null) {
+        console.log('dialect.appdotnet_official.js:POSTavatar - no token');
+        // could be they didn't log in through a server restart
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        return resp.status(401).type('application/json').send(JSON.stringify(res));
+      }
+      //console.log('dialect.appdotnet_official.js:POSTavatar - usertoken', usertoken);
+      //console.log('dialect.appdotnet_official.js:POSTavatar - uploading to pomf');
+      var uploadUrl = dispatcher.appConfig.provider_url + 'api/upload';
+      request.post({
+        url: uploadUrl,
+        formData: {
+          //files: fs.createReadStream(__dirname+'/git/caminte/media/mysql.png'),
+          'files[]': {
+            value: req.file.buffer,
+            options: {
+              filename: req.file.originalname,
+              contentType: req.file.mimetype,
+              knownLength: req.file.buffer.length
+            },
+          }
+        }
+      }, function (err, uploadResp, body) {
+        if (err) {
+          console.log('dialect.appdotnet_official.js:POSTavatar - pomf upload Error!', err);
+          var res={
+            "meta": {
+              "code": 500,
+              "error_message": "Could not save file (Could not POST to POMF)"
+            }
+          };
+          resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
+          return;
+        }
+        //console.log('URL: ' + body);
+        /*
+        {"success":true,"files":[
+          {
+            // lolisafe doesn't have hash
+            //"hash":"107df9aadaf6204789f966e1b7fcd31d75a121c1",
+            "name":"mysql.png",
+            "url":"https:\/\/my.pomf.cat\/yusguk.png",
+            "size":13357
+          }
+        ]}
+        {
+          success: false,
+          errorcode: 400,
+          description: 'No input file(s)'
+        }
+        */
+        var data = {};
+        try {
+          data=JSON.parse(body);
+        } catch(e) {
+          console.log('couldnt json parse body', body);
+          var res={
+            "meta": {
+              "code": 500,
+              "error_message": "Could not save file (POMF did not return JSON as requested)"
+            }
+          };
+          resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
+          return;
+        }
+        if (!data.success) {
+          var res={
+            "meta": {
+              "code": 500,
+              "error_message": "Could not save file (POMF did not return success)"
+            }
+          };
+          resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
+          return;
+        }
+        //, 'from', body
+        if (!data.files.length) {
+          var res={
+            "meta": {
+              "code": 500,
+              "error_message": "Could not save file (POMF did not return files)"
+            }
+          };
+          resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
+          return;
+        }
+        if (data.files.length > 1) {
+          console.warn('dialect.appdotnet_official.js:POSTavatar - Multiple files!', data);
+        }
+        //for(var i in data.files) {
+        var file=data.files[0];
+        //console.log('dialect.appdotnet_official.js:POSTavatar - setting', file.url);
+        dispatcher.updateUserAvatar(file.url, req.apiParams, usertoken, callbacks.userCallback(resp, req.token));
+        //}
+      });
+    });
+  });
+
+  // partially update a user (Token: User Scope: update_profile)
+  app.patch(prefix+'/users/me', function updateUser(req, resp) {
+    //console.log('dialect.appdotnet_official.js:PATCHusersX - token', req.token)
+    dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
+      //console.log('dialect.appdotnet_official.js:PATCHusersX - usertoken', usertoken)
+      if (usertoken===null) {
+        var res={
+          "meta": {
+            "code": 401,
+            "error_message": "Call requires authentication: Authentication required to fetch token."
+          }
+        };
+        resp.status(401).type('application/json').send(JSON.stringify(res));
+        return;
+      }
+      req.apiParams.tokenobj=usertoken;
+      //console.log('dialect.appdotnet_official.js:PATCHusersX - bodyType['+req.body+']');
+      //console.log('dialect.appdotnet_official.js:PATCHusersX - body ', req.body);
+      //var bodyObj = JSON.parse(req.body)
+      var bodyObj = req.body
+      /*
+      for(var i in req.body) {
+        console.log('dialect.appdotnet_official.js:PATCHusersX -', i, '=', req.body[i]);
+      }
+      */
+      //console.log('dialect.appdotnet_official.js:PATCHusersX - test', req.body.annotations);
+      var request={
+        //name: req.body.name,
+        //locale: req.body.locale,
+        //timezone: req.body.timezone,
+        //description: req.body.description,
+      }
+      if (bodyObj.name) {
+        request.name = bodyObj.name
+      }
+      if (bodyObj.locale) {
+        request.locale = bodyObj.locale
+      }
+      if (bodyObj.timezone) {
+        request.timezone = bodyObj.timezone
+      }
+      if (bodyObj.description) {
+        request.description = bodyObj.description
+      }
+      // optional fields
+      if (req.body.annotations) {
+        request.annotations = req.body.annotations;
+      }
+      console.log('dialect.appdotnet_official.js:PATCHusersX - request', request);
+      //console.log('dialect.appdotnet_official.js:PATCHusersX - creating channel of type', req.body.type);
+      dispatcher.patchUser(request, req.apiParams, usertoken, callbacks.dataCallback(resp));
+    });
+  });
+
   // Token: User, Scope: files
   app.get(prefix+'/users/me/files', function(req, resp) {
     // req.token
@@ -113,9 +445,14 @@ module.exports=function(app, prefix) {
 
   app.put(prefix+'/files', function(req, resp) {
     console.log('dialect.appdotnet_official.js:PUT/files - detect');
-
-    resp.status(401).type('application/json').send(JSON.stringify(res));
+    resp.status(401).type('application/json').send(JSON.stringify({
+      meta: {
+        code: 401,
+        error: "not implemented",
+      }
+    }));
   });
+
   // create file (for attachments)
   app.post(prefix+'/files', upload.single('content'), function(req, resp) {
     if (req.file) {
@@ -128,6 +465,7 @@ module.exports=function(app, prefix) {
           "error_message": "No file uploaded"
         }
       };
+      console.log('no file attached');
       resp.status(400).type('application/json').send(JSON.stringify(res));
       return
     }
@@ -139,6 +477,7 @@ module.exports=function(app, prefix) {
           "error_message": "No file uploaded"
         }
       };
+      console.log('empty file attached');
       resp.status(400).type('application/json').send(JSON.stringify(res));
       return
     }
@@ -164,8 +503,8 @@ module.exports=function(app, prefix) {
           // spec doesn't say required
           req.body.type = ''
         }
-        console.log('dialect.appdotnet_official.js:POSTfiles - uploading to pomf');
-        var uploadUrl = dispatcher.appConfig.provider_url + '/upload.php'
+        var uploadUrl = dispatcher.appConfig.provider_url + 'api/upload'
+        console.log('dialect.appdotnet_official.js:POSTfiles - uploading to pomf', uploadUrl);
         request.post({
           url: uploadUrl,
           formData: {
