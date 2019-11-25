@@ -232,6 +232,7 @@ function adnMiddleware(req, res, next) {
     console.log(hits, 'Request for '+req.path);
   }
   */
+  console.log(req.headers['x-real-ip'] || req.connection.remoteAddress, 'Request for', req.method, req.path);
 
   // map to bool but handle '0' and '1' just like 'true' and 'false'
   function stringToBool(str) {
@@ -373,8 +374,10 @@ function adnMiddleware(req, res, next) {
 // temporary hack middleware for debugging
 /*
 app.all('/*', function(req, res, next) {
-  console.debug('DBGrequest', req.path)
-  if (req.method == 'POST') {
+  // , req.headers
+  console.debug('DBGrequest', req.path, req.headers['content-type'])
+  //if (req.method == 'POST' || req.method == 'PATCH' ) {
+  if (req.method == 'POST' && req.path=='/users/me/avatar') {
     //console.debug('DBGbody', req)
     var body = '';
 
@@ -388,7 +391,7 @@ app.all('/*', function(req, res, next) {
     });
 
     req.on('end', function () {
-      console.log('post body', body)
+      console.log(req.method, ' body', body)
       // use post['blah'], etc.
     });
   }
@@ -398,8 +401,9 @@ app.all('/*', function(req, res, next) {
 
 /** need this for POST parsing */
 // heard this writes to /tmp and doesn't scale.. need to confirm if current versions have this problem
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({
+  limit: '50mb',
   extended: true
 }));
 app.all('/*', corsMiddleware);
@@ -447,15 +451,7 @@ console.log('upstream_client_id', upstream_client_id)
 
 /** include homepage route */
 app.get('/', function(req, resp) {
-  fs.readFile(__dirname+'/templates/index.html', function(err, data) {
-    if (err) {
-      throw err;
-    }
-    var body=data.toString();
-    body=body.replace('{api_client_id}', api_client_id);
-    body=body.replace('{uplink_client_id}', upstream_client_id);
-    resp.send(body);
-  });
+  resp.end('running...');
 });
 
 /**
