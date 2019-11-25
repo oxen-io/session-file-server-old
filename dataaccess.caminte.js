@@ -34,6 +34,48 @@ channelModel, messageModel, subscriptionModel, followModel, interactionModel,
 starModel, noticeModel, fileModel, streamMarkersModel, emptyModel,
 appStreamModel, userStreamModel, userStreamSubscriptionModel, sessionModel;
 
+memoryUpdate = function (model, filter, data, callback) {
+  'use strict';
+  if ('function' === typeof filter) {
+    return filter(new Error('Get parametrs undefined'), null)
+  }
+  if ('function' === typeof data) {
+    return data(new Error('Set parametrs undefined'), null)
+  }
+  filter = filter.where ? filter.where : filter
+  var mem = this
+  //console.log('memoryUpdate - model', model, 'filter', filter, 'data', data, 'callback', callback)
+
+  // filter input to make sure it only contains valid fields
+  var cleanData = this.toDatabase(model, data)
+
+  if (filter.id) {
+    // should find one and only one
+    this.exists(model, filter.id, function (err, exists) {
+      if (exists) {
+        mem.save(model, Object.assign(mem.cache[model][filter.id], cleanData), callback)
+      } else {
+        callback(err, cleanData)
+      }
+    })
+  } else {
+    //console.log('memoryUpdate - not implemented, search by?', filter, data)
+    this.all(model, filter, function(err, nodes) {
+      //console.log('memoryUpdate - records', nodes)
+      var count = nodes.length
+      if (!count) {
+        return callback(false, cleanData)
+      }
+      nodes.forEach(function(node) {
+        mem.cache[model][node.id] = Object.assign(node, cleanData)
+        if (--count === 0) {
+          callback(false, cleanData)
+        }
+      })
+    })
+  }
+}
+
 // set up the configureable model pools
 function start(nconf) {
   // 6379 is default redis port number
@@ -50,12 +92,19 @@ function start(nconf) {
   var schemaDataType = nconf.get('database:tokenModel:type') || defaultSchemaType;
   //console.log('configuring data', configData)
   var schemaData = new Schema(schemaDataType, configData);
+  if (schemaDataType === 'memory') {
+    schemaData.adapter.update = memoryUpdate
+  }
 
   /** set up where we're storing the tokens */
   var configToken = nconf.get('database:dataModel:options') || defaultOptions;
   var schemaTokenType = nconf.get('database:tokenModel:type') || defaultSchemaType;
   //console.log('configuring token', configData)
   var schemaToken = new Schema(schemaTokenType, configToken);
+
+  if (schemaTokenType === 'memory') {
+    schemaToken.adapter.update = memoryUpdate
+  }
 
   if (schemaDataType==='mysql') {
     //console.log('MySQL is active');
@@ -75,7 +124,8 @@ function start(nconf) {
     // alter table post MODIFY `html` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
     // alter table message MODIFY `text` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
     // alter table message MODIFY `html` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
-    // TODO: user name
+    // alter table annotation MODIFY `value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+    // alter table user MODIFY `name` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
   }
 
   // Auth models and accessors can be moved into own file?
@@ -373,36 +423,38 @@ function start(nconf) {
     var ts=new Date().getTime();
     // this is going to be really slow on innodb
     userModel.count({}, function(err, userCount) {
-      annotationModel.count({}, function(err, annotationCount) {
-        // break so the line stands out from the instant updates
-        // dispatcher's output handles this for now
-        //process.stdout.write("\n");
-        // if using redis
-        if (schemaDataType=='sqlite3') {
-          schemaData.client.get('PRAGMA page_count;', function(err, crow) {
-            //console.log('dataaccess.caminte.js::status sqlite3 page_count', row);
-            schemaData.client.get('PRAGMA page_size;', function(err, srow) {
-              var cnt=crow['page_count'];
-              var psize=srow['page_size'];
-              var size=cnt*psize;
-              console.log('dataaccess.caminte.js::status sqlite3 data [',cnt,'x',psize,'] size: ', size);
+      fileModel.count({}, function(err, fileCount) {
+        annotationModel.count({}, function(err, annotationCount) {
+          // break so the line stands out from the instant updates
+          // dispatcher's output handles this for now
+          //process.stdout.write("\n");
+          // if using redis
+          if (schemaDataType=='sqlite3') {
+            schemaData.client.get('PRAGMA page_count;', function(err, crow) {
+              //console.log('dataaccess.caminte.js::status sqlite3 page_count', row);
+              schemaData.client.get('PRAGMA page_size;', function(err, srow) {
+                var cnt=crow['page_count'];
+                var psize=srow['page_size'];
+                var size=cnt*psize;
+                console.log('dataaccess.caminte.js::status sqlite3 data [',cnt,'x',psize,'] size: ', size);
+              });
             });
-          });
-        }
-        if (schemaDataType=='redis') {
-          //console.dir(schemaAuth.client.server_info);
-          // just need a redis info call to pull memory and keys stats
-          // evicted_keys, expired_keys are interesting, keyspace_hits/misses
-          // total_commands_proccesed, total_connections_received, connected_clients
-          // update internal counters
-          schemaData.client.info(function(err, res) {
-            schemaData.client.on_info_cmd(err, res);
-          });
-          // then pull from counters
-          console.log("dataaccess.caminte.js::status redis token "+schemaToken.client.server_info.used_memory_human+" "+schemaToken.client.server_info.db0);
-          console.log("dataaccess.caminte.js::status redis data "+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
-        }
-        console.log('dataaccess.caminte.js::status '+userCount+'U '+annotationCount+'a');
+          }
+          if (schemaDataType=='redis') {
+            //console.dir(schemaAuth.client.server_info);
+            // just need a redis info call to pull memory and keys stats
+            // evicted_keys, expired_keys are interesting, keyspace_hits/misses
+            // total_commands_proccesed, total_connections_received, connected_clients
+            // update internal counters
+            schemaData.client.info(function(err, res) {
+              schemaData.client.on_info_cmd(err, res);
+            });
+            // then pull from counters
+            console.log("dataaccess.caminte.js::status redis token "+schemaToken.client.server_info.used_memory_human+" "+schemaToken.client.server_info.db0);
+            console.log("dataaccess.caminte.js::status redis data "+schemaData.client.server_info.used_memory_human+" "+schemaData.client.server_info.db0);
+          }
+          console.log('dataaccess.caminte.js::status '+userCount+'U '+annotationCount+'a '+fileCount+'f');
+        });
       });
     });
   }
@@ -430,7 +482,7 @@ function generateToken(string_length) {
 
 // cheat macros
 function db_insert(rec, model, callback) {
-  //console.log('dataaccess.caminte.js::db_insert - start');
+  console.log('dataaccess.caminte.js::db_insert - start', rec, JSON.stringify(rec));
   rec.isValid(function(valid) {
     //console.log('dataaccess.caminte.js::db_insert - Checked');
     if (valid) {
@@ -783,7 +835,27 @@ module.exports = {
       //console.log('camtinejs::setUser - got res', user);
       if (user) {
         //console.log('camtinejs::setUser - updating user', user.id);
+        //console.log('camtinejs::setUser - updating data', iuser);
+        // make sure this is a string..
+        /*
+        if (iuser.type === null) iuser.type = ''
+        if (iuser.avatar_image === null) iuser.avatar_image = ''
+        if (iuser.avatar_width === null) iuser.avatar_width = 0
+        if (iuser.avatar_height === null) iuser.avatar_height = 0
+        if (iuser.cover_image === null) iuser.cover_image = ''
+        if (iuser.cover_width === null) iuser.cover_width = 0
+        if (iuser.cover_height === null) iuser.cover_height = 0
+        */
+        if (iuser.descriptionhtml === undefined) iuser.descriptionhtml = ''
+        //if (iuser.counts) delete iuser.counts
+        //if (iuser.annotations) delete iuser.annotations
+        //iuser.created_at =
+        //console.log('camtinejs::setUser - final data', iuser);
+        // wiki says we don't need where and need where at the same time...
         userModel.update({ where: { id: iuser.id } }, iuser, function(err, userRes) {
+          if (err) {
+            console.error('camtinejs::setUser - ', err);
+          }
           // userRes is the number of updated rows I think
           if (callback) callback(user, err);
         });
@@ -794,7 +866,15 @@ module.exports = {
     });
   },
   patchUser: function(userid, changes, callback) {
+    if (JSON.stringify(changes) === '{}') {
+      if (callback) {
+        callback({}, '');
+      }
+      return
+    }
     userModel.update({ where: { id: userid } }, changes, function(err, user) {
+      if (err) console.error('dataaccess.caminte.js::patchUser - err', err);
+      // console.log('patchUser user changes', user);
       if (callback) {
         callback(user, err);
       }
@@ -833,24 +913,18 @@ module.exports = {
   },
   // callback is user, err, meta
   getUser: function(userid, callback) {
-    if (userid==undefined) {
-      console.log('dataaccess.caminte.js:getUser - userid is undefined');
-      var stack = new Error().stack
-      console.error(stack)
+    if (userid == undefined) {
+      console.trace('dataaccess.caminte.js:getUser - userid is undefined');
       callback(null, 'dataaccess.caminte.js:getUser - userid is undefined');
       return;
     }
     if (!userid) {
       console.log('dataaccess.caminte.js:getUser - userid isn\'t set');
-      var stack = new Error().stack
-      console.error(stack)
       callback(null, 'dataaccess.caminte.js:getUser - userid isn\'t set');
       return;
     }
-    if (callback==undefined) {
-      console.log('dataaccess.caminte.js:getUser - callback is undefined');
-      var stack = new Error().stack
-      console.error(stack)
+    if (callback == undefined) {
+      console.trace('dataaccess.caminte.js:getUser - callback is undefined');
       callback(null, 'dataaccess.caminte.js:getUser - callback is undefined');
       return;
     }
@@ -886,6 +960,7 @@ module.exports = {
       callback([], 'did not give a list of userids');
       return;
     }
+    // FIXME: make sure userids are integers for memory driver
     setparams(userModel.find().where('id', { in: userids }), params, 0, function(posts, err, meta) {
       callback(posts, err, meta);
     });
@@ -916,6 +991,7 @@ module.exports = {
         callback([], null, { code: 200, more: false });
         return;
       }
+      // FIXME: make sure userids are integers for memory driver
       setparams(userModel.find().where('id', { in: ids }), params, 0, function(posts, err, meta) {
         callback(posts, err, meta);
       });
@@ -1514,10 +1590,12 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
         }
       }
       // look up subs
+      // FIXME: make sure userids are integers for memory driver
       userStreamSubscriptionModel.find({ where: { user_stream_id: { in: ids } } }, function(subErr, subs) {
         doneCheck('subs', subs);
       })
       // look up tokens
+      // FIXME: make sure userids are integers for memory driver
       localUserTokenModel.find({ where: { id: { in: tokens } } }, function(tokenErr, tokens) {
         doneCheck('tokens', tokens);
       })
@@ -1535,6 +1613,9 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       file.last_updated=new Date();
       // deal with caminte short coming on mysql
       //file.type=file.type.replace(new RegExp('\\.', 'g'), '_');
+      //console.log('Checking', file.urlexpires, typeof(file.urlexpires))
+      if (file.urlexpires === undefined) file.urlexpires=new Date(0);
+      if (file.sha1 === undefined) file.sha1='';
       console.log('final pre file model', file);
       //file.token=randomstring(173);
       // network client_id
@@ -1605,6 +1686,16 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
    * Annotations
    */
   addAnnotation: function(idtype, id, type, value, callback) {
+    console.log('addAnnotation idtype', idtype, 'id', id, 'type', type, 'value', value);
+    // FIXME: validate input!
+    if (!type) {
+      callback({}, 'noType');
+      return;
+    }
+    if (!value) {
+      callback({}, 'noValue');
+      return;
+    }
     note=new annotationModel;
     note.idtype=idtype;
     note.typeid=id;
