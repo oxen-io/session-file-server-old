@@ -31,6 +31,37 @@ setInterval(function () {
   ts=null;
 }, 60*1000);
 
+function normalizeUserID(input, tokenobj, callback) {
+  //console.log('dispatcher::normalizeUserID', input)
+  if (input=='me') {
+    if (tokenobj && tokenobj.userid) {
+      //console.log('dispatcher.js::normalizeUserID - me became', tokenobj.userid);
+      callback(tokenobj.userid, '');
+      return;
+    } else {
+      callback(0, 'no or invalid token');
+      return;
+    }
+  }
+  var ref=module.exports;
+  if (input[0]=='@') {
+    //console.log('dispatcher::normalizeUserID @', input.substr(1))
+    ref.cache.getUserID(input.substr(1), function(userobj, err) {
+      if (err) {
+        console.log('dispatcher.js::normalizeUserID err', err);
+      }
+      if (userobj) {
+        callback(userobj.id, '');
+      } else {
+        callback(0, 'no such user');
+      }
+    });
+  } else {
+    // numeric
+    callback(input, '');
+  }
+}
+
 // cache is available at this.cache
 // we set from API to DB format
 // we get from DB format to API
@@ -244,6 +275,25 @@ module.exports = {
       }
     });
   },
+  updateUserAvatar: function(avatar_url, params, tokenObj, callback) {
+    if (!tokenObj.userid) {
+      console.trace('dispatcher.js::updateUserAvatar - no user id in tokenObj', tokenObj, tokenObj.userid);
+      return callback({}, 'not userid');
+    }
+    //console.log('dispatcher.js::updateUserAvatar - avatar', avatar_url);
+    // we can also set the image width/height...
+    changes = {
+      avatar_image: avatar_url
+    }
+    var ref=this;
+    this.cache.patchUser(tokenObj.userid, changes, function(changes, err, meta) {
+      // hrm memory driver does return the complete object...
+      //console.log('dispatcher.js::updateUserAvatar - changes', changes);
+      if (callback) {
+        ref.getUser(tokenObj.userid, params, callback);
+      }
+    });
+  },
   // destructive to user
   // to database format
   apiToUser: function(user, callback) {
@@ -310,6 +360,7 @@ module.exports = {
       callback(null, 'dispatcher.js::userToAPI - no callback passed in');
       return;
     }
+    //console.log('dispatcher.js::userToAPI - user in', user);
     //console.log('dispatcher.js::userToAPI - setting up res');
     // copy user structure
     var res={
@@ -381,7 +432,7 @@ module.exports = {
       }
       // , res, meta
       if (user.debug) console.log('dispatcher.js::userToAPI ('+user.id+') - done');
-      //console.log('dispatcher.js::userToAPI - done, text', data.text);
+      //console.log('dispatcher.js::userToAPI - done, text', user.description);
       // everything is done
       reallyDone();
       //callback(data, null, meta);
@@ -459,8 +510,9 @@ module.exports = {
       });
       //res.annotations = user.annotations
     }
-
+    //console.log('token', token, 'tokenuserid', token.userid)
     if (token && token.userid) {
+      /*
       need.tokenFollow = true;
       //console.log('dispatcher.js::userToAPI - need tokenFollow');
       // follows_you
@@ -474,6 +526,8 @@ module.exports = {
         //reallyDone();
         needComplete('tokenFollow')
       });
+      */
+      needComplete('tokenFollow')
     } else {
       //reallyDone();
       needComplete('tokenFollow')
@@ -504,7 +558,9 @@ module.exports = {
       }
       // maybe just spare caminte all together and just callback now
       if (!userid) userid = 0 // don't break caminte
+      //console.log('dispatcher.js::getUser - normalized user', userid);
       ref.cache.getUser(userid, function(userobj, userErr, userMeta) {
+        //console.log('dispatcher.js::getUser - got user', userobj);
         if (userErr) {
           console.log('dispatcher.js::getUser - cant get user', userid, userErr);
         }
@@ -514,8 +570,10 @@ module.exports = {
         //} else {
           //console.log('dispatcher.js::getUser - not such user?', userid, 'or no generalParams?', params)
         }
+        //console.log('dispatcher.js::getUser - annotations', userobj.annotations);
         //console.log('found user', userobj.id, '==', user)
-        if (params.debug) userobj.debug = true
+        if (userobj === null) userobj = {}
+        //if (params.debug) userobj.debug = true
         ref.userToAPI(userobj, params.tokenobj, callback, userMeta);
       });
     })
@@ -603,6 +661,14 @@ module.exports = {
       normalizeUserID(users[i], params.tokenobj, function(userid, err) {
         ref.cache.getUser(userid, function(userobj, userErr, userMeta) {
           //console.log('dispatcher.js::getUsers - gotUser', userErr);
+
+          if (userobj && params.generalParams) {
+            // FIXME: temp hack (until we can change the userToAPI prototype)
+            userobj.annotations = params.generalParams.annotations || params.generalParams.user_annotations
+          //} else {
+            //console.log('dispatcher.js::getUser - not such user?', userid, 'or no generalParams?', params)
+          }
+
           ref.userToAPI(userobj, params.tokenobj, function(adnUserObj, err) {
             //console.log('dispatcher.js::getUsers - got', adnUserObj, 'for', users[i])
             rUsers.push(adnUserObj)
@@ -659,6 +725,11 @@ module.exports = {
       //url_expires
       //user
     };
+    if (file.public) {
+      api.file_token_read = file.url;
+      api.url_permanent = file.url;
+      api.url_short = file.url;
+    }
     function checkDone() {
       if (api.user && api.source) {
         callback(api, null);
@@ -805,8 +876,9 @@ module.exports = {
   /** annotations */
   getAnnotation: function(type, id, callback) {
     var ref=this;
+    //console.log('dispathcer.js::getAnnotation - type', type, 'id', id);
     this.cache.getAnnotations(type, id, function(notes, err, meta) {
-      //console.log('start notes', notes);
+      //console.log('dispathcer.js::getAnnotation - start notes', notes);
       //var fixedNotes=[];
       if (!notes.length) {
         callback(notes, err, meta);
@@ -834,8 +906,8 @@ module.exports = {
       //console.log('dispatcher.js::getAnnotation(', type, id, ') - notes', notes.length);
       for(var i in notes) {
         // check values
-        var fixedSet={}
-        notes[i].value = JSON.parse(notes[i].value)
+        var fixedSet={};
+        notes[i].value = JSON.parse(notes[i].value);
         var oldValue=notes[i].value;
         calls[i]=0;
         done[i]=0;
@@ -846,12 +918,13 @@ module.exports = {
         }
         // I think we only every have one value
         // nope because you can have an empty array
-        //console.log(i, 'value', notes[i].value, 'len', notes[i].value.length, typeof(notes[i].value), notes[i].value.constructor.name)
-        if (notes[i].value.constructor.name == 'Array' && !notes[i].value.length) {
-          fixedSet=notes[i].value
+        //console.log(i, 'value', notes[i].value, 'len', notes[i].value.length, typeof(notes[i].value), notes[i].value.constructor.name, notes[i].value)
+        if (notes[i].value.constructor.name == 'Array' && !notes[i].value.length || JSON.stringify(notes[i].value)==='{}') {
+          //console.log('empty value')
+          fixedSet=notes[i].value;
           calls[i]++;
-          checkDone(i)
-          continue
+          checkDone(i);
+          continue;
         }
         for(var k in notes[i].value) {
           //console.log('value', notes[i].value, 'vs', oldValue, 'k', k, 'val', notes[i].value[k], 'vs', oldValue[k]);
@@ -912,6 +985,17 @@ module.exports = {
     this.cache.clearAnnotations(type, id, function() {
       for(var i in annotations) {
         var note=annotations[i];
+
+        if (!note.type) {
+          console.warn('dispatcher.js::setAnnotations - missing type in note', note)
+          continue;
+        }
+        if (!note.value) {
+          // no value, means we clear the annotation in PATCH, so we don't need to add
+          //console.log('dispatcher.js::setAnnotations - missing value in note', note)
+          continue;
+        }
+
         //console.log('dispatcher.js::setAnnotations - note', i, note);
         // insert into idtype, id, type, value
         // type, id, note.type, note.value
