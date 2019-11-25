@@ -24,7 +24,7 @@ module.exports = {
    * @param {metaCallback} callback - function to call after completion
    */
   addUser: function(username, password, callback) {
-    if (this.next) {
+    if (this.next && this.next.addUser) {
       this.next.addUser(username,password,callback);
     } else {
       console.log('dataaccess.base.js::addUser - write me!');
@@ -32,7 +32,7 @@ module.exports = {
     }
   },
   setUser: function(iuser, ts, callback) {
-    if (this.next) {
+    if (this.next && this.next.setUser) {
       this.next.setUser(iuser, ts, callback);
     } else {
       console.log('dataaccess.base.js::setUser - write me!');
@@ -40,7 +40,7 @@ module.exports = {
     }
   },
   patchUser: function(userid, changes, callback) {
-    if (this.next) {
+    if (this.next && this.next.patchUser) {
       this.next.patchUser(userid, changes, callback);
     } else {
       console.log('dataaccess.base.js::patchUser - write me!');
@@ -48,7 +48,7 @@ module.exports = {
     }
   },
   delUser: function(userid, callback) {
-    if (this.next) {
+    if (this.next && this.next.delUser) {
       this.next.delUser(userid, callback);
     } else {
       console.log('dataaccess.base.js::delUser - write me!');
@@ -56,7 +56,7 @@ module.exports = {
     }
   },
   getUserID: function(username, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUserID) {
       this.next.getUserID(username, callback);
     } else {
       console.log('dataaccess.base.js::getUserID - write me!');
@@ -65,7 +65,7 @@ module.exports = {
   },
   // callback is user, err, meta
   getUser: function(userid, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUser) {
       this.next.getUser(userid, callback);
     } else {
       console.log('dataaccess.base.js::getUser - write me!');
@@ -73,7 +73,7 @@ module.exports = {
     }
   },
   getUsers: function(users, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUsers) {
       this.next.getUsers(users, params, callback);
     } else {
       console.log('dataaccess.base.js::getUsers - write me!');
@@ -81,7 +81,7 @@ module.exports = {
     }
   },
   searchUsers: function(query, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.searchUsers) {
       this.next.searchUsers(query, params, callback);
     } else {
       console.log('dataaccess.base.js::searchUsers - write me!');
@@ -92,7 +92,7 @@ module.exports = {
    * user mutes
    */
   getMutes: function(userid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getMutes) {
       this.next.getMutes(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getMutes - write me!');
@@ -101,7 +101,7 @@ module.exports = {
   },
   addMute: function(userid, muteeid, params, callback) {
     console.log('dataaccess.base::addMute', muteeid, 'for', userid, typeof(callback));
-    if (this.next) {
+    if (this.next && this.next.addMute) {
       this.next.addMute(userid, muteeid, params, callback);
     } else {
       console.log('dataaccess.base.js::addMute - write me!');
@@ -110,7 +110,7 @@ module.exports = {
   },
   delMute: function(userid, muteeid, params, callback) {
     console.log('dataaccess.base::delMute', muteeid, 'for', userid, typeof(callback));
-    if (this.next) {
+    if (this.next && this.next.delMute) {
       this.next.delMute(userid, muteeid, params, callback);
     } else {
       console.log('dataaccess.base.js::delMute - write me!');
@@ -121,7 +121,7 @@ module.exports = {
    * oauth local app / callbacks
    */
   getAppCallbacks: function(client_id, client_secret, callback) {
-    if (this.next) {
+    if (this.next && this.next.getAppCallbacks) {
       this.next.getAppCallbacks(client_id, client_secret, callback);
     } else {
       console.log('dataaccess.base.js::getAppCallbacks - write me!');
@@ -129,7 +129,7 @@ module.exports = {
     }
   },
   createSession: function(client_id, redirect_uri, response_type, requested_scopes, state, callback) {
-    if (this.next) {
+    if (this.next && this.next.createSession) {
       this.next.createSession(client_id, redirect_uri, response_type, requested_scopes, state, callback);
     } else {
       console.log('dataaccess.base.js::createSession - write me!');
@@ -137,7 +137,7 @@ module.exports = {
     }
   },
   authSession: function(code, userid, username, upstream_token, localToken, callback) {
-    if (this.next) {
+    if (this.next && this.next.authSession) {
       this.next.authSession(code, userid, username, upstream_token, localToken, callback);
     } else {
       console.log('dataaccess.base.js::authSession - write me!');
@@ -145,7 +145,7 @@ module.exports = {
     }
   },
   getSessionByCode: function(code, callback) {
-    if (this.next) {
+    if (this.next && this.next.getSessionByCode) {
       this.next.getSessionByCode(code, callback);
     } else {
       console.log('dataaccess.base.js::getSessionByCode - write me!');
@@ -158,7 +158,7 @@ module.exports = {
   // should we really pass token in? it's cleaner separation if we do
   // even though this is the only implemention of the abstraction
   addAPIUserToken: function(userid, client_id, scopes, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.addAPIUserToken) {
       this.next.addAPIUserToken(userid, client_id, scopes, token, callback);
     } else {
       console.log('dataaccess.base.js::addAPIUserToken - write me!');
@@ -166,7 +166,7 @@ module.exports = {
     }
   },
   addUnconstrainedAPIUserToken: function(userid, client_id, scopes, token, expireInMins, callback) {
-    if (this.next) {
+    if (this.next && this.next.addUnconstrainedAPIUserToken) {
       this.next.addUnconstrainedAPIUserToken(userid, client_id, scopes, token, expireInMins, callback);
     } else {
       console.log('dataaccess.base.js::addUnconstrainedAPIUserToken - write me!');
@@ -174,7 +174,7 @@ module.exports = {
     }
   },
   createOrFindUserToken: function(userid, client_id, scopes, callback) {
-    if (this.next) {
+    if (this.next && this.next.createOrFindUserToken) {
       this.next.createOrFindUserToken(userid, client_id, scopes, callback);
     } else {
       console.log('dataaccess.base.js::createOrFindUserToken - write me!');
@@ -182,7 +182,7 @@ module.exports = {
     }
   },
   delAPIUserToken: function(token, callback) {
-    if (this.next) {
+    if (this.next && this.next.delAPIUserToken) {
       this.next.delAPIUserToken(token, callback);
     } else {
       console.log('dataaccess.base.js::delAPIUserToken - write me!');
@@ -190,7 +190,7 @@ module.exports = {
     }
   },
   getAPITokenByUsername: function(username, callback) {
-    if (this.next) {
+    if (this.next && this.next.getAPITokenByUsername) {
       this.next.getAPITokenByUsername(username, callback);
     } else {
       console.log('dataaccess.base.js::getAPITokenByUsername - write me!');
@@ -198,7 +198,7 @@ module.exports = {
     }
   },
   getAPIUserToken: function(token, callback) {
-    if (this.next) {
+    if (this.next && this.next.getAPIUserToken) {
       this.next.getAPIUserToken(token, callback);
     } else {
       console.log('dataaccess.base.js::getAPIUserToken - write me!');
@@ -209,7 +209,7 @@ module.exports = {
    * user upstream tokens
    */
   setUpstreamUserToken: function(userid, token, scopes, upstreamUserId, callback) {
-    if (this.next) {
+    if (this.next && this.next.setUpstreamUserToken) {
       this.next.setUpstreamUserToken(userid, token, scopes, upstreamUserId, callback);
     } else {
       console.log('dataaccess.base.js::setUpstreamUserToken - write me!');
@@ -217,7 +217,7 @@ module.exports = {
     }
   },
   delUpstreamUserToken: function(token) {
-    if (this.next) {
+    if (this.next && this.next.delUpstreamUserToken) {
       this.next.delUpstreamUserToken(token);
     } else {
       console.log('dataaccess.base.js::delUpstreamUserToken - write me!');
@@ -225,7 +225,7 @@ module.exports = {
     }
   },
   getUpstreamUserToken: function(userid, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUpstreamUserToken) {
       this.next.getUpstreamUserToken(userid, callback);
     } else {
       console.log('dataaccess.base.js::getUpstreamUserToken - write me!');
@@ -236,7 +236,7 @@ module.exports = {
    * stream markers
    */
   getStreamMarker: function(userid, name, callback) {
-    if (this.next) {
+    if (this.next && this.next.getStreamMarker) {
       this.next.getStreamMarker(userid, name, callback);
     } else {
       console.log('dataaccess.base.js::getStreamMarker - write me!');
@@ -244,7 +244,7 @@ module.exports = {
     }
   },
   setStreamMarker: function(userid, name, id, percentage, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.setStreamMarker) {
       this.next.setStreamMarker(userid, name, id, percentage, params, callback);
     } else {
       console.log('dataaccess.base.js::setStreamMarker - write me!');
@@ -255,7 +255,7 @@ module.exports = {
    * local clients
    */
   addLocalClient: function(userid, callback) {
-    if (this.next) {
+    if (this.next && this.next.addLocalClient) {
       this.next.addLocalClient(userid, callback);
     } else {
       console.log('dataaccess.base.js::addLocalClient - write me!');
@@ -263,7 +263,7 @@ module.exports = {
     }
   },
   getLocalClient: function(client_id, callback) {
-    if (this.next) {
+    if (this.next && this.next.getLocalClient) {
       this.next.getLocalClient(client_id, callback);
     } else {
       console.log('dataaccess.base.js::getLocalClient - write me!');
@@ -271,7 +271,7 @@ module.exports = {
     }
   },
   delLocalClient: function(client_id,callback) {
-    if (this.next) {
+    if (this.next && this.next.delLocalClient) {
       this.next.delLocalClient(client_id, callback);
     } else {
       console.log('dataaccess.base.js::delLocalClient - write me!');
@@ -282,7 +282,7 @@ module.exports = {
    * clients
    */
   addSource: function(client_id, name, link, callback) {
-    if (this.next) {
+    if (this.next && this.next.addSource) {
       this.next.addSource(client_id, name, link, callback);
     } else {
       console.log('dataaccess.base.js::addSource - write me!');
@@ -290,7 +290,7 @@ module.exports = {
     }
   },
   getClient: function(client_id, callback) {
-    if (this.next) {
+    if (this.next && this.next.getClient) {
       this.next.getClient(client_id, callback);
     } else {
       console.log('dataaccess.base.js::getClient - write me!');
@@ -298,7 +298,7 @@ module.exports = {
     }
   },
   setSource: function(source, callback) {
-    if (this.next) {
+    if (this.next && this.next.setSource) {
       this.next.setSource(source, callback);
     } else {
       console.log('dataaccess.base.js::setSource - write me!');
@@ -326,7 +326,7 @@ module.exports = {
     console.log('dataaccess.base.js::getUpstreamClientToken - write me!');
   },
   findOrCreateUserStream: function(connectionId, tokenId, userId, autoDelete, callback) {
-    if (this.next) {
+    if (this.next && this.next.findOrCreateUserStream) {
       this.next.findOrCreateUserStream(connectionId, tokenId, userId, autoDelete, callback);
     } else {
       console.log('dataaccess.base.js::findOrCreateUserStream - write me!');
@@ -334,7 +334,7 @@ module.exports = {
     }
   },
   findOrCreateUserSubscription: function(connectionNumId, stream, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.findOrCreateUserSubscription) {
       this.next.findOrCreateUserSubscription(connectionNumId, stream, params, callback);
     } else {
       console.log('dataaccess.base.js::findOrCreateUserSubscription - write me!');
@@ -342,7 +342,7 @@ module.exports = {
     }
   },
   userStreamUpdate: function(connectionId, update, callback) {
-    if (this.next) {
+    if (this.next && this.next.userStreamUpdate) {
       this.next.userStreamUpdate(connectionId, update, callback);
     } else {
       console.log('dataaccess.base.js::userStreamUpdate - write me!');
@@ -350,7 +350,7 @@ module.exports = {
     }
   },
   deleteUserStream: function(connectionNumId, callback) {
-    if (this.next) {
+    if (this.next && this.next.deleteUserStream) {
       this.next.deleteUserStream(connectionNumId, callback);
     } else {
       console.log('dataaccess.base.js::deleteUserStream - write me!');
@@ -358,7 +358,7 @@ module.exports = {
     }
   },
   getUserStream: function(connectionNumId, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUserStream) {
       this.next.getUserStream(connectionNumId, callback);
     } else {
       console.log('dataaccess.base.js::getUserStream - write me!');
@@ -366,7 +366,7 @@ module.exports = {
     }
   },
   getAllUserStreams: function(callback) {
-    if (this.next) {
+    if (this.next && this.next.getAllUserStreams) {
       this.next.getAllUserStreams(callback);
     } else {
       console.log('dataaccess.base.js::getAllUserStreams - write me!');
@@ -380,7 +380,7 @@ module.exports = {
    * posts
    */
   addPost: function(ipost, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.addPost) {
       this.next.addPost(ipost, token, callback);
     } else {
       console.log('dataaccess.base.js::addPost - write me!');
@@ -388,7 +388,7 @@ module.exports = {
     }
   },
   delPost: function(postid, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.delPost) {
       this.next.delPost(postid, token, callback);
     } else {
       console.log('dataaccess.base.js::delPost - write me!');
@@ -396,7 +396,7 @@ module.exports = {
     }
   },
   updatePostHTML: function(postid, html, callback) {
-    if (this.next) {
+    if (this.next && this.next.updatePostHTML) {
       this.next.updatePostHTML(postid, html, callback);
     } else {
       console.log('dataaccess.base.js::updatePostHTML - write me!');
@@ -404,7 +404,7 @@ module.exports = {
     }
   },
   updatePostCounts: function(postid, callback) {
-    if (this.next) {
+    if (this.next && this.next.updatePostCounts) {
       this.next.updatePostCounts(postid, callback);
     } else {
       console.log('dataaccess.base.js::updatePostCounts - write me!');
@@ -412,7 +412,7 @@ module.exports = {
     }
   },
   setPost:  function(ipost, callback) {
-    if (this.next) {
+    if (this.next && this.next.setPost) {
       this.next.setPost(ipost, callback);
     } else {
       console.log('dataaccess.base.js::setPost - write me!');
@@ -420,7 +420,7 @@ module.exports = {
     }
   },
   addRepost: function(postid, originalPost, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.addRepost) {
       this.next.addRepost(postid, originalPost, token, callback);
     } else {
       console.log('dataaccess.base.js::addRepost - write me!');
@@ -428,7 +428,7 @@ module.exports = {
     }
   },
   delRepost: function(postid, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.delRepost) {
       this.next.delRepost(postid, token, callback);
     } else {
       console.log('dataaccess.base.js::delRepost - write me!');
@@ -436,7 +436,7 @@ module.exports = {
     }
   },
   getPost: function(id, callback) {
-    if (this.next) {
+    if (this.next && this.next.getPost) {
       this.next.getPost(id, callback);
     } else {
       console.log('dataaccess.base.js::getPost - write me!');
@@ -444,7 +444,7 @@ module.exports = {
     }
   },
   getReposts: function(postid, params, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.getReposts) {
       this.next.getReposts(postid, params, token, callback);
     } else {
       console.log('dataaccess.base.js::getReposts - write me!');
@@ -452,7 +452,7 @@ module.exports = {
     }
   },
   getReplies: function(postid, params, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.getReplies) {
       this.next.getReplies(postid, params, token, callback);
     } else {
       console.log('dataaccess.base.js::getReplies - write me!');
@@ -460,7 +460,7 @@ module.exports = {
     }
   },
   getUserRepostPost: function(userid, repost_of, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUserRepostPost) {
       this.next.getUserRepostPost(userid, repost_of, callback);
     } else {
       console.log('dataaccess.base.js::getUserReportPost - write me!');
@@ -468,7 +468,7 @@ module.exports = {
     }
   },
   getUserPostStream: function(user, params, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUserPostStream) {
       this.next.getUserPostStream(user, params, token, callback);
     } else {
       console.log('dataaccess.base.js::getUserPostStream - write me!');
@@ -476,7 +476,7 @@ module.exports = {
     }
   },
   getUnifiedStream: function(userid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUnifiedStream) {
       this.next.getUnifiedStream(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getUnifiedStream - write me!');
@@ -485,7 +485,7 @@ module.exports = {
   },
   // user can be an id or @username
   getUserPosts: function(user, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUserPosts) {
       this.next.getUserPosts(user, params, callback);
     } else {
       console.log('dataaccess.base.js::getUserPosts - write me!');
@@ -493,7 +493,7 @@ module.exports = {
     }
   },
   getMentions: function(user, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getMentions) {
       this.next.getMentions(user, params, callback);
     } else {
       console.log('dataaccess.base.js::getMentions - write me!');
@@ -501,7 +501,7 @@ module.exports = {
     }
   },
   getGlobal: function(params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getGlobal) {
       this.next.getGlobal(params, callback);
     } else {
       console.log('dataaccess.base.js::getGlobal - write me!');
@@ -509,7 +509,7 @@ module.exports = {
     }
   },
   getExplore: function(params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getExplore) {
       this.next.getExplore(params, callback);
     } else {
       console.log('dataaccess.base.js::getExplore - write me!');
@@ -517,7 +517,7 @@ module.exports = {
     }
   },
   getExploreFeed: function(feed, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getExploreFeed) {
       this.next.getExploreFeed(feed, params, callback);
     } else {
       console.log('dataaccess.base.js::getExploreFeed - write me!');
@@ -525,7 +525,7 @@ module.exports = {
     }
   },
   searchPosts: function(query, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.searchPosts) {
       this.next.searchPosts(query, params, callback);
     } else {
       console.log('dataaccess.base.js::searchPosts - write me!');
@@ -534,7 +534,7 @@ module.exports = {
   },
   /** channels */
   setChannel: function (chnl, ts, callback) {
-    if (this.next) {
+    if (this.next && this.next.setChannel) {
       this.next.setChannel(chnl, ts, callback);
     } else {
       console.log('dataaccess.base.js::setChannel - write me!');
@@ -542,7 +542,7 @@ module.exports = {
     }
   },
   updateChannel: function (channelid, chnl, callback) {
-    if (this.next) {
+    if (this.next && this.next.updateChannel) {
       this.next.updateChannel(channelid, chnl, callback);
     } else {
       console.log('dataaccess.base.js::updateChannel - write me!');
@@ -551,7 +551,7 @@ module.exports = {
   },
   addChannel: function(userid, type, callback) {
     //console.log('dataaccess.base.js::addChannel - hit!');
-    if (this.next) {
+    if (this.next && this.next.addChannel) {
       //console.log('dataaccess.base.js::addChannel - calling', this.next.name);
       this.next.addChannel(userid, type, callback);
     } else {
@@ -560,7 +560,7 @@ module.exports = {
     }
   },
   getChannel: function(id, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getChannel) {
       this.next.getChannel(id, params, callback);
     } else {
       console.log('dataaccess.base.js::getChannel - write me!');
@@ -568,7 +568,7 @@ module.exports = {
     }
   },
   searchChannels: function(query, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.searchChannels) {
       this.next.searchChannels(query, params, callback);
     } else {
       console.log('dataaccess.base.js::searchChannels - write me!');
@@ -576,7 +576,7 @@ module.exports = {
     }
   },
   getUserChannels: function(userid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUserChannels) {
       this.next.getUserChannels(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getUserChannels - write me!');
@@ -584,7 +584,7 @@ module.exports = {
     }
   },
   getPMChannel: function(group, callback) {
-    if (this.next) {
+    if (this.next && this.next.getPMChannel) {
       this.next.getPMChannel(group, callback);
     } else {
       console.log('dataaccess.base.js::getPMChannel - write me!');
@@ -593,7 +593,7 @@ module.exports = {
   },
   /** messages */
   setMessage: function (msg, callback) {
-    if (this.next) {
+    if (this.next && this.next.setMessage) {
       this.next.setMessage(msg, callback);
     } else {
       console.log('dataaccess.base.js::setMessage - write me!');
@@ -601,7 +601,7 @@ module.exports = {
     }
   },
   addMessage: function (msg, callback) {
-    if (this.next) {
+    if (this.next && this.next.addMessage) {
       this.next.addMessage(msg, callback);
     } else {
       console.log('dataaccess.base.js::addMessage - write me!');
@@ -609,7 +609,7 @@ module.exports = {
     }
   },
   deleteMessage: function (message_id, channel_id, callback) {
-    if (this.next) {
+    if (this.next && this.next.deleteMessage) {
       this.next.deleteMessage(message_id, channel_id, callback);
     } else {
       console.log('dataaccess.base.js::deleteMessage - write me!');
@@ -617,7 +617,7 @@ module.exports = {
     }
   },
   getMessage: function(id, callback) {
-    if (this.next) {
+    if (this.next && this.next.getMessage) {
       this.next.getMessage(id, callback);
     } else {
       console.log('dataaccess.base.js::getMessage - write me!');
@@ -625,7 +625,7 @@ module.exports = {
     }
   },
   getChannelMessages: function(channelid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getChannelMessages) {
       this.next.getChannelMessages(channelid, params, callback);
     } else {
       console.log('dataaccess.base.js::getChannelMessages - write me!');
@@ -641,7 +641,7 @@ module.exports = {
     last_updated: { type: Date },
   */
   addSubscription: function (channel_id, userid, callback) {
-    if (this.next) {
+    if (this.next && this.next.addSubscription) {
       this.next.addSubscription(channel_id, userid, callback);
     } else {
       console.log('dataaccess.base.js::addSubscription - write me!');
@@ -649,7 +649,7 @@ module.exports = {
     }
   },
   setSubscription: function (chnlid, userid, del, ts, callback) {
-    if (this.next) {
+    if (this.next && this.next.setSubscription) {
       this.next.setSubscription(chnlid, userid, del, ts, callback);
     } else {
       console.log('dataaccess.base.js::setSubscription - write me!');
@@ -657,7 +657,7 @@ module.exports = {
     }
   },
   delSubscription: function (channel_id, userid, callback) {
-    if (this.next) {
+    if (this.next && this.next.delSubscription) {
       this.next.delSubscription(channel_id, userid, callback);
     } else {
       console.log('dataaccess.base.js::delSubscription - write me!');
@@ -665,7 +665,7 @@ module.exports = {
     }
   },
   getSubscription: function(channel_id, user_id, callback) {
-    if (this.next) {
+    if (this.next && this.next.getSubscription) {
       this.next.getSubscription(channel_id, user_id, callback);
     } else {
       console.log('dataaccess.base.js::getSubscription - write me!');
@@ -673,7 +673,7 @@ module.exports = {
     }
   },
   getUserSubscriptions: function(userid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUserSubscriptions) {
       this.next.getUserSubscriptions(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getUserSubscriptions - write me!');
@@ -681,7 +681,7 @@ module.exports = {
     }
   },
   getChannelSubscriptions: function(channelid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getChannelSubscriptions) {
       this.next.getChannelSubscriptions(channelid, params, callback);
     } else {
       console.log('dataaccess.base.js::getChannelSubscriptions - write me!');
@@ -690,7 +690,7 @@ module.exports = {
   },
   /** files */
   addFile: function(file, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.addFile) {
       this.next.addFile(file, token, callback);
     } else {
       console.log('dataaccess.base.js::addFile - write me!');
@@ -698,7 +698,7 @@ module.exports = {
     }
   },
   setFile: function(file, del, ts, callback) {
-    if (this.next) {
+    if (this.next && this.next.setFile) {
       this.next.setFile(file, del, ts, callback);
     } else {
       console.log('dataaccess.base.js::setFile - write me!');
@@ -706,7 +706,7 @@ module.exports = {
     }
   },
   getFile: function(fileId, callback) {
-    if (this.next) {
+    if (this.next && this.next.getFile) {
       this.next.getFile(fileId, callback);
     } else {
       console.log('dataaccess.base.js::getFile - write me!');
@@ -714,7 +714,7 @@ module.exports = {
     }
   },
   getFiles: function(userid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getFiles) {
       this.next.getFiles(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getFiles - write me!');
@@ -725,7 +725,7 @@ module.exports = {
   // should this model more closely follow the annotation model?
   // not really because entities are immutable (on posts not users)
   extractEntities: function(type, id, entities, entitytype, callback) {
-    if (this.next) {
+    if (this.next && this.next.extractEntities) {
       this.next.extractEntities(type, id, entities, entitytype, callback);
     } else {
       console.log('dataaccess.base.js::extractEntities - write me!');
@@ -733,7 +733,7 @@ module.exports = {
     }
   },
   getEntities: function(type, id, callback) {
-    if (this.next) {
+    if (this.next && this.next.getEntities) {
       this.next.getEntities(type, id, callback);
     } else {
       console.log('dataaccess.base.js::getEntities - write me!');
@@ -742,7 +742,7 @@ module.exports = {
   },
   // more like getHashtagEntities
   getHashtagEntities: function(hashtag, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getHashtagEntities) {
       this.next.getHashtagEntities(hashtag, params, callback);
     } else {
       console.log('dataaccess.base.js::getHashtagEntities - write me!');
@@ -753,7 +753,7 @@ module.exports = {
    * Annotations
    */
   addAnnotation: function(idtype, id, type, value, callback) {
-    if (this.next) {
+    if (this.next && this.next.addAnnotation) {
       this.next.addAnnotation(idtype, id, type, value, callback);
     } else {
       console.log('dataaccess.base.js::addAnnotation - write me!');
@@ -761,7 +761,7 @@ module.exports = {
     }
   },
   clearAnnotations: function(idtype,id,callback) {
-    if (this.next) {
+    if (this.next && this.next.clearAnnotations) {
       this.next.clearAnnotations(idtype, id, callback);
     } else {
       console.log('dataaccess.base.js::clearAnnotations - write me!');
@@ -769,7 +769,7 @@ module.exports = {
     }
   },
   getAnnotations: function(idtype, id, callback) {
-    if (this.next) {
+    if (this.next && this.next.getAnnotations) {
       this.next.getAnnotations(idtype, id, callback);
     } else {
       console.log('dataaccess.base.js::getAnnotations - write me!');
@@ -778,7 +778,7 @@ module.exports = {
   },
   /** follow */
   updateUserCounts: function(userid, callback) {
-    if (this.next) {
+    if (this.next && this.next.updateUserCounts) {
       this.next.updateUserCounts(userid, callback);
     } else {
       console.log('dataaccess.base.js::updateUserCounts - write me!');
@@ -786,7 +786,7 @@ module.exports = {
     }
   },
   setFollow: function (srcid, trgid, id, del, ts, callback) {
-    if (this.next) {
+    if (this.next && this.next.setFollow) {
       this.next.setFollow(srcid, trgid, id, del, ts, callback);
     } else {
       console.log('dataaccess.base.js::setFollow - write me!');
@@ -794,7 +794,7 @@ module.exports = {
     }
   },
   getFollowing: function(userid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getFollowing) {
       this.next.getFollowing(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getFollowing - write me!');
@@ -802,7 +802,7 @@ module.exports = {
     }
   },
   follows: function(src, trg, callback) {
-    if (this.next) {
+    if (this.next && this.next.follows) {
       this.next.follows(src, trg, callback);
     } else {
       console.log('dataaccess.base.js::follows - write me!');
@@ -810,7 +810,7 @@ module.exports = {
     }
   },
   getFollows: function(userid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getFollows) {
       this.next.getFollows(userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getFollows - write me!');
@@ -819,7 +819,7 @@ module.exports = {
   },
   /** Star/Interactions */
   addStar: function(postid, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.addStar) {
       this.next.addStar(postid, token, callback);
     } else {
       console.log('dataaccess.base.js::addStar - write me!');
@@ -827,7 +827,7 @@ module.exports = {
     }
   },
   delStar: function(postid, token, callback) {
-    if (this.next) {
+    if (this.next && this.next.delStar) {
       this.next.delStar(postid, token, callback);
     } else {
       console.log('dataaccess.base.js::addStar - write me!');
@@ -835,7 +835,7 @@ module.exports = {
     }
   },
   setInteraction: function(userid, postid, type, metaid, deleted, ts, callback) {
-    if (this.next) {
+    if (this.next && this.next.setInteraction) {
       this.next.setInteraction(userid, postid, type, metaid, deleted, ts, callback);
     } else {
       console.log('dataaccess.base.js::setInteraction - write me!');
@@ -843,7 +843,7 @@ module.exports = {
     }
   },
   getUserStarPost: function(userid, postid, callback) {
-    if (this.next) {
+    if (this.next && this.next.getUserStarPost) {
       this.next.getUserStarPost(userid, postid, callback);
     } else {
       console.log('dataaccess.base.js::getPostStar - write me!');
@@ -851,7 +851,7 @@ module.exports = {
     }
   },
   getPostStars: function(postid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getPostStars) {
       this.next.getPostStars(postid, params, callback);
     } else {
       console.log('dataaccess.base.js::getPostStars - write me!');
@@ -859,7 +859,7 @@ module.exports = {
     }
   },
   getChannelDeletions: function(channel_id, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getChannelDeletions) {
       this.next.getChannelDeletions(channel_id, params, callback);
     } else {
       console.log('dataaccess.base.js::getChannelDeletions - write me!');
@@ -867,7 +867,7 @@ module.exports = {
     }
   },
   getNotices: function(userid, params, tokenObj, callback) {
-    if (this.next) {
+    if (this.next && this.next.getNotices) {
       this.next.getNotices(userid, params, tokenObj, callback);
     } else {
       console.log('dataaccess.base.js::getNotices - write me!');
@@ -878,7 +878,7 @@ module.exports = {
   // if we're going to use one table, let's keep the code advantages from that
   // getUserStarPosts
   getInteractions: function(type, userid, params, callback) {
-    if (this.next) {
+    if (this.next && this.next.getInteractions) {
       this.next.getInteractions(type, userid, params, callback);
     } else {
       console.log('dataaccess.base.js::getInteractions - write me!');
@@ -886,7 +886,7 @@ module.exports = {
     }
   },
   getOEmbed: function(url, callback) {
-    if (this.next) {
+    if (this.next && this.next.getOEmbed) {
       this.next.getOEmbed(url, callback);
     } else {
       console.log('dataaccess.base.js::getOEmbed - write me!');
