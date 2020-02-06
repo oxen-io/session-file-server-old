@@ -1616,6 +1616,7 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
       //console.log('Checking', file.urlexpires, typeof(file.urlexpires))
       if (file.urlexpires === undefined) file.urlexpires=new Date(0);
       if (file.sha1 === undefined) file.sha1='';
+      if (file.type === undefined) file.type=''; // not required per spec
       console.log('final pre file model', file);
       //file.token=randomstring(173);
       // network client_id
