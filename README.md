@@ -1,7 +1,7 @@
-# loki-syndicate-server
-Loki syndicate server
+# loki-file-server
+Loki file server
 
-an express REST API for serving persistent data  for Loki Software Suite.
+an express REST API for serving persistent data for Loki Software Suite.
 
 System requirements:
 - NodeJS
