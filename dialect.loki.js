@@ -349,6 +349,7 @@ module.exports = (app, prefix) => {
   });
 
   app.post(prefix + '/loki/v1/submit_challenge', (req, res) => {
+    // console.log('submit_challenge body', req.body, typeof req.body);
     const { pubKey, token } = req.body;
     if (!pubKey) {
       console.log('submit_challenge pubKey missing');
@@ -376,7 +377,7 @@ module.exports = (app, prefix) => {
     }).catch(err => {
       console.log(`Error confirming challenge: ${err}`);
       // handle errors we know
-      if (err == 'invalid') {
+      if (err === 'invalid') {
         res.status(401).end();
       } else {
         res.status(500).end();
@@ -465,5 +466,9 @@ module.exports = (app, prefix) => {
       };
       return sendresponse(resObj, res);
     });
+  });
+
+  app.get(prefix + '/loki/v1/time', (req, res) => {
+    res.end(""+parseInt(Date.now()/1000));
   });
 }

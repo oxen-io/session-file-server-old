@@ -30,6 +30,7 @@ describe("Hello World Server", function() {
     harness200({ url: base_url, method: 'GET' })
   })
 
+  /*
   describe("create /channels", function() {
     const str = {
       type: 'moe.sapphire.test',
@@ -86,5 +87,6 @@ describe("Hello World Server", function() {
       })
     })
   })
+  */
 
 })

@@ -15,7 +15,7 @@ const adnServerAPI = function(url, token) {
     let result;
     try {
       const fetchOptions = {};
-      const headers = {};
+      const headers = options.headers || {};
       if (this.token) {
         headers.Authorization = `Bearer ${this.token}`;
       }

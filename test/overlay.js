@@ -170,49 +170,40 @@ const runIntegrationTests = async (ourKey, ourPubKeyHex) => {
       await ensureServer();
     });
   });
-  let channelId = 3; // default channel to try to test first
+  let channelId = 1; // default channel to try to test first
 
   // get our token
   let tokenString
-  describe('get our token', () => {
-    it('get token', async () => {
-      tokenString = await get_challenge(ourKey, ourPubKeyHex);
-    });
-    it('activate token', async () => {
-      // activate token
-      await submit_challenge(tokenString);
-    });
-    it('set token', async () => {
+  describe('token dialect', () => {
+    require('./tests/tokens/get_challenge.js')(testInfo);
+    require('./tests/tokens/submit_challenge.js')(testInfo);
+    it('set token', async function() {
+      tokenString = testInfo.tokenString;
+      console.log('tokenString', tokenString);
       // set token
       overlayApi.token = tokenString;
       platformApi.token = tokenString;
+      //userid = await getUserID(ourPubKeyHex);
     });
-
-    it('user info', async () => {
-      // test token endpoints
-      user_info(tokenString);
-    });
-
-    // make sure we have a channel to test with
-    describe(`moderator testing`, () => {
-      let modToken
-      it('we have moderator to test with', async () => {
-        // now do moderation tests
-        modToken = await selectModToken();
-        if (!modToken) {
-          console.error('No modToken, skipping moderation tests');
-          // all tests should be complete
-          //process.exit(0);
-          return;
-        }
-        overlayApi.token = modToken;
-      });
-    });
+    require('./tests/tokens/user_info.js')(testInfo);
+    require('./tests/tokens/time.js')(testInfo);
+    require('./tests/rss_proxy/version.js')(testInfo);
+    require('./tests/rss_proxy/rss.js')(testInfo); // slow
+    require('./tests/loki_proxy/secure_rpc.js')(testInfo); // even slower
   });
+  // test custom homepage
 
   // all tests should be complete
   //console.log('all done!')
   //process.exit(0);
+}
+
+let testInfo = {
+  overlayApi,
+  platformApi,
+  adminApi,
+  ourKey,
+  ourPubKeyHex
 }
 
 //console.log('bob');
