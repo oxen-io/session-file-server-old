@@ -1,3 +1,4 @@
+const fs        = require('fs');
 const crypto    = require('crypto');
 const bb        = require('bytebuffer');
 const libsignal = require('libsignal');
@@ -5,10 +6,41 @@ const assert    = require('assert');
 const lib       = require('../lib');
 
 const IV_LENGTH = 16;
-const LOKIFOUNDATION_FILESERVER_PUBKEY = 'BWJQnVm97sQE3Q1InB4Vuo+U/T1hmwHBv0ipkiv8tzEc';
+/*
+const LOKIFOUNDATION_FILESERVER_PUBKEY = 'BSZiMVxOco/b3sYfaeyiMWv/JnqokxGXkHoclEx8TmZ6';
 const FileServerPubKey = Buffer.from(
   bb.wrap(LOKIFOUNDATION_FILESERVER_PUBKEY,'base64').toArrayBuffer()
 );
+*/
+
+const FILE_SERVER_PRIV_KEY_FILE = 'proxy.key'
+const FILE_SERVER_PUB_KEY_FILE = 'proxy.pub'
+
+/*
+console.log('initializing loki_proxy subsystem');
+if (!fs.existsSync(FILE_SERVER_PRIV_KEY_FILE)) {
+  const serverKey = libsignal.curve.generateKeyPair();
+  console.log('no private key, generating new keyPair, saving as', FILE_SERVER_PRIV_KEY_FILE);
+  fs.writeFileSync(FILE_SERVER_PRIV_KEY_FILE, serverKey.privKey, 'binary');
+  if (!fs.existsSync(FILE_SERVER_PUB_KEY_FILE)) {
+    console.log('no public key, saving as', FILE_SERVER_PUB_KEY_FILE);
+    fs.writeFileSync(FILE_SERVER_PUB_KEY_FILE, serverKey.pubKey, 'binary');
+  }
+}
+// should have files by this point
+if (!fs.existsSync(FILE_SERVER_PUB_KEY_FILE)) {
+  console.log('Have', FILE_SERVER_PRIV_KEY_FILE, 'without', FILE_SERVER_PUB_KEY_FILE);
+  // maybe nuke FILE_SERVER_PRIV_KEY_FILE and regen
+  process.exit(1);
+}
+*/
+
+// load into buffers
+// const serverPrivKey = fs.readFileSync(FILE_SERVER_PRIV_KEY_FILE);
+const FileServerPubKey = fs.readFileSync(FILE_SERVER_PUB_KEY_FILE);
+
+const LOKIFOUNDATION_FILESERVER_PUBKEY = bb.wrap(FileServerPubKey).toString('base64');
+
 
 const DHEncrypt64 = async (symmetricKey, plainText) => {
   // generate an iv (web-friendly)
