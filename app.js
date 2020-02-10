@@ -83,7 +83,14 @@ dispatcher.appConfig = {
 
 console.log('configuring app as', dispatcher.appConfig)
 // app.net defaults
-dispatcher.config=nconf.get('dataModel:config') || {
+dispatcher.limits=nconf.get('limits') || JSON.parse(`{
+  "default": {
+    "following": "unlimited",
+    "max_file_size": 10000000,
+    "storage": 1000000000
+  }
+}`);
+dispatcher.config=nconf.get('dataModel:config') || JSON.parse(`{
   "text": {
     "uri_template_length": {
       "post_id": 9,
@@ -108,7 +115,7 @@ dispatcher.config=nconf.get('dataModel:config') || {
   "channel": {
     "annotation_max_bytes": 8192
   }
-};
+}`);
 console.log('configuring adn settings as', dispatcher.config)
 
 if (proxy) {
