@@ -28,6 +28,10 @@
       },
       {
         "destination": "",
+        "dialect": "loki_proxy"
+      },
+      {
+        "destination": "",
         "dialect": "loki_rss_proxy"
       }
     ]
