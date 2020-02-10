@@ -44,5 +44,52 @@
   "stream": {
     "host": "",
     "port": 6379
+  },
+  "database": {
+    "default": {
+      "type": "mysql",
+      "options": {
+        "database": "db",
+        "username": "user",
+        "host": "localhost",
+        "password": "pass"
+      }
+    }
+  },
+  "limits": {
+    "default": {
+      "following": "unlimited",
+      "max_file_size": 10000000,
+      "storage": 1000000000
+    }
+  },
+  "dataModel": {
+    "config": {
+      "text": {
+        "uri_template_length": {
+          "post_id": 9,
+          "message_id": 12
+        }
+      },
+      "user": {
+        "annotation_max_bytes": 8192,
+        "text_max_length": 256,
+        "username_max_length": 66
+      },
+      "file": {
+        "annotation_max_bytes": 8192
+      },
+      "post": {
+        "annotation_max_bytes": 8192,
+        "text_max_length": 256
+      },
+      "message": {
+        "annotation_max_bytes": 8192,
+        "text_max_length": 2048
+      },
+      "channel": {
+        "annotation_max_bytes": 8192
+      }
+    }
   }
 }
