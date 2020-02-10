@@ -25,6 +25,10 @@
       {
         "destination": "",
         "dialect": "loki"
+      },
+      {
+        "destination": "",
+        "dialect": "loki_rss_proxy"
       }
     ]
   },
