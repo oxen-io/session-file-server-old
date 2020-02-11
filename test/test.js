@@ -29,6 +29,8 @@ describe("Hello World Server", function() {
   describe("GET /", function() {
     harness200({ url: base_url, method: 'GET' })
   })
+  // file upload tests
+  // plus test config file size limit
 
   /*
   describe("create /channels", function() {
