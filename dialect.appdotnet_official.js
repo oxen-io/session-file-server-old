@@ -93,8 +93,8 @@ module.exports=function(app, prefix) {
   app.get(prefix+'/users', function(req, resp) {
     if (!req.token) {
       var ids = req.query.ids
-      if (ids && ids.match(/,/)) {
-        ids = ids.split(/,/);
+      if (ids && ids.match(/, */)) {
+        ids = ids.split(/, */);
       }
       if (typeof(ids) === 'string') {
         ids = [ ids ];
@@ -466,7 +466,7 @@ module.exports=function(app, prefix) {
       return
     }
     console.log('FUP SIZE', req.file.buffer.length.toLocaleString());
-    if (req.file.buffer.length < max_fup_size) {
+    if (req.file.buffer.length >= max_fup_size) {
       //
       var res={
         meta: {
@@ -474,7 +474,7 @@ module.exports=function(app, prefix) {
           error_message: "File is too big"
         }
       };
-      console.warn('file too large');
+      console.warn('file too large, max size', max_fup_size);
       resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
       return
     }
