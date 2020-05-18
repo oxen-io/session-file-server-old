@@ -26,7 +26,12 @@ const ensureServer = () => {
   return new Promise((resolve, rej) => {
     console.log('app port', webport);
     lokinet.portIsFree('localhost', webport, function(free) {
+      console.log('overlay_port is free?', !!free)
       if (free) {
+        // make sure we use the same config...
+        process.env['config-file-path'] = config_path;
+        // make sure the web__port is what we tested...
+        process.env['web__port'] = webport;
         const startPlatform = require('../app');
       } else {
         console.log('detected running file server testing that');
