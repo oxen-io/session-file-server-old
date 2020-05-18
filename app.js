@@ -379,12 +379,12 @@ function adnMiddleware(req, res, next) {
 }
 
 // temporary hack middleware for debugging
-/*
 app.all('/*', function(req, res, next) {
   // , req.headers
   console.debug('DBGrequest', req.path, req.headers['content-type'])
   //if (req.method == 'POST' || req.method == 'PATCH' ) {
-  if (req.method == 'POST' && req.path=='/users/me/avatar') {
+  //if (req.method == 'POST' && req.path=='/users/me/avatar') {
+  if (req.method == 'POST' && req.path=='/loki/v1/lsrpc') {
     //console.debug('DBGbody', req)
     var body = '';
 
@@ -399,12 +399,14 @@ app.all('/*', function(req, res, next) {
 
     req.on('end', function () {
       console.log(req.method, ' body', body)
+      req.originalBody = body
       // use post['blah'], etc.
+      next();
     });
+  } else {
+    next();
   }
-  next();
 });
-*/
 
 /** need this for POST parsing */
 // heard this writes to /tmp and doesn't scale.. need to confirm if current versions have this problem
