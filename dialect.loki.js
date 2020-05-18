@@ -262,6 +262,7 @@ module.exports = (app, prefix) => {
   // set cache based on dispatcher object
   cache = app.dispatcher.cache;
 
+  let disk_config = {};
   let user_access = {};
   let pubkey_whitelist = {};
 
