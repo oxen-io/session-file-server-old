@@ -432,6 +432,14 @@ var mounts=nconf.get('web:mounts') || [
     "destination": "",
     "dialect": "loki"
   },
+  {
+    "destination": "",
+    "dialect": "loki_proxy"
+  },
+  {
+    "destination": "",
+    "dialect": "loki_rss_proxy"
+  },
 ];
 var dialects={};
 for(var i in mounts) {
