@@ -16,28 +16,37 @@ const FileServerPubKey = Buffer.from(
 const FILE_SERVER_PRIV_KEY_FILE = 'proxy.key'
 const FILE_SERVER_PUB_KEY_FILE = 'proxy.pub'
 
-/*
 console.log('initializing loki_proxy subsystem');
+
 if (!fs.existsSync(FILE_SERVER_PRIV_KEY_FILE)) {
-  const serverKey = libsignal.curve.generateKeyPair();
-  console.log('no private key, generating new keyPair, saving as', FILE_SERVER_PRIV_KEY_FILE);
+  //const serverKey = libsignal.curve.generateKeyPair();
+  //console.log('no private key, generating new keyPair, saving as', FILE_SERVER_PRIV_KEY_FILE);
+  /*
+  FileServerPubKey = serverKey.pubKey
   fs.writeFileSync(FILE_SERVER_PRIV_KEY_FILE, serverKey.privKey, 'binary');
   if (!fs.existsSync(FILE_SERVER_PUB_KEY_FILE)) {
     console.log('no public key, saving as', FILE_SERVER_PUB_KEY_FILE);
     fs.writeFileSync(FILE_SERVER_PUB_KEY_FILE, serverKey.pubKey, 'binary');
   }
-}
-// should have files by this point
-if (!fs.existsSync(FILE_SERVER_PUB_KEY_FILE)) {
-  console.log('Have', FILE_SERVER_PRIV_KEY_FILE, 'without', FILE_SERVER_PUB_KEY_FILE);
+  */
+  console.log(FILE_SERVER_PUB_KEY_FILE, 'is missing');
   // maybe nuke FILE_SERVER_PRIV_KEY_FILE and regen
   process.exit(1);
 }
-*/
+const FileServerPubKey = fs.readFileSync(FILE_SERVER_PUB_KEY_FILE);
+
+/*
+// should have files by this point
+if (!fs.existsSync(FILE_SERVER_PUB_KEY_FILE)) {
+  console.log(FILE_SERVER_PUB_KEY_FILE, 'is missing');
+  // maybe nuke FILE_SERVER_PRIV_KEY_FILE and regen
+  process.exit(1);
+}
 
 // load into buffers
 // const serverPrivKey = fs.readFileSync(FILE_SERVER_PRIV_KEY_FILE);
 const FileServerPubKey = fs.readFileSync(FILE_SERVER_PUB_KEY_FILE);
+*/
 
 const LOKIFOUNDATION_FILESERVER_PUBKEY = bb.wrap(FileServerPubKey).toString('base64');
 
