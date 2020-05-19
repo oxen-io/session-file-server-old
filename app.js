@@ -145,7 +145,7 @@ var pageParams=['since_id','before_id','count','last_read','last_read_inclusive'
 var channelParams=['channel_types'];
 var fileParams=['file_types'];
 
-function corsMiddleware(req, res, next){
+function corsMiddleware(req, res, next) {
   res.start=new Date().getTime();
   origin = req.get('Origin') || '*';
   res.set('Access-Control-Allow-Origin', origin);
@@ -378,35 +378,43 @@ function adnMiddleware(req, res, next) {
   next();
 }
 
-// temporary hack middleware for debugging
-app.all('/*', function(req, res, next) {
-  // , req.headers
-  console.debug('DBGrequest', req.path, req.headers['content-type'])
-  //if (req.method == 'POST' || req.method == 'PATCH' ) {
-  //if (req.method == 'POST' && req.path=='/users/me/avatar') {
-  if (req.method == 'POST' && req.path=='/loki/v1/lsrpc') {
-    //console.debug('DBGbody', req)
-    var body = '';
+// temporary hack middleware for debugging POST when bodyParser fails..
+if (0) {
+  app.all('/*', function(req, res, next) {
+    // , req.headers
+    console.debug('DBGrequest', req.path, req.headers['content-type'])
+    //if (req.method == 'POST' || req.method == 'PATCH' ) {
+    //if (req.method == 'POST' && req.path=='/users/me/avatar') {
+    if (req.method === 'POST' && req.path === '/loki/v1/lsrpc') {
+      //console.debug('DBGbody', req)
 
-    req.on('data', function (data) {
-      body += data;
+      // this breaks unit tests...
+      let body = '';
 
-      // Too much POST data, kill the connection!
-      // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
-      if (body.length > 1e6)
-        req.connection.destroy();
-    });
+      req.on('data', function (data) {
+        body += data;
 
-    req.on('end', function () {
-      console.log(req.method, ' body', body)
-      req.originalBody = body
-      // use post['blah'], etc.
+        // Too much POST data, kill the connection!
+        // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
+        if (body.length > 1e6) {
+          console.error('body is too big...forcing disconnect')
+          req.connection.destroy();
+        }
+      });
+
+      req.on('end', function () {
+        console.log(req.method, ' body', body)
+        req.originalBody = body;
+        // use post['blah'], etc.
+        console.log('continuing');
+        // won't really continue for LSRPC
+        next();
+      });
+    } else {
       next();
-    });
-  } else {
-    next();
-  }
-});
+    }
+  });
+}
 
 /** need this for POST parsing */
 // heard this writes to /tmp and doesn't scale.. need to confirm if current versions have this problem
@@ -417,6 +425,20 @@ app.use(bodyParser.urlencoded({
 }));
 app.all('/*', corsMiddleware);
 app.use(adnMiddleware);
+
+if (1) {
+  app.all('/*', function(req, res, next) {
+    // , req.headers
+    console.debug('DBGrequest', req.method, req.path, req.headers['content-type'])
+    //if (req.method == 'POST' || req.method == 'PATCH' ) {
+    //if (req.method == 'POST' && req.path=='/users/me/avatar') {
+    if (req.method === 'POST' && req.path === '/loki/v1/lsrpc') {
+      console.log('got an lsrpc, body', typeof(req.body), req.body)
+    }
+    next();
+  });
+}
+
 
 /**
  * support both styles of calling API
