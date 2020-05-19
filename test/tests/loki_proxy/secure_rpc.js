@@ -9,7 +9,6 @@ const textEncoder = new TextEncoder();
 
 const IV_LENGTH = 16;
 
-const FILE_SERVER_PRIV_KEY_FILE = 'proxy.key'
 const FILE_SERVER_PUB_KEY_FILE = 'proxy.pub'
 
 // load local key
@@ -20,44 +19,6 @@ if (!fs.existsSync(FILE_SERVER_PUB_KEY_FILE)) {
 
 // load into buffers
 const FileServerPubKey = fs.readFileSync(FILE_SERVER_PUB_KEY_FILE);
-
-const LOKIFOUNDATION_FILESERVER_PUBKEY = bb.wrap(FileServerPubKey).toString('base64');
-
-// used for proxy requests
-const DHEncrypt64 = async (symmetricKey, plainText) => {
-  // generate an iv (web-friendly)
-  const iv = crypto.randomBytes(IV_LENGTH);
-  // encrypt plainText
-  const ciphertext = await libsignal.crypto.encrypt(
-    symmetricKey,
-    plainText,
-    iv
-  );
-  // create buffer
-  const ivAndCiphertext = new Uint8Array(
-    iv.byteLength + ciphertext.byteLength
-  );
-  // copy iv into buffer
-  ivAndCiphertext.set(new Uint8Array(iv));
-  // copy ciphertext into buffer
-  ivAndCiphertext.set(new Uint8Array(ciphertext), iv.byteLength);
-  // base64 encode
-  return bb.wrap(ivAndCiphertext).toString('base64');
-}
-
-// used for tokens
-const DHDecrypt64 = async (symmetricKey, cipherText64) => {
-  // base64 decode
-  const ivAndCiphertext = Buffer.from(
-    bb.wrap(cipherText64, 'base64').toArrayBuffer()
-  );
-  // extract iv
-  const iv = ivAndCiphertext.slice(0, IV_LENGTH);
-  // extract ciphertext
-  const ciphertext = ivAndCiphertext.slice(IV_LENGTH);
-  // decode plaintext
-  return libsignal.crypto.decrypt(symmetricKey, ciphertext, iv);
-}
 
 // functions specific to test
 
@@ -75,7 +36,7 @@ const testSecureRpc = async (payloadObj, testInfo) => {
   );
 
   // make sym key
-  const cipherText64 = await DHEncrypt64(symKey, payloadData);
+  const cipherText64 = await libloki_crypt.DHEncrypt64(symKey, payloadData);
   const result = await testInfo.overlayApi.serverRequest('loki/v1/secure_rpc', {
     method: 'POST',
     objBody: {
@@ -237,7 +198,7 @@ module.exports = (testInfo) => {
         Buffer.from(response.serverPubKey64, 'base64'),
         ephemeralKey.privKey
       );
-      const token = await DHDecrypt64(symmetricKey, response.cipherText64);
+      const token = await libloki_crypt.DHDecrypt64(symmetricKey, response.cipherText64);
       const submitChalPayloadObj = {
         // I think this is a stream, we may need to collect it all?
         body: '{"pubKey":"' + ephemeralKey.pubKey.toString('hex') + '","token":"' + token + '"}',
@@ -367,7 +328,7 @@ module.exports = (testInfo) => {
         Buffer.from(response.serverPubKey64, 'base64'),
         ephemeralKey.privKey
       );
-      const token = await DHDecrypt64(symmetricKey, response.cipherText64);
+      const token = await libloki_crypt.DHDecrypt64(symmetricKey, response.cipherText64);
       const submitChalPayloadObj = {
         // I think this is a stream, we may need to collect it all?
         body: '{"pubKey":"' + ephemeralKey.pubKey.toString('hex') + '","token":"' + token + '"}',
