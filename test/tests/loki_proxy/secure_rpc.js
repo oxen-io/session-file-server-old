@@ -4,14 +4,10 @@ const bb        = require('bytebuffer');
 const libsignal = require('libsignal');
 const assert    = require('assert');
 const lib       = require('../lib');
+const libloki_crypt = require('../../../lib.loki_crypt');
+const textEncoder = new TextEncoder();
 
 const IV_LENGTH = 16;
-/*
-const LOKIFOUNDATION_FILESERVER_PUBKEY = 'BSZiMVxOco/b3sYfaeyiMWv/JnqokxGXkHoclEx8TmZ6';
-const FileServerPubKey = Buffer.from(
-  bb.wrap(LOKIFOUNDATION_FILESERVER_PUBKEY,'base64').toArrayBuffer()
-);
-*/
 
 const FILE_SERVER_PRIV_KEY_FILE = 'proxy.key'
 const FILE_SERVER_PUB_KEY_FILE = 'proxy.pub'
@@ -141,6 +137,58 @@ const testSecureRpc = async (payloadObj, testInfo) => {
   return str;
 }
 
+const innerLsrpcRequest = async (testInfo, payloadObj) => {
+  /*
+  const payloadData = Buffer.from(
+    bb.wrap(JSON.stringify(payloadObj)).toArrayBuffer()
+  );
+  */
+  const payloadData = textEncoder.encode(JSON.stringify(payloadObj));
+
+  // test token endpoints
+  const ephemeralKey = libsignal.curve.generateKeyPair();
+
+  // mix server pub key with our priv key
+  const symKey = libloki_crypt.makeSymmetricKey(
+    ephemeralKey.privKey, // our privkey
+    FileServerPubKey, // server's pubkey
+  );
+
+  // make sym key
+  const cipherTextBuf = libloki_crypt.encryptGCM(symKey, payloadData);
+  const result = await testInfo.overlayApi.serverRequest('loki/v1/lsrpc', {
+    method: 'POST',
+    objBody: {
+      cipherText: bb.wrap(cipherTextBuf).toString('base64'),
+      ephemeral_key: bb.wrap(ephemeralKey.pubKey).toString('hex')
+    },
+    noJson: true,
+    // out headers
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  return { result, symKey };
+}
+
+const testLsrpc = async (payloadObj, testInfo) => {
+  const { result, symKey } = await innerLsrpcRequest(testInfo, payloadObj);
+  assert.equal(200, result.statusCode);
+  assert.ok(result.response);
+  // homepage doesn't have a meta...
+  //assert.ok(result.response.meta);
+  //assert.equal(200, result.response.meta.code);
+  //assert.ok(result.response.data);
+  const nonceCiphertextAndTag = Buffer.from(
+    bb.wrap(result.response, 'base64').toArrayBuffer()
+  );
+  const decryptedJSON = libloki_crypt.decryptGCM(symKey, nonceCiphertextAndTag);
+  const obj = JSON.parse(decryptedJSON)
+  assert.equal(200, obj.status);
+  return obj;
+}
+
 module.exports = (testInfo) => {
   it('server public key', async function() {
     // test token endpoints
@@ -151,136 +199,267 @@ module.exports = (testInfo) => {
     assert.equal(200, result.response.meta.code);
     assert.ok(result.response.data); // 'BWJQnVm97sQE3Q1InB4Vuo+U/T1hmwHBv0ipkiv8tzEc'
   });
-  // no reason to test through a snode...
-  it('secure rpc homepage', async function() {
-    const payloadObj = {
-      body: {}, // might need to b64 if binary...
-      endpoint: '',
-      method: 'GET',
-      headers: {},
-    };
-    const str = await testSecureRpc(payloadObj, testInfo);
-    assert.ok(str);
-  });
-  it('secure rpc time', async function() {
-    const payloadObj = {
-      body: {}, // might need to b64 if binary...
-      endpoint: 'loki/v1/time',
-      method: 'GET',
-      headers: {},
-    };
-    const str = await testSecureRpc(payloadObj, testInfo);
-    assert.ok(str);
-  });
-  it('secure rpc rss', async function() {
-    const payloadObj = {
-      body: {}, // might need to b64 if binary...
-      endpoint: 'loki/v1/rss/messenger',
-      method: 'GET',
-      headers: {},
-    };
-    const str = await testSecureRpc(payloadObj, testInfo);
-    assert.ok(str);
-  });
-  it('secure rpc version', async function() {
-    const payloadObj = {
-      body: {}, // might need to b64 if binary...
-      endpoint: 'loki/v1/version/client/desktop',
-      method: 'GET',
-      headers: {},
-    };
-    const json = await testSecureRpc(payloadObj, testInfo);
-    assert.ok(json);
-    const obj = JSON.parse(json);
-    // console.log('obj', obj)
-    assert.ok(obj);
-    assert.ok(obj.meta);
-    assert.equal(200, obj.meta.code);
-  });
-  it('secure rpc get users by id', async function() {
-    const payloadObj = {
-      body: {}, // might need to b64 if binary...
-      endpoint: 'users?include_user_annotations=1&ids=@053b0ff9567a9ae0c2c62d5c37eb065b766e18d90e1c92c5a4a1ee1ba8d235b26e',
-      method: 'GET',
-      headers: {},
-    };
-    const json = await testSecureRpc(payloadObj, testInfo);
-    assert.ok(json);
-    const obj = JSON.parse(json);
-    // console.log('obj', obj)
-    assert.ok(obj);
-    assert.ok(obj.meta);
-    assert.equal(200, obj.meta.code);
-    assert.ok(obj.data);
-  });
-  // TODO:
-  // patch users/me
-  // file upload
-  // token exchange...
-  it('secure rpc get/submit challenge', async function() {
-    const ephemeralKey = libsignal.curve.generateKeyPair();
-    const getChalPayloadObj = {
-      // I think this is a stream, we may need to collect it all?
-      body: null,
-      endpoint: "loki/v1/get_challenge?pubKey=" + ephemeralKey.pubKey.toString('hex'),
-      method: "GET",
-      headers: {},
-    };
-    const json = await testSecureRpc(getChalPayloadObj, testInfo);
-    const response = JSON.parse(json);
-    assert.ok(response.cipherText64);
-    assert.ok(response.serverPubKey64);
-    // test b64 decode?
-    // that's why this next line kind of does...
-    const symmetricKey = libsignal.curve.calculateAgreement(
-      Buffer.from(response.serverPubKey64, 'base64'),
-      ephemeralKey.privKey
-    );
-    const token = await DHDecrypt64(symmetricKey, response.cipherText64);
-    const submitChalPayloadObj = {
-      // I think this is a stream, we may need to collect it all?
-      body: '{"pubKey":"' + ephemeralKey.pubKey.toString('hex') + '","token":"' + token + '"}',
-      endpoint: "loki/v1/submit_challenge",
-      method: "POST",
-      headers: { 'content-type': 'application/json; charset=utf-8' },
-    };
-    // will auto test the response enough
-    await testSecureRpc(submitChalPayloadObj, testInfo);
-  });
-  it('secure rpc missing header', async function() {
-    const payloadObj = {
-      body: {}, // might need to b64 if binary...
-      endpoint: 'loki/v1/time',
-      method: 'GET',
-    };
-    const str = await testSecureRpc(payloadObj, testInfo);
-    assert.ok(str);
-  });
-  it('secure rpc missing body', async function() {
-    const payloadObj = {
-      endpoint: 'loki/v1/time',
-      method: 'GET',
-      headers: {},
-    };
-    const str = await testSecureRpc(payloadObj, testInfo);
-    assert.ok(str);
-  });
-  it('secure rpc missing method', async function() {
-    const payloadObj = {
-      endpoint: 'loki/v1/time',
-      body: {}, // might need to b64 if binary...
-      headers: {},
-    };
-    const str = await testSecureRpc(payloadObj, testInfo);
-    assert.ok(str);
-  });
-  it('secure rpc missing body & header', async function() {
-    const payloadObj = {
-      endpoint: 'loki/v1/time',
-      method: 'GET',
-    };
-    const str = await testSecureRpc(payloadObj, testInfo);
-    assert.ok(str);
-  });
 
+  describe('proxy tests', function() {
+    // no reason to test through a snode...
+    it('secure rpc homepage', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: '',
+        method: 'GET',
+        headers: {},
+      };
+      const str = await testSecureRpc(payloadObj, testInfo);
+      assert.ok(str);
+    });
+    it('secure rpc time', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'loki/v1/time',
+        method: 'GET',
+        headers: {},
+      };
+      const str = await testSecureRpc(payloadObj, testInfo);
+      assert.ok(str);
+    });
+    it('secure rpc rss', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'loki/v1/rss/messenger',
+        method: 'GET',
+        headers: {},
+      };
+      const str = await testSecureRpc(payloadObj, testInfo);
+      assert.ok(str);
+    });
+    it('secure rpc version', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'loki/v1/version/client/desktop',
+        method: 'GET',
+        headers: {},
+      };
+      const json = await testSecureRpc(payloadObj, testInfo);
+      assert.ok(json);
+      const obj = JSON.parse(json);
+      // console.log('obj', obj)
+      assert.ok(obj);
+      assert.ok(obj.meta);
+      assert.equal(200, obj.meta.code);
+    });
+    it('secure rpc get users by id', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'users?include_user_annotations=1&ids=@053b0ff9567a9ae0c2c62d5c37eb065b766e18d90e1c92c5a4a1ee1ba8d235b26e',
+        method: 'GET',
+        headers: {},
+      };
+      const json = await testSecureRpc(payloadObj, testInfo);
+      assert.ok(json);
+      const obj = JSON.parse(json);
+      // console.log('obj', obj)
+      assert.ok(obj);
+      assert.ok(obj.meta);
+      assert.equal(200, obj.meta.code);
+      assert.ok(obj.data);
+    });
+    // TODO:
+    // patch users/me
+    // file upload
+    // token exchange...
+    it('secure rpc get/submit challenge', async function() {
+      const ephemeralKey = libsignal.curve.generateKeyPair();
+      const getChalPayloadObj = {
+        // I think this is a stream, we may need to collect it all?
+        body: null,
+        endpoint: "loki/v1/get_challenge?pubKey=" + ephemeralKey.pubKey.toString('hex'),
+        method: "GET",
+        headers: {},
+      };
+      const json = await testSecureRpc(getChalPayloadObj, testInfo);
+      const response = JSON.parse(json);
+      assert.ok(response.cipherText64);
+      assert.ok(response.serverPubKey64);
+      // test b64 decode?
+      // that's why this next line kind of does...
+      const symmetricKey = libsignal.curve.calculateAgreement(
+        Buffer.from(response.serverPubKey64, 'base64'),
+        ephemeralKey.privKey
+      );
+      const token = await DHDecrypt64(symmetricKey, response.cipherText64);
+      const submitChalPayloadObj = {
+        // I think this is a stream, we may need to collect it all?
+        body: '{"pubKey":"' + ephemeralKey.pubKey.toString('hex') + '","token":"' + token + '"}',
+        endpoint: "loki/v1/submit_challenge",
+        method: "POST",
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+      };
+      // will auto test the response enough
+      await testSecureRpc(submitChalPayloadObj, testInfo);
+    });
+    it('secure rpc missing header', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'loki/v1/time',
+        method: 'GET',
+      };
+      const str = await testSecureRpc(payloadObj, testInfo);
+      assert.ok(str);
+    });
+    it('secure rpc missing body', async function() {
+      const payloadObj = {
+        endpoint: 'loki/v1/time',
+        method: 'GET',
+        headers: {},
+      };
+      const str = await testSecureRpc(payloadObj, testInfo);
+      assert.ok(str);
+    });
+    it('secure rpc missing method', async function() {
+      const payloadObj = {
+        endpoint: 'loki/v1/time',
+        body: {}, // might need to b64 if binary...
+        headers: {},
+      };
+      const str = await testSecureRpc(payloadObj, testInfo);
+      assert.ok(str);
+    });
+    it('secure rpc missing body & header', async function() {
+      const payloadObj = {
+        endpoint: 'loki/v1/time',
+        method: 'GET',
+      };
+      const str = await testSecureRpc(payloadObj, testInfo);
+      assert.ok(str);
+    });
+  });
+  describe('onion request tests', function() {
+    it('lsrpc homepage', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: '',
+        method: 'GET',
+        headers: {},
+      };
+      const resp = await testLsrpc(payloadObj, testInfo);
+      //console.log('resp', resp)
+      assert.ok(resp.body);
+    });
+    it('lsrpc time', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'loki/v1/time',
+        method: 'GET',
+        headers: {},
+      };
+      const resp = await testLsrpc(payloadObj, testInfo);
+      assert.ok(resp.body);
+    });
+    it('lsrpc rss', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'loki/v1/rss/messenger',
+        method: 'GET',
+        headers: {},
+      };
+      const resp = await testLsrpc(payloadObj, testInfo);
+      assert.ok(resp.body);
+    });
+    it('lsrpc version', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'loki/v1/version/client/desktop',
+        method: 'GET',
+        headers: {},
+      };
+      const resp = await testLsrpc(payloadObj, testInfo);
+      assert.ok(resp.body);
+      const obj = JSON.parse(resp.body);
+      // console.log('obj', obj)
+      assert.ok(obj);
+      assert.ok(obj.meta);
+      assert.equal(200, obj.meta.code);
+    });
+    it('lsrpc get users by id', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'users?include_user_annotations=1&ids=@053b0ff9567a9ae0c2c62d5c37eb065b766e18d90e1c92c5a4a1ee1ba8d235b26e',
+        method: 'GET',
+        headers: {},
+      };
+      const resp = await testLsrpc(payloadObj, testInfo);
+      assert.ok(resp.body);
+      const obj = JSON.parse(resp.body);
+      // console.log('obj', obj)
+      assert.ok(obj);
+      assert.ok(obj.meta);
+      assert.equal(200, obj.meta.code);
+      assert.ok(obj.data);
+    });
+    it('lsrpc get/submit challenge', async function() {
+      const ephemeralKey = libsignal.curve.generateKeyPair();
+      const getChalPayloadObj = {
+        // I think this is a stream, we may need to collect it all?
+        body: null,
+        endpoint: "loki/v1/get_challenge?pubKey=" + ephemeralKey.pubKey.toString('hex'),
+        method: "GET",
+        headers: {},
+      };
+      const resp = await testLsrpc(getChalPayloadObj, testInfo);
+      const response = JSON.parse(resp.body);
+      assert.ok(response.cipherText64);
+      assert.ok(response.serverPubKey64);
+      // test b64 decode?
+      // that's why this next line kind of does...
+      const symmetricKey = libsignal.curve.calculateAgreement(
+        Buffer.from(response.serverPubKey64, 'base64'),
+        ephemeralKey.privKey
+      );
+      const token = await DHDecrypt64(symmetricKey, response.cipherText64);
+      const submitChalPayloadObj = {
+        // I think this is a stream, we may need to collect it all?
+        body: '{"pubKey":"' + ephemeralKey.pubKey.toString('hex') + '","token":"' + token + '"}',
+        endpoint: "loki/v1/submit_challenge",
+        method: "POST",
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+      };
+      // will auto test the response enough
+      await testLsrpc(submitChalPayloadObj, testInfo);
+    });
+    it('lsrpc missing header', async function() {
+      const payloadObj = {
+        body: {}, // might need to b64 if binary...
+        endpoint: 'loki/v1/time',
+        method: 'GET',
+      };
+      const resp = await testLsrpc(payloadObj, testInfo);
+      assert.ok(resp.body);
+    });
+    it('lsrpc missing body', async function() {
+      const payloadObj = {
+        endpoint: 'loki/v1/time',
+        method: 'GET',
+        headers: {},
+      };
+      const resp = await testLsrpc(payloadObj, testInfo);
+      assert.ok(resp.body);
+    });
+    it('lsrpc missing method', async function() {
+      const payloadObj = {
+        endpoint: 'loki/v1/time',
+        body: {}, // might need to b64 if binary...
+        headers: {},
+      };
+      const resp = await testLsrpc(payloadObj, testInfo);
+      assert.ok(resp.body);
+    });
+    it('lsrpc missing body & header', async function() {
+      const payloadObj = {
+        endpoint: 'loki/v1/time',
+        method: 'GET',
+      };
+      const resp = await testLsrpc(payloadObj, testInfo);
+      assert.ok(resp.body);
+    });
+  });
 }
