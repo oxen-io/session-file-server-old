@@ -15,6 +15,8 @@ const IV_LENGTH = 16;
 const FILE_SERVER_PRIV_KEY_FILE = 'proxy.key'
 const FILE_SERVER_PUB_KEY_FILE = 'proxy.pub'
 
+const libloki_crypt = require('./lib.loki_crypt');
+
 console.log('initializing loki_proxy subsystem');
 if (!fs.existsSync(FILE_SERVER_PRIV_KEY_FILE)) {
   const serverKey = libsignal.curve.generateKeyPair();
@@ -36,7 +38,7 @@ const serverPrivKey = fs.readFileSync(FILE_SERVER_PRIV_KEY_FILE);
 const serverPubKey = fs.readFileSync(FILE_SERVER_PUB_KEY_FILE);
 
 const serverPubKey64 = bb.wrap(serverPubKey).toString('base64');
-
+console.log('serverPubKey', serverPubKey.toString('hex'))
 // mount will set this
 let cache;
 
@@ -60,15 +62,317 @@ const sendresponse = (json, resp) => {
   resp.json(json);
 }
 
-function buf2hex(buffer) { // buffer is an ArrayBuffer
-  return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
+// requestObj.body
+// requestObj.headers
+// requestObj.method
+// requestObj.endpoint
+async function createFakeReq(req, requestObj) {
+  //console.log('decrypted', requestObj);
+  //console.log('createFakeReq - body set', !!requestObj.body, 'body type', typeof requestObj.body, 'fileUpload set', !!(requestObj.body && requestObj.body.fileUpload));
+
+  // take case insensitive content-type and make it all lowercase
+  if (requestObj.headers) {
+    const contentTypeHeader = Object.keys(requestObj.headers).reduce(
+      (prev, key) => key.match(/content-type/i)?key:prev, false
+    );
+    // if not what we already expect, and is set
+    if (contentTypeHeader && contentTypeHeader !== 'content-type' &&
+        requestObj.headers[contentTypeHeader]) {
+      // fix it up
+      console.log('old inner headers', requestObj.headers);
+      requestObj.headers['content-type'] = requestObj.headers[contentTypeHeader];
+      delete requestObj.headers[contentTypeHeader]; // remove the duplicate...
+      // console.log('new inner headers', requestObj.headers);
+    }
+  }
+
+  /*
+  console.log('createFakeReq - inner headers', requestObj.headers, 'header type', typeof requestObj.headers,
+    'json match', !!(requestObj.headers &&
+    requestObj.headers['content-type'] &&
+    requestObj.headers['content-type'].match(/^application\/json/i)));
+  */
+
+  /*
+  // works as long as body isn't a string
+  const debugObj = JSON.parse(JSON.stringify(requestObj));
+  if (requestObj.body && requestObj.body.fileUpload) {
+    // clearly not removing it
+    delete debugObj.body.fileUpload;
+  }
+  console.log('rpc without body', debugObj);
+  */
+
+  // if body is string but really JSON with fileUpload
+  if (typeof(requestObj.body) ==='string' && requestObj.body.match(/^{[ ]*"fileUpload"[ ]*:[ ]*/)) {
+    // decode enough to pick up fileUpload
+    // console.log('createFakeReq - body is string and detected file upload, attempting decoding');
+    requestObj.body = JSON.parse(requestObj.body);
+  }
+
+  // will need decode a multipart body...
+  //console.log('decrypted body', requestObj.body);
+
+  // handle file uploads
+  if (requestObj.body && requestObj.body.fileUpload) {
+    //console.log('detect file upload');
+    const fupData = Buffer.from(
+      bb.wrap(requestObj.body.fileUpload, 'base64').toArrayBuffer()
+    );
+    requestObj.body = ''; // free memory
+
+    //console.log('multipart data', buf2hex(fupData));
+
+    // await until busboy has parsed it all
+    const p = new Promise((resolve, reject) => {
+      // Desktop attachment:
+      // 'content-type': 'multipart/form-data; boundary=--------------------------132629963599778911961269'
+      //
+      const busboy = new Busboy({ headers: requestObj.headers });
+      let lastFile
+      busboy.on('field', function(fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
+        console.log('Field [' + fieldname + ']: value: ' + inspect(val));
+      });
+      busboy.on('file', function(fieldname, file, filename, encoding, mimetype) {
+        console.log('FUP file upload detected', fieldname, filename, encoding, mimetype)
+        // file is stream but it's expecting a buffer...
+
+        var buffers = [];
+        file.on('data', function(chunk) {
+          // chunk is a buffer since no encoding is set...
+          //console.log(chunk.length, 'chunk', chunk.toString('hex'));
+          buffers.push(chunk);
+        });
+        // finish is before end...
+        file.on('end', function() {
+          // console.log('buffers', buffers.length)
+          var buffer = Buffer.concat(buffers);
+          console.log('detect file upload', buffer.length, 'bytes');
+          buffers = false; // free memory
+          const readableInstanceStream = new Readable({
+            read() {
+              // console.log('reading stream!')
+              this.push(buffer);
+              this.push(null);
+              // console.log('stream read!')
+            }
+          });
+          readableInstanceStream.length = buffer.length;
+          // we only handle single file uploads any way...
+          requestObj.file = {
+            buffer: readableInstanceStream,
+            originalname: filename,
+            mimetype: mimetype,
+          };
+          resolve();
+        });
+      });
+      // write and flush
+      // don't use .toString here, it'll fuck up the encoding
+      busboy.end(fupData);
+      // FIXME: we never resolve if no files...
+    });
+    await p;
+
+    //console.log('fup request', buf2hex(fupData));
+    // make sure normal JSON gets copied through...
+    requestObj.body = fupData.toString();
+  } else {
+    // emulate the bodyparser json decoder support
+    if (requestObj.headers && requestObj.headers['content-type'] &&
+       requestObj.headers['content-type'].match(/^application\/json/i) &&
+       typeof(requestObj.body) === 'string') {
+      // console.log('bodyPaser failed. Outer headers', req.headers);
+      console.log('createFakeReq - bodyPaser failed');
+      requestObj.body = JSON.parse(requestObj.body);
+    }
+    // non file upload
+    // console.log('createFakeReq - non-fup request', requestObj); // just debug it all for now
+    //console.log('non-fup request body', requestObj.body, typeof(requestObj.body));
+  }
+  //console.log('setting up fakeReq');
+
+  // rewrite request
+  // console.log('old', req)
+  const fakeReq = {...req} // shallow copy?
+  fakeReq.path = '/' + requestObj.endpoint;
+  //fakeReq.url = fakeReq.path;
+  //fakeReq.originalUrl = fakeReq.path;
+  //fakeReq._httpMessage.path = fakeReq.path;
+  /*
+  fakeReq.route.path = fakeReq.path;
+  fakeReq.res.req.method = requestObj.method || 'GET';
+  fakeReq.res.req.url = fakeReq.path;
+  fakeReq.res.req.originalUrl = fakeReq.path;
+  fakeReq.res.path = fakeReq.path;
+  */
+  fakeReq.cookies.request.url = fakeReq.path;
+  fakeReq.cookies.request.method = requestObj.method || 'GET';
+  //fakeReq.cookies.request.originalUrl = fakeReq.path;
+  //fakeReq.cookies.response.path = fakeReq.path;
+
+  //console.log('changed path to', fakeReq.path);
+  fakeReq.method = requestObj.method || 'GET';
+  //console.log('old headers', req.headers)
+  fakeReq.headers = requestObj.headers;
+
+  fakeReq.body = requestObj.body;
+  fakeReq.cookies.request.body = requestObj.body;
+  // disable any token passed by proxy
+  fakeReq.token = undefined;
+  fakeReq.cookies.request.token = undefined;
+  if (requestObj.headers && requestObj.headers['Authorization']) {
+    fakeReq.token = requestObj.headers['Authorization'].replace(/^Bearer /, '')
+    fakeReq.cookies.request.token = fakeReq.token;
+  }
+  // handle file uploads
+  fakeReq.file = requestObj.file;
+  fakeReq.cookies.request.file = requestObj.file;
+  //fakeReq.res.req = fakeReq;
+  //fakeReq.cookies.request = fakeReq;
+  //console.log('createFakeReq - rewrote to', fakeReq.method, fakeReq.path, fakeReq.token?'IDd':'anon')
+  //console.log('fake', fakeReq)
+
+  // might need to split on ? for querystring processing
+  // seems to be working fine...
+  if (fakeReq.path.match(/\?/)) {
+    let questions = fakeReq.path.split('?')
+    const path = questions.shift();
+    //fakeReq.query = querystring.parse(questions.join('?'));
+    fakeReq.cookies.request.query = querystring.parse(questions.join('?'));
+  }
+
+  // this does cause req in handlers to be immutable
+  // we'll have to adapt...
+  fakeReq.start = Date.now();
+
+  return fakeReq
+}
+
+// fix up createReq
+function createReq(path, options) {
+  if (!options) options = {};
+  const req = _.extend(
+    {
+      method: "GET",
+      host: "",
+      cookies: {},
+      query: {},
+      url: path,
+      headers: {},
+    },
+    options
+  );
+  req.method = req.method.toUpperCase();
+  // req.connection=_req.connection
+  return req;
+}
+
+// fix up createRes
+function createRes(callback) {
+  var res = {
+    _removedHeader: {},
+  };
+  // res=_.extend(res,require('express/lib/response'));
+
+  const headers = {};
+  let code = 200;
+  res.set = res.header = (x, y) => {
+    //console.log(`res.set [${x}][${y}]`, arguments.length)
+    // arguments.length is 1 sometimes...
+    if (x && y) {
+      res.setHeader(x, y);
+    } else {
+      // handle array/object
+      for (var key in x) {
+        res.setHeader(key, x[key]);
+      }
+    }
+    return res;
+  }
+  res.setHeader = (x, y) => {
+    // called for each letter?
+    // console.log('res.setHeader', x, y)
+    headers[x] = y;
+    headers[x.toLowerCase()] = y;
+    return res;
+  };
+  // fix up res.get
+  res.get=(x) => {
+    // usually just read content-type
+    // console.log('res.get', x)
+    return headers[x]
+  }
+  res.redirect = function(_code, url) {
+    console.log('res.redirect', _code, url)
+    if (!_.isNumber(_code)) {
+      code = 301;
+      url = _code;
+    } else {
+      code = _code;
+    }
+    res.setHeader("Location", url);
+    res.end();
+    // callback(code,url)
+  };
+  res.status = function(number) {
+    // console.log('res.status', number)
+    code = number;
+    return res;
+  };
+  res.end = res.send = res.write = function(data) {
+    //console.log('end/send/write callback', !!callback)
+    if (callback) callback(code, data, headers);
+    //else console.error('res.end but no callback')
+    // else if (!options.quiet){
+    //     _res.send(data)
+    // }
+  };
+  return res;
+}
+
+function fixUpMiddleware(app) {
+  //
+  // start runMiddleware fixups
+  //
+
+  // fix up runMiddleware
+  app.runMiddleware = function(path, options, callback) {
+    // console.log('app.runMiddleware', path)
+    if (callback) callback = _.once(callback);
+    if (typeof options == "function") {
+      callback = options;
+      options = null;
+    }
+    options = options || {};
+    options.url = path;
+    let new_req, new_res;
+    if (options.original_req) {
+      new_req = options.original_req;
+      for (var i in options) {
+        if (i == "original_req") continue;
+        new_req[i] = options[i];
+      }
+    } else {
+      new_req = createReq(path, options);
+    }
+    new_res = createRes(callback);
+    // console.log('running', new_req.path, 'against app')
+    this(new_req, new_res);
+  };
+
+  //
+  // fix ups done
+  //
 }
 
 module.exports = (app, prefix) => {
   // set cache based on dispatcher object
   cache = app.dispatcher.cache;
 
+  // set it up for fixups
   runMiddleware(app);
+  fixUpMiddleware(app);
 
   app.get(prefix + '/loki/v1/public_key', (req, res) => {
     res.start = Date.now()
@@ -78,6 +382,235 @@ module.exports = (app, prefix) => {
       },
       data: serverPubKey64
     }, res);
+  });
+
+  app.get(prefix + '/loki/v1/lsrpc', (req, res) => {
+    res.start = Date.now()
+    var ephemeralPubKeyHex = ''
+
+    const ephemeralPubKey = Buffer.from(
+      bb.wrap(ephemeralPubKeyHex,'hex').toArrayBuffer()
+    );
+
+    // build symmetrical keypair mix client pub key with server priv key
+    const symKey = libsignal.curve.calculateAgreement(
+      ephemeralPubKey,
+      serverPrivKey
+    );
+
+    if (debugCryptoValues) console.log('symKey', symKey.toString('hex'), symKey.byteLength);
+
+    console.log('base64 decoding', cipherText64)
+
+    // base64 decode cipherText64 into buffer
+    const ivAndCiphertext = Buffer.from(
+      bb.wrap(cipherText64, 'base64').toArrayBuffer()
+    );
+
+    let decrypted = '{}';
+    try {
+      decrypted = libloki_crypt.DecryptGCM(symKey, ivAndCiphertext);
+    } catch(e) {
+      console.error('error', e.code, e.message);
+      return sendresponse({
+        meta: {
+          code: 400,
+          error: e.code + ' '  + e.messsage
+        },
+      }, res);
+    }
+
+    console.log('decrypted', decrypted);
+
+
+    sendresponse({
+      ciphertext: '',
+    }, res);
+  });
+
+  app.post(prefix + '/loki/v1/lsrpc', async (req, res) => {
+    console.log('loki/v1/lsrpc - start', typeof(req.body))
+    //console.log('headers', req.headers);
+    //console.log('req.originalBody', req.originalBody);
+
+    // this hack is to work around no json header passed
+    if (Object.keys(req.body) == 0 && req.originalBody) {
+      console.log('no json header, overriding body with', req.originalBody)
+      try {
+        req.body = JSON.parse(req.originalBody)
+      } catch(e) {
+        console.error(`JSON parse error on`, req.originalBody)
+      }
+    }
+    // console.log('secure_rpc body', req.body, typeof req.body);
+
+    if (!req.body || !req.body.cipherText) {
+      console.warn('not JSON or no cipherText', req.body);
+      return sendresponse({
+        meta: {
+          code: 400,
+          error: "not JSON or no cipherText",
+          headers: req.headers,
+          body: req.body,
+        },
+      }, res);
+    }
+
+    // after we get our bearings
+    // get the base64 body...
+    const cipherText64 = req.body.cipherText;
+    const debugHeaders = req.headers['x-loki-debug-headers'];
+    const debugCryptoValues = req.headers['x-loki-debug-crypto-values'];
+    const debugPayload = req.headers['x-loki-debug-payload'];
+    const debugFup = req.headers['x-loki-debug-file-upload'];
+
+    let ephemeralPubKeyHex = req.body.ephemeral_key;
+    // console.log('ephemeralPubKeyHexIn', ephemeralPubKeyHex, ephemeralPubKeyHex.length);
+
+    /*
+    // testnet mode fix
+    if (ephemeralPubKeyHex.length === 64) {
+      console.log('testnet mode fix')
+      ephemeralPubKeyHex = `05${ephemeralPubKeyHex}`;
+    }
+    */
+    if (!ephemeralPubKeyHex || ephemeralPubKeyHex.length < 64) {
+      console.error('No ephemeral_key in JSON body or sent of at least 65 bytes')
+      return sendresponse({
+        meta: {
+          code: 400,
+          error: "No ephemeral_key in JSON body or sent of at least 65 bytes",
+          headers: req.headers,
+          body: req.body,
+        },
+      }, res);
+    }
+
+    // decode hex ephemeral key into buffer
+    // FIXME: needs a try/catch
+    const ephemeralPubKey = Buffer.from(
+      bb.wrap(ephemeralPubKeyHex,'hex').toArrayBuffer()
+    );
+
+    /*
+    const ephemeralPubKey2 = Buffer.from(
+      bb.wrap('05' + ephemeralPubKeyHex,'hex').toArrayBuffer()
+    );
+    */
+
+    if (debugCryptoValues) console.log('private    key', serverPrivKey.toString('hex'))
+    if (debugCryptoValues) console.log('ephemeral  key', ephemeralPubKey.toString('hex'))
+    //if (1 || debugCryptoValues) console.log('ephemeral2 key', ephemeralPubKey2.toString('hex'))
+
+    // console.log('ephemeralPubKey size', ephemeralPubKey.length, ephemeralPubKey.byteLength)
+    // console.log('serverPrivKey size', serverPrivKey.length, serverPrivKey.byteLength)
+
+    //if (debugCryptoValues) console.log('ephemeralPubKeyHex', ephemeralPubKey.toString('hex'), ephemeralPubKey.byteLength);
+
+    // build symmetrical keypair mix client pub key with server priv key
+    const symKey = libloki_crypt.makeSymmetricKey(serverPrivKey, ephemeralPubKey)
+    //const symKey2 = libloki_crypt.makeSymmetricKey(ephemeralPubKey, serverPrivKey)
+    //const symKey3 = libloki_crypt.makeSymmetricKey(serverPrivKey, ephemeralPubKey2)
+    // Incorrect private key length: 33
+    //const symKey4 = libloki_crypt.makeSymmetricKey(ephemeralPubKey2, serverPrivKey)
+    // so maybe this is supposed to be different than the sending side...
+
+    if (debugCryptoValues) console.log('symKeySF  ', symKey.toString('hex'), symKey.byteLength);
+    //if (debugCryptoValues) console.log('symKeyEF  ', symKey2.toString('hex'), symKey2.byteLength);
+    // it's the same as symKeySF
+    //if (1 || debugCryptoValues) console.log('symKeySF05', symKey3.toString('hex'), symKey3.byteLength);
+    //if (1 || debugCryptoValues) console.log('symKeyEF05', symKey4.toString('hex'), symKey4.byteLength);
+
+    //console.log('base64 decoding', cipherText64)
+
+    // base64 decode cipherText64 into buffer
+    const nonceCiphertextAndTag = Buffer.from(
+      bb.wrap(cipherText64, 'base64').toArrayBuffer()
+    );
+
+    if (debugCryptoValues) console.log('nonceCiphertextAndTag', nonceCiphertextAndTag.toString('hex'))
+
+    // captures res, symKey
+    function encryptResp(resultBody, code = 200, headers = {}) {
+      //const textEncoder = new TextEncoder();
+      //const plaintextEnc = textEncoder.encode(JSON.stringify({
+
+      // encryptGCM handles the textEncoder
+      const plaintextEnc = JSON.stringify({
+        body: resultBody,
+        headers: headers,
+        status: code
+      });
+      console.log('plaintextEnc', plaintextEnc)
+
+      //}));
+
+      // probably does the same thing as textencoder...
+      /*
+      const payloadData = resultBody === undefined ? Buffer.alloc(0) : Buffer.from(
+        bb.wrap(plaintextEnc).toArrayBuffer()
+      );
+      */
+      //console.log('payloadData', payloadData)
+      //console.log('symKey components', ephemeralPubKey.toString('hex'), serverPrivKey.toString('hex'))
+      //console.log('response symKey', symKey.toString('hex'), plaintextEnc.toString('hex'), plaintextEnc)
+      const cipheredBuffer = libloki_crypt.encryptGCM(symKey, plaintextEnc);
+      //console.log('response encObj.cipheredBuffer', cipheredBuffer.toString('hex'))
+
+      // need a base64 encrypted body
+      // convert final buffer to base64
+      const cipherText64 = bb.wrap(cipheredBuffer).toString('base64');
+      res.end(cipherText64);
+    }
+
+    let decrypted = '{}';
+    try {
+      decrypted = libloki_crypt.decryptGCM(symKey, nonceCiphertextAndTag);
+    } catch(e) {
+      console.error('decryption error', e.code, e.message);
+      const adnResObj = {
+        meta: {
+          code: 400,
+          error: e.code + ' '  + e.messsage
+        },
+      }
+      return encryptResp(JSON.stringify(adnResObj), adnResObj.meta.code);
+    }
+
+    if (debugPayload) console.log('decrypted', decrypted);
+
+    let requestObj;
+    try {
+      requestObj = JSON.parse(decrypted.toString());
+    } catch(e) {
+      console.warn('Cant JSON parse', decrypted.toString());
+      const adnResObj = {
+        meta: {
+          code: 400,
+          error: e.code + ' '  + e.messsage
+        },
+      }
+      return encryptResp(JSON.stringify(adnResObj), adnResObj.meta.code);
+    }
+    if (debugPayload) console.log('JSON decoded', requestObj);
+
+    const fakeReq = await createFakeReq(req, requestObj)
+
+    const diff = fakeReq.start - res.start;
+    console.log('lsrpc', fakeReq.method, fakeReq.path, 'decoding took', diff, 'ms');
+    fakeReq.runMiddleware(fakeReq.path, (code, resultBody, headers) => {
+      // never gets here...
+
+      const execStart = Date.now();
+      const execDiff = execStart - fakeReq.start;
+      console.log(fakeReq.method, fakeReq.path, 'lspc execution took', execDiff, 'ms');
+      // console.log('body', resultBody)
+
+      return encryptResp(resultBody, code, headers);
+
+      const respDiff = Date.now() - execStart;
+      console.log(fakeReq.method, fakeReq.path, 'lspc response took', respDiff, 'ms');
+    });
   });
 
   app.post(prefix + '/loki/v1/secure_rpc_debug', async (req, res) => {
@@ -134,10 +667,10 @@ module.exports = (app, prefix) => {
       }, res);
     }
 
-    // decode base64 ephemeral key into buffer
+    // decode hex ephemeral key into buffer
     // FIXME: needs a try/catch
     const ephemeralPubKey = Buffer.from(
-      bb.wrap(ephemeralPubKey64,'base64').toArrayBuffer()
+      bb.wrap(ephemeralPubKey64, 'base64').toArrayBuffer()
     );
     //console.log('ephemeralPubKey size', ephemeralPubKey.length, ephemeralPubKey.byteLength)
     //console.log('serverPrivKey size', serverPrivKey.length, serverPrivKey.byteLength)
@@ -189,167 +722,7 @@ module.exports = (app, prefix) => {
       return;
     }
 
-    //console.log('decrypted', requestObj);
-    console.log('body set', !!requestObj.body, 'body type', typeof requestObj.body, 'fileUpload set', !!(requestObj.body && requestObj.body.fileUpload));
-
-    if (requestObj.headers) {
-      const contentTypeHeader = Object.keys(requestObj.headers).reduce(
-        (prev, key) => key.match(/content-type/i)?key:prev, false
-      );
-      // if not what we already expect, and is set
-      if (contentTypeHeader && contentTypeHeader !== 'content-type' &&
-          requestObj.headers[contentTypeHeader]) {
-        // fix it up
-        console.log('old inner headers', requestObj.headers);
-        requestObj.headers['content-type'] = requestObj.headers[contentTypeHeader];
-        delete requestObj.headers[contentTypeHeader]; // remove the duplicate...
-        // console.log('new inner headers', requestObj.headers);
-      }
-    }
-
-    console.log('inner headers', requestObj.headers, 'header type', typeof requestObj.headers,
-      'json match', !!(requestObj.headers &&
-      requestObj.headers['content-type'] &&
-      requestObj.headers['content-type'].match(/^application\/json/i)));
-
-    /*
-    // works as long as body isn't a string
-    const debugObj = JSON.parse(JSON.stringify(requestObj));
-    if (requestObj.body && requestObj.body.fileUpload) {
-      // clearly not removing it
-      delete debugObj.body.fileUpload;
-    }
-    console.log('rpc without body', debugObj);
-    */
-
-    // if body is string but really JSON with fileUpload
-    if (typeof(requestObj.body) ==='string' && requestObj.body.match(/^{[ ]*"fileUpload"[ ]*:[ ]*/)) {
-      // decode enough to pick up fileUpload
-      console.log('body is string and detected file upload, attempting decoding');
-      requestObj.body = JSON.parse(requestObj.body);
-    }
-
-    // will need decode a multipart body...
-    //console.log('decrypted body', requestObj.body);
-
-    // handle file uploads
-    if (requestObj.body && requestObj.body.fileUpload) {
-      //console.log('detect file upload');
-      const fupData = Buffer.from(
-        bb.wrap(requestObj.body.fileUpload, 'base64').toArrayBuffer()
-      );
-      requestObj.body = ''; // free memory
-
-      //console.log('multipart data', buf2hex(fupData));
-
-
-      const p = new Promise((resolve, reject) => {
-        // Desktop attachment:
-        // 'content-type': 'multipart/form-data; boundary=--------------------------132629963599778911961269'
-        //
-        const busboy = new Busboy({ headers: requestObj.headers });
-        let lastFile
-        busboy.on('field', function(fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
-          console.log('Field [' + fieldname + ']: value: ' + inspect(val));
-        });
-        busboy.on('file', function(fieldname, file, filename, encoding, mimetype) {
-          console.log('FUP file upload detected', fieldname, filename, encoding, mimetype)
-          // file is stream but it's expecting a buffer...
-
-          var buffers = [];
-          file.on('data', function(chunk) {
-            // chunk is a buffer since no encoding is set...
-            //console.log(chunk.length, 'chunk', buf2hex(chunk));
-            buffers.push(chunk);
-          });
-          // finish is before end...
-          file.on('end', function() {
-            // console.log('buffers', buffers.length)
-            var buffer = Buffer.concat(buffers);
-            console.log('detect file upload', buffer.length, 'bytes');
-            buffers = false; // free memory
-            const readableInstanceStream = new Readable({
-              read() {
-                // console.log('reading stream!')
-                this.push(buffer);
-                this.push(null);
-                // console.log('stream read!')
-              }
-            });
-            readableInstanceStream.length = buffer.length;
-            // we only handle single file uploads any way...
-            requestObj.file = {
-              buffer: readableInstanceStream,
-              originalname: filename,
-              mimetype: mimetype,
-            };
-            resolve();
-          });
-        });
-        // write and flush
-        // don't use .toString here, it'll fuck up the encoding
-        busboy.end(fupData);
-        // FIXME: we never resolve if no files...
-      });
-      await p;
-      //console.log('fup request', buf2hex(fupData));
-      // make sure normal JSON gets copied through...
-      requestObj.body = fupData.toString();
-    } else {
-      // emulate the bodyparser json decoder support
-      if (requestObj.headers && requestObj.headers['content-type'] &&
-         requestObj.headers['content-type'].match(/^application\/json/i) &&
-         typeof(requestObj.body) === 'string') {
-        // console.log('bodyPaser failed. Outer headers', req.headers);
-        console.log('bodyPaser failed');
-        requestObj.body = JSON.parse(requestObj.body);
-      }
-      // non file upload
-      console.log('non-fup request', requestObj); // just debug it all for now
-      //console.log('non-fup request body', requestObj.body, typeof(requestObj.body));
-    }
-    //console.log('setting up fakeReq');
-
-    // rewrite request
-    // console.log('old', req)
-    const fakeReq = {...req}
-    fakeReq.path = '/' + requestObj.endpoint;
-    //fakeReq.url = fakeReq.path;
-    //fakeReq.originalUrl = fakeReq.path;
-    //fakeReq._httpMessage.path = fakeReq.path;
-    /*
-    fakeReq.route.path = fakeReq.path;
-    fakeReq.res.req.method = requestObj.method || 'GET';
-    fakeReq.res.req.url = fakeReq.path;
-    fakeReq.res.req.originalUrl = fakeReq.path;
-    fakeReq.res.path = fakeReq.path;
-    */
-    fakeReq.cookies.request.url = fakeReq.path;
-    fakeReq.cookies.request.method = requestObj.method || 'GET';
-    //fakeReq.cookies.request.originalUrl = fakeReq.path;
-    //fakeReq.cookies.response.path = fakeReq.path;
-
-    //console.log('changed path to', fakeReq.path);
-    fakeReq.method = requestObj.method || 'GET';
-    //console.log('old headers', req.headers)
-    fakeReq.headers = requestObj.headers;
-
-    fakeReq.body = requestObj.body;
-    fakeReq.cookies.request.body = requestObj.body;
-    // disable any token passed by proxy
-    fakeReq.token = undefined;
-    fakeReq.cookies.request.token = undefined;
-    if (requestObj.headers && requestObj.headers['Authorization']) {
-      fakeReq.token = requestObj.headers['Authorization'].replace(/^Bearer /, '')
-      fakeReq.cookies.request.token = fakeReq.token;
-    }
-    // handle file uploads
-    fakeReq.file = requestObj.file;
-    fakeReq.cookies.request.file = requestObj.file;
-    //fakeReq.res.req = fakeReq;
-    //fakeReq.cookies.request = fakeReq;
-    console.log('secure_rpc rewrote to', fakeReq.method, fakeReq.path, fakeReq.token?'IDd':'anon')
-    //console.log('fake', fakeReq)
+    const fakeReq = await createFakeReq(req, requestObj)
 
     /*
     function LokiDHEncryptStream(options) {
@@ -395,119 +768,7 @@ module.exports = (app, prefix) => {
     }
     */
 
-    //
-    // start runMiddleware fixups
-    //
-
-    function createReq(path, options) {
-      if (!options) options = {};
-      var req = _.extend(
-        {
-          method: "GET",
-          host: "",
-          cookies: {},
-          query: {},
-          url: path,
-          headers: {},
-        },
-        options
-      );
-      req.method = req.method.toUpperCase();
-      // req.connection=_req.connection
-      return req;
-    }
-    // fix up createRes
-    function createRes(callback) {
-      var res = {
-        _removedHeader: {},
-      };
-      // res=_.extend(res,require('express/lib/response'));
-
-      var headers = {};
-      var code = 200;
-      res.set = res.header = (x, y) => {
-        if (arguments.length === 2) {
-          res.setHeader(x, y);
-        } else {
-          for (var key in x) {
-            res.setHeader(key, x[key]);
-          }
-        }
-        return res;
-      }
-      res.setHeader = (x, y) => {
-        headers[x] = y;
-        headers[x.toLowerCase()] = y;
-        return res;
-      };
-      // fix up res.get
-      res.get=(x) => {
-        return headers[x]
-      }
-      res.redirect = function(_code, url) {
-        if (!_.isNumber(_code)) {
-          code = 301;
-          url = _code;
-        } else {
-          code = _code;
-        }
-        res.setHeader("Location", url);
-        res.end();
-        // callback(code,url)
-      };
-      res.status = function(number) {
-        code = number;
-        return res;
-      };
-      res.end = res.send = res.write = function(data) {
-        if (callback) callback(code, data, headers);
-        // else if (!options.quiet){
-        //     _res.send(data)
-        // }
-      };
-      return res;
-    }
-
-    // fix up runMiddleware
-    app.runMiddleware = function(path, options, callback) {
-      if (callback) callback = _.once(callback);
-      if (typeof options == "function") {
-        callback = options;
-        options = null;
-      }
-      options = options || {};
-      options.url = path;
-      var new_req, new_res;
-      if (options.original_req) {
-        new_req = options.original_req;
-        for (var i in options) {
-          if (i == "original_req") continue;
-          new_req[i] = options[i];
-        }
-      } else {
-        new_req = createReq(path, options);
-      }
-      new_res = createRes(callback);
-      app(new_req, new_res);
-    };
-
-    //
-    // fix ups done
-    //
-
     // redispatch internally
-    // might need to split on ? for querystring processing
-    // seems to be working fine...
-    if (fakeReq.path.match(/\?/)) {
-      let questions = fakeReq.path.split('?')
-      const path = questions.shift();
-      //fakeReq.query = querystring.parse(questions.join('?'));
-      fakeReq.cookies.request.query = querystring.parse(questions.join('?'));
-    }
-
-    // this does cause req in handlers to be immutable
-    // we'll have to adapt...
-    fakeReq.start = Date.now();
     const diff = fakeReq.start - res.start;
     console.log(fakeReq.method, fakeReq.path, 'decoding took', diff, 'ms');
     fakeReq.runMiddleware(fakeReq.path, async (code, resultBody, headers) => {
@@ -516,7 +777,6 @@ module.exports = (app, prefix) => {
       console.log(fakeReq.method, fakeReq.path, 'execution took', execDiff, 'ms');
       // console.log('body', resultBody)
 
-      // we'll reuse the iv
       const payloadData = resultBody === undefined ? Buffer.alloc(0) : Buffer.from(
         bb.wrap(resultBody).toArrayBuffer()
       );
