@@ -73,4 +73,21 @@ module.exports = (app, prefix) => {
       }, res);
     });
   });
+
+  app.get(prefix + '/loki/v1/getOpenGroupKey/:host', (req, res) => {
+    res.start = Date.now();
+    const safeHost = req.params.host.replace(/^[^A-Za-z0-9:\.]{1,63}$/, '');
+    //console.log('getOpenGroupKey', safeHost);
+    fetch(`https://${safeHost}/loki/v1/public_key`)
+      .then(res => res.text())
+      .then(body => {
+        sendresponse({
+          meta: {
+            code: 200
+          },
+          data: body
+        }, res);
+      });
+  });
+
 }
