@@ -12,41 +12,18 @@ const IV_LENGTH = 16;
 const FILE_SERVER_PRIV_KEY_FILE = 'proxy.key'
 const FILE_SERVER_PUB_KEY_FILE = 'proxy.pub'
 
-console.log('initializing loki_proxy subsystem');
-
-if (!fs.existsSync(FILE_SERVER_PRIV_KEY_FILE)) {
-  //const serverKey = libsignal.curve.generateKeyPair();
-  //console.log('no private key, generating new keyPair, saving as', FILE_SERVER_PRIV_KEY_FILE);
-  /*
-  FileServerPubKey = serverKey.pubKey
-  fs.writeFileSync(FILE_SERVER_PRIV_KEY_FILE, serverKey.privKey, 'binary');
-  if (!fs.existsSync(FILE_SERVER_PUB_KEY_FILE)) {
-    console.log('no public key, saving as', FILE_SERVER_PUB_KEY_FILE);
-    fs.writeFileSync(FILE_SERVER_PUB_KEY_FILE, serverKey.pubKey, 'binary');
-  }
-  */
-  console.log(FILE_SERVER_PUB_KEY_FILE, 'is missing');
-  // maybe nuke FILE_SERVER_PRIV_KEY_FILE and regen
-  process.exit(1);
-}
-const FileServerPubKey = fs.readFileSync(FILE_SERVER_PUB_KEY_FILE);
-
-/*
-// should have files by this point
+// load local key
 if (!fs.existsSync(FILE_SERVER_PUB_KEY_FILE)) {
   console.log(FILE_SERVER_PUB_KEY_FILE, 'is missing');
-  // maybe nuke FILE_SERVER_PRIV_KEY_FILE and regen
   process.exit(1);
 }
 
 // load into buffers
-// const serverPrivKey = fs.readFileSync(FILE_SERVER_PRIV_KEY_FILE);
 const FileServerPubKey = fs.readFileSync(FILE_SERVER_PUB_KEY_FILE);
-*/
 
 const LOKIFOUNDATION_FILESERVER_PUBKEY = bb.wrap(FileServerPubKey).toString('base64');
 
-
+// used for proxy requests
 const DHEncrypt64 = async (symmetricKey, plainText) => {
   // generate an iv (web-friendly)
   const iv = crypto.randomBytes(IV_LENGTH);
@@ -68,6 +45,7 @@ const DHEncrypt64 = async (symmetricKey, plainText) => {
   return bb.wrap(ivAndCiphertext).toString('base64');
 }
 
+// used for tokens
 const DHDecrypt64 = async (symmetricKey, cipherText64) => {
   // base64 decode
   const ivAndCiphertext = Buffer.from(
@@ -81,7 +59,9 @@ const DHDecrypt64 = async (symmetricKey, cipherText64) => {
   return libsignal.crypto.decrypt(symmetricKey, ciphertext, iv);
 }
 
-const innerRequest = async (testInfo, payloadObj) => {
+// functions specific to test
+
+const testSecureRpc = async (payloadObj, testInfo) => {
   const payloadData = Buffer.from(
     bb.wrap(JSON.stringify(payloadObj)).toArrayBuffer()
   );
@@ -107,12 +87,13 @@ const innerRequest = async (testInfo, payloadObj) => {
       'x-loki-file-server-ephemeral-key': bb.wrap(ephemeralKey.pubKey).toString('base64'),
     },
   });
+  assert.equal(200, result.statusCode);
+  assert.ok(result.response);
+  assert.ok(result.response.meta);
+  assert.equal(200, result.response.meta.code);
+  assert.ok(result.response.data);
 
-  return { result, symKey };
-}
-
-const decryptResponse = async (data64, symKey) => {
-  const ivAndCiphertextResponse = bb.wrap(data64,'base64').toArrayBuffer();
+  const ivAndCiphertextResponse = bb.wrap(result.response.data,'base64').toArrayBuffer();
 
   const riv = Buffer.from(ivAndCiphertextResponse.slice(0, IV_LENGTH));
   const rciphertext = Buffer.from(ivAndCiphertextResponse.slice(IV_LENGTH));
@@ -123,38 +104,17 @@ const decryptResponse = async (data64, symKey) => {
     riv,
   );
   // not all results are json (/time /)
-  return decrypted.toString();
-}
-
-const testSecureRpc = async (payloadObj, testInfo) => {
-  const { result, symKey } = await innerRequest(testInfo, payloadObj);
-  assert.equal(200, result.statusCode);
-  assert.ok(result.response);
-  assert.ok(result.response.meta);
-  assert.equal(200, result.response.meta.code);
-  assert.ok(result.response.data);
-  const str = await decryptResponse(result.response.data, symKey);
+  const str = decrypted.toString();
   return str;
 }
 
-const innerLsrpcRequest = async (testInfo, payloadObj) => {
-  /*
-  const payloadData = Buffer.from(
-    bb.wrap(JSON.stringify(payloadObj)).toArrayBuffer()
-  );
-  */
+const testLsrpc = async (payloadObj, testInfo) => {
   const payloadData = textEncoder.encode(JSON.stringify(payloadObj));
-
-  // test token endpoints
   const ephemeralKey = libsignal.curve.generateKeyPair();
-
-  // mix server pub key with our priv key
   const symKey = libloki_crypt.makeSymmetricKey(
     ephemeralKey.privKey, // our privkey
     FileServerPubKey, // server's pubkey
   );
-
-  // make sym key
   const cipherTextBuf = libloki_crypt.encryptGCM(symKey, payloadData);
   const result = await testInfo.overlayApi.serverRequest('loki/v1/lsrpc', {
     method: 'POST',
@@ -169,17 +129,8 @@ const innerLsrpcRequest = async (testInfo, payloadObj) => {
     },
   });
 
-  return { result, symKey };
-}
-
-const testLsrpc = async (payloadObj, testInfo) => {
-  const { result, symKey } = await innerLsrpcRequest(testInfo, payloadObj);
   assert.equal(200, result.statusCode);
   assert.ok(result.response);
-  // homepage doesn't have a meta...
-  //assert.ok(result.response.meta);
-  //assert.equal(200, result.response.meta.code);
-  //assert.ok(result.response.data);
   const nonceCiphertextAndTag = Buffer.from(
     bb.wrap(result.response, 'base64').toArrayBuffer()
   );
@@ -333,6 +284,7 @@ module.exports = (testInfo) => {
       assert.ok(str);
     });
   });
+  // FIXME: make one test change that we can swap out the transport...
   describe('onion request tests', function() {
     it('lsrpc homepage', async function() {
       const payloadObj = {
