@@ -541,7 +541,6 @@ module.exports = (app, prefix) => {
         headers: headers,
         status: code
       });
-      console.log('plaintextEnc', plaintextEnc)
 
       //}));
 
