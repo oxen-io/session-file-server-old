@@ -34,29 +34,56 @@ async function DHDecrypt(symmetricKey, ivAndCiphertext) {
   return libsignal.crypto.decrypt(symmetricKey, ciphertext, iv);
 }
 
+// used for proxy requests
+const DHEncrypt64 = async (symmetricKey, plainText) => {
+  // generate an iv (web-friendly)
+  const iv = crypto.randomBytes(IV_LENGTH);
+  // encrypt plainText
+  const ciphertext = await libsignal.crypto.encrypt(
+    symmetricKey,
+    plainText,
+    iv
+  );
+  // create buffer
+  const ivAndCiphertext = new Uint8Array(
+    iv.byteLength + ciphertext.byteLength
+  );
+  // copy iv into buffer
+  ivAndCiphertext.set(new Uint8Array(iv));
+  // copy ciphertext into buffer
+  ivAndCiphertext.set(new Uint8Array(ciphertext), iv.byteLength);
+  // base64 encode
+  return bb.wrap(ivAndCiphertext).toString('base64');
+}
+
+// used for tokens
+const DHDecrypt64 = async (symmetricKey, cipherText64) => {
+  // base64 decode
+  const ivAndCiphertext = Buffer.from(
+    bb.wrap(cipherText64, 'base64').toArrayBuffer()
+  );
+  // extract iv
+  const iv = ivAndCiphertext.slice(0, IV_LENGTH);
+  // extract ciphertext
+  const ciphertext = ivAndCiphertext.slice(IV_LENGTH);
+  // decode plaintext
+  return libsignal.crypto.decrypt(symmetricKey, ciphertext, iv);
+}
+
 function makeSymmetricKey(privKey, pubKey) {
-  // sharedKey
   const keyAgreement = libsignal.curve.calculateAgreement(
     pubKey,
     privKey,
   );
   //console.log('makeSymmetricKey agreement', keyAgreement.toString('hex'))
-  // probably a way to do this in binary not hex...
-  const hashedSymmetricKeyHex = crypto.createHmac('sha256', 'LOKI').update(keyAgreement).digest('hex')
-  return Buffer.from(
-    bb.wrap(hashedSymmetricKeyHex, 'hex').toArrayBuffer()
-  );
+
+  // hash the key agreement
+  const hashedSymmetricKeyBuf = crypto.createHmac('sha256', 'LOKI').update(keyAgreement).digest()
+
+  return hashedSymmetricKeyBuf;
 }
 
 function encryptGCM(symmetricKey, plaintextEnc) {
-
-  //const textEncoder = new TextEncoder();
-  //const plaintextEnc = textEncoder.encode(plaintext);
-
-  // only for the request side...
-  //const ephemeralKey = libsignal.curve.generateKeyPair();
-  //const symmetricKey = makeSymmetricKey(ephemeralKey.privKey, serverX25519AB);
-
   // not on the node side
   //const nonce = libsignal.crypto.getRandomBytes(NONCE_LENGTH);
   const nonce = crypto.randomBytes(NONCE_LENGTH); // Buffer (object)
@@ -66,9 +93,6 @@ function encryptGCM(symmetricKey, plaintextEnc) {
   const tag = cipher.getAuthTag()
 
   const finalBuf = Buffer.concat([nonce, ciphertext, tag]);
-
-  // ephemeralKey.pubKey for request inclusion
-  // symmetricKey for response decoding
   return finalBuf;
 }
 
@@ -85,6 +109,8 @@ function decryptGCM(symmetricKey, ivCiphertextAndTag) {
 module.exports = {
   DHEncrypt,
   DHDecrypt,
+  DHEncrypt64,
+  DHDecrypt64,
   makeSymmetricKey,
   encryptGCM,
   decryptGCM,
