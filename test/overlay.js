@@ -9,72 +9,37 @@ const bb = require('bytebuffer');
 const libsignal = require('libsignal');
 const adnServerAPI = require('../fetchWrapper');
 
-// Look for a config file
-const ini_bytes = fs.readFileSync('loki.ini');
-disk_config = ini.iniToJSON(ini_bytes.toString());
+const IV_LENGTH = 16;
 
-//console.log('disk_config', disk_config)
-const overlay_port = parseInt(disk_config.api.port) || 8080;
-// has to have the trailing slash
-const overlay_url = 'http://localhost:' + overlay_port + '/';
+const config_path = path.join(__dirname, '/../config.json');
+console.log('config_path', config_path);
+nconf.argv().env('__').file({file: config_path});
 
-const platform_api_url = disk_config.api.api_url;
-const platform_admin_url = disk_config.api.admin_url.replace(/\/$/, '');
+const webport = nconf.get('web:port') || 7070;
+const base_url = 'http://localhost:' + webport + '/'
+console.log('base_url', base_url);
+
+// loki specific endpoints
+const overlayApi  = new adnServerAPI(base_url);
 
 const ensureServer = () => {
   return new Promise((resolve, rej) => {
-    console.log('app port', overlay_port);
-    lokinet.portIsFree('localhost', overlay_port, function(free) {
+    console.log('app port', webport);
+    lokinet.portIsFree('localhost', webport, function(free) {
+      console.log('overlay_port is free?', !!free)
       if (free) {
+        // make sure we use the same config...
+        process.env['config-file-path'] = config_path;
+        // make sure the web__port is what we tested...
+        process.env['web__port'] = webport;
         const startPlatform = require('../app');
       } else {
-        console.log('detected running overlay server testing that');
+        console.log('detected running file server testing that');
       }
       resolve();
     });
   });
 };
-
-const IV_LENGTH = 16;
-
-/*
-const config_path = path.join(__dirname, '/../server/config.json');
-console.log('config_path', config_path);
-// and a model file
-const config_model_path = path.join(__dirname, '/config.models.json');
-nconf.argv().env('__').file({file: config_path}).file('model', {file: config_model_path});
-
-let webport = nconf.get('web:port') || 7070;
-const base_url = 'http://localhost:' + webport + '/'
-console.log('read', base_url)
-*/
-
-const overlayApi  = new adnServerAPI(overlay_url);
-const platformApi = new adnServerAPI(platform_api_url);
-const adminApi    = new adnServerAPI(platform_admin_url, disk_config.api.modKey);
-
-let modPubKey = '';
-
-// grab a mod from ini
-const selectModToken = async () => {
-  if (!disk_config.globals) return;
-  const modKeys = Object.keys(disk_config.globals);
-  if (!modKeys.length) {
-    console.warn('no moderators configured, skipping moderation tests');
-    return;
-  }
-  const selectedMod = Math.floor(Math.random() * modKeys.length);
-  //console.log('selectedMod', selectedMod);
-  modPubKey = modKeys[selectedMod];
-  if (!modPubKey) {
-    console.warn('selectedMod', selectedMod, 'not in', modKeys.length);
-    return;
-  }
-  const res = await adminApi.serverRequest('tokens/@'+modPubKey, {});
-  //console.log('token res', res);
-  modToken = res.response.data.token;
-  return modToken;
-}
 
 // make our local keypair
 const ourKey = libsignal.curve.generateKeyPair();
@@ -182,7 +147,7 @@ const runIntegrationTests = async (ourKey, ourPubKeyHex) => {
       console.log('tokenString', tokenString);
       // set token
       overlayApi.token = tokenString;
-      platformApi.token = tokenString;
+      //platformApi.token = tokenString;
       //userid = await getUserID(ourPubKeyHex);
     });
     require('./tests/tokens/user_info.js')(testInfo);
@@ -200,8 +165,6 @@ const runIntegrationTests = async (ourKey, ourPubKeyHex) => {
 
 let testInfo = {
   overlayApi,
-  platformApi,
-  adminApi,
   ourKey,
   ourPubKeyHex
 }

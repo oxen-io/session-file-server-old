@@ -5,44 +5,28 @@ this file is responsible for the dialect for the associate mountpoint
 
 we're responsible for filteirng models to make sure we only return what matches the dialect's spec
 */
-var callbacks = require('./dialect.appdotnet_official.callbacks.js');
-var ratelimiter = require('./ratelimiter.js');
+const callbacks = require('./dialect.appdotnet_official.callbacks.js');
+const ratelimiter = require('./ratelimiter.js');
 
 // for pomf support
-var request = require('request');
-var multer  = require('multer');
-var storage = multer.memoryStorage()
-var upload = multer({ storage: storage, limits: {fileSize: 100*1024*1024} });
-
-// post structure, good enough to fool alpha
-var notimplemented=[{
-  id: 0,
-  text: 'not implemented',
-  created_at: '2014-10-24T17:04:48Z',
-  source: {
-
-  },
-  user: {
-    id: 0,
-    username: 'notimplemented',
-    created_at: '2014-10-24T17:04:48Z',
-    avatar_image: {
-      url: 'https://d2rfichhc2fb9n.cloudfront.net/image/5/OhYk4yhX3u0PFdMTqIrtTF6SgOB7InMiOiJzMyIsImIiOiJhZG4tdXNlci1hc3NldHMiLCJrIjoiYXNzZXRzL3VzZXIvZTEvMzIvMjAvZTEzMjIwMDAwMDAwMDAwMC5wbmciLCJvIjoiIn0?h=80&w=80'
-    },
-    cover_image: {
-      url: 'https://d2rfichhc2fb9n.cloudfront.net/image/5/sz0h_gbdbxI14RcO12FPxO5nSbt7InMiOiJzMyIsImIiOiJhZG4tdXNlci1hc3NldHMiLCJrIjoiYXNzZXRzL3VzZXIvNjIvMzIvMjAvNjIzMjIwMDAwMDAwMDAwMC5wbmciLCJvIjoiIn0?w=862'
-    },
-    counts: {
-      following: 0,
-    }
-  }
-}];
+const request = require('request');
+const multer  = require('multer');
+const storage = multer.memoryStorage();
 
 /**
  * Set up defined API routes at prefix
  */
 module.exports=function(app, prefix) {
-  var dispatcher=app.dispatcher;
+  const dispatcher=app.dispatcher;
+
+  // console.log('limits', dispatcher.limits);
+  // FIXME: loop through all limits and find largest...
+  console.log('default limits', dispatcher.limits.default);
+
+  const max_fup_size = dispatcher.limits.default.max_file_size;
+  console.log('setting max file upload to', max_fup_size.toLocaleString());
+  const upload  = multer({ storage: storage, limits: {fileSize: max_fup_size } });
+
   /*
    * Authenticated endpoints
    */
@@ -109,8 +93,8 @@ module.exports=function(app, prefix) {
   app.get(prefix+'/users', function(req, resp) {
     if (!req.token) {
       var ids = req.query.ids
-      if (ids && ids.match(/,/)) {
-        ids = ids.split(/,/);
+      if (ids && ids.match(/, */)) {
+        ids = ids.split(/, */);
       }
       if (typeof(ids) === 'string') {
         ids = [ ids ];
@@ -460,25 +444,38 @@ module.exports=function(app, prefix) {
     } else {
       // no files uploaded
       var res={
-        "meta": {
-          "code": 400,
-          "error_message": "No file uploaded"
+        meta: {
+          code: 400,
+          error_message: "No file uploaded"
         }
       };
-      console.log('no file attached');
-      resp.status(400).type('application/json').send(JSON.stringify(res));
+      console.warn('no file attached');
+      resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
       return
     }
     if (!req.file.buffer.length) {
-      // no files uploaded
+      // no file data
       var res={
-        "meta": {
-          "code": 400,
-          "error_message": "No file uploaded"
+        meta: {
+          code: 400,
+          error_message: "No file data"
         }
       };
-      console.log('empty file attached');
-      resp.status(400).type('application/json').send(JSON.stringify(res));
+      console.warn('empty file attached');
+      resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
+      return
+    }
+    console.log('FUP SIZE', req.file.buffer.length.toLocaleString());
+    if (req.file.buffer.length >= max_fup_size) {
+      //
+      var res={
+        meta: {
+          code: 400,
+          error_message: "File is too big"
+        }
+      };
+      console.warn('file too large, max size', max_fup_size);
+      resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
       return
     }
     //console.log('looking for type - params:', req.params, 'body:', req.body);
@@ -492,12 +489,12 @@ module.exports=function(app, prefix) {
         console.log('dialect.appdotnet_official.js:POSTfiles - no token');
         // could be they didn't log in through a server restart
         var res={
-          "meta": {
-            "code": 401,
-            "error_message": "Call requires authentication: Authentication required to fetch token."
+          meta: {
+            code: 401,
+            error_message: "Call requires authentication: Authentication required to fetch token."
           }
         };
-        resp.status(401).type('application/json').send(JSON.stringify(res));
+        resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
       } else {
         if (req.body.type === undefined) {
           // spec doesn't say required
@@ -522,15 +519,16 @@ module.exports=function(app, prefix) {
           if (err) {
             console.log('dialect.appdotnet_official.js:POSTfiles - pomf upload Error!', err);
             var res={
-              "meta": {
-                "code": 500,
-                "error_message": "Could not save file (Could not POST to POMF)"
+              meta: {
+                code: 500,
+                error_message: "Could not save file (Could not POST to POMF)"
               }
             };
             resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
             return;
           } else {
             //console.log('URL: ' + body);
+            // which pomf software is this ;^p
             /*
             {"success":true,"files":[
               {
@@ -552,9 +550,9 @@ module.exports=function(app, prefix) {
             } catch(e) {
               console.log('couldnt json parse body', body);
               var res={
-                "meta": {
-                  "code": 500,
-                  "error_message": "Could not save file (POMF did not return JSON as requested)"
+                meta: {
+                  code: 500,
+                  error_message: "Could not save file (POMF did not return JSON as requested)"
                 }
               };
               resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
@@ -562,9 +560,9 @@ module.exports=function(app, prefix) {
             }
             if (!data.success) {
               var res={
-                "meta": {
-                  "code": 500,
-                  "error_message": "Could not save file (POMF did not return success)"
+                meta: {
+                  code: 500,
+                  error_message: "Could not save file (POMF did not return success)"
                 }
               };
               resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
