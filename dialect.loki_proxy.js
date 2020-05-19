@@ -39,7 +39,9 @@ const serverPubKey = fs.readFileSync(FILE_SERVER_PUB_KEY_FILE);
 
 const serverPubKey64 = bb.wrap(serverPubKey).toString('base64');
 console.log('serverPubKey', serverPubKey.toString('hex'))
-// mount will set this
+
+
+// mount will set this in our module.exports
 let cache;
 
 const sendresponse = (json, resp) => {
@@ -370,9 +372,9 @@ module.exports = (app, prefix) => {
   // set cache based on dispatcher object
   cache = app.dispatcher.cache;
 
-  // set it up for fixups
-  runMiddleware(app);
-  fixUpMiddleware(app);
+  // enable runMiddleware
+  runMiddleware(app); // set it up for fixups
+  fixUpMiddleware(app); // do the fixups
 
   app.get(prefix + '/loki/v1/public_key', (req, res) => {
     res.start = Date.now()
@@ -430,6 +432,7 @@ module.exports = (app, prefix) => {
 
   app.post(prefix + '/loki/v1/lsrpc', async (req, res) => {
     console.log('loki/v1/lsrpc - start', typeof(req.body))
+
     //console.log('headers', req.headers);
     //console.log('req.originalBody', req.originalBody);
 
@@ -467,13 +470,6 @@ module.exports = (app, prefix) => {
     let ephemeralPubKeyHex = req.body.ephemeral_key;
     // console.log('ephemeralPubKeyHexIn', ephemeralPubKeyHex, ephemeralPubKeyHex.length);
 
-    /*
-    // testnet mode fix
-    if (ephemeralPubKeyHex.length === 64) {
-      console.log('testnet mode fix')
-      ephemeralPubKeyHex = `05${ephemeralPubKeyHex}`;
-    }
-    */
     if (!ephemeralPubKeyHex || ephemeralPubKeyHex.length < 64) {
       console.error('No ephemeral_key in JSON body or sent of at least 65 bytes')
       return sendresponse({
@@ -492,34 +488,13 @@ module.exports = (app, prefix) => {
       bb.wrap(ephemeralPubKeyHex,'hex').toArrayBuffer()
     );
 
-    /*
-    const ephemeralPubKey2 = Buffer.from(
-      bb.wrap('05' + ephemeralPubKeyHex,'hex').toArrayBuffer()
-    );
-    */
-
     if (debugCryptoValues) console.log('private    key', serverPrivKey.toString('hex'))
     if (debugCryptoValues) console.log('ephemeral  key', ephemeralPubKey.toString('hex'))
-    //if (1 || debugCryptoValues) console.log('ephemeral2 key', ephemeralPubKey2.toString('hex'))
-
-    // console.log('ephemeralPubKey size', ephemeralPubKey.length, ephemeralPubKey.byteLength)
-    // console.log('serverPrivKey size', serverPrivKey.length, serverPrivKey.byteLength)
-
-    //if (debugCryptoValues) console.log('ephemeralPubKeyHex', ephemeralPubKey.toString('hex'), ephemeralPubKey.byteLength);
 
     // build symmetrical keypair mix client pub key with server priv key
     const symKey = libloki_crypt.makeSymmetricKey(serverPrivKey, ephemeralPubKey)
-    //const symKey2 = libloki_crypt.makeSymmetricKey(ephemeralPubKey, serverPrivKey)
-    //const symKey3 = libloki_crypt.makeSymmetricKey(serverPrivKey, ephemeralPubKey2)
-    // Incorrect private key length: 33
-    //const symKey4 = libloki_crypt.makeSymmetricKey(ephemeralPubKey2, serverPrivKey)
-    // so maybe this is supposed to be different than the sending side...
 
     if (debugCryptoValues) console.log('symKeySF  ', symKey.toString('hex'), symKey.byteLength);
-    //if (debugCryptoValues) console.log('symKeyEF  ', symKey2.toString('hex'), symKey2.byteLength);
-    // it's the same as symKeySF
-    //if (1 || debugCryptoValues) console.log('symKeySF05', symKey3.toString('hex'), symKey3.byteLength);
-    //if (1 || debugCryptoValues) console.log('symKeyEF05', symKey4.toString('hex'), symKey4.byteLength);
 
     //console.log('base64 decoding', cipherText64)
 
@@ -532,31 +507,18 @@ module.exports = (app, prefix) => {
 
     // captures res, symKey
     function encryptResp(resultBody, code = 200, headers = {}) {
-      //const textEncoder = new TextEncoder();
-      //const plaintextEnc = textEncoder.encode(JSON.stringify({
-
       // encryptGCM handles the textEncoder
       const plaintextEnc = JSON.stringify({
         body: resultBody,
         headers: headers,
         status: code
       });
-
-      //}));
-
-      // probably does the same thing as textencoder...
-      /*
-      const payloadData = resultBody === undefined ? Buffer.alloc(0) : Buffer.from(
-        bb.wrap(plaintextEnc).toArrayBuffer()
-      );
-      */
-      //console.log('payloadData', payloadData)
+      //console.log('encryptResp - plaintextEnc', plaintextEnc)
       //console.log('symKey components', ephemeralPubKey.toString('hex'), serverPrivKey.toString('hex'))
       //console.log('response symKey', symKey.toString('hex'), plaintextEnc.toString('hex'), plaintextEnc)
       const cipheredBuffer = libloki_crypt.encryptGCM(symKey, plaintextEnc);
       //console.log('response encObj.cipheredBuffer', cipheredBuffer.toString('hex'))
 
-      // need a base64 encrypted body
       // convert final buffer to base64
       const cipherText64 = bb.wrap(cipheredBuffer).toString('base64');
       res.end(cipherText64);
