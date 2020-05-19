@@ -36,6 +36,7 @@ const adnServerAPI = function(url, token) {
     }
     let response = null;
     if (options.noJson) {
+      response = await result.text();
       return {
         statusCode: result.status,
         response,
