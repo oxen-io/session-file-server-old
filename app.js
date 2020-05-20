@@ -1,7 +1,7 @@
 /**
  * Based losely off ohe
  */
-var path = require('path');
+var path  = require('path');
 var nconf = require('nconf');
 
 //var longjohn = require('longjohn');
@@ -415,6 +415,26 @@ if (0) {
     }
   });
 }
+
+// snode hack work around
+// preserve original body
+app.use(function(req, res, next) {
+  let resolver
+  req.lokiReady = new Promise(res => {
+    resolver = res
+  })
+  let body = '';
+  req.on('data', function (data) {
+    body += data.toString();
+  });
+  req.on('end', function() {
+    // preserve original body
+    req.originalBody = body;
+    // console.log('perserved', body);
+    resolver(); // resolve promise
+  })
+  next();
+});
 
 /** need this for POST parsing */
 // heard this writes to /tmp and doesn't scale.. need to confirm if current versions have this problem
