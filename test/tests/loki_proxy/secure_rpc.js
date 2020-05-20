@@ -80,7 +80,7 @@ const testLsrpc = async (payloadObj, testInfo) => {
   const result = await testInfo.overlayApi.serverRequest('loki/v1/lsrpc', {
     method: 'POST',
     objBody: {
-      cipherText: bb.wrap(cipherTextBuf).toString('base64'),
+      ciphertext: bb.wrap(cipherTextBuf).toString('base64'),
       ephemeral_key: bb.wrap(ephemeralKey.pubKey).toString('hex')
     },
     noJson: true,
