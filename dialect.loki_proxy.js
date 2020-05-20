@@ -437,8 +437,10 @@ module.exports = (app, prefix) => {
     //console.log('req.originalBody', req.originalBody);
 
     // this hack is to work around no json header passed
-    if (Object.keys(req.body) == 0 && req.originalBody) {
-      console.log('no json header, overriding body with', req.originalBody)
+    if (Object.keys(req.body) == 0 && req.lokiReady) {
+      console.log('no json header, waiting on request to finish')
+      await req.lokiReady
+      console.log('overriding body with', req.originalBody)
       try {
         req.body = JSON.parse(req.originalBody)
       } catch(e) {
@@ -447,7 +449,7 @@ module.exports = (app, prefix) => {
     }
     // console.log('secure_rpc body', req.body, typeof req.body);
 
-    if (!req.body || !req.body.cipherText) {
+    if (!req.body || !req.body.ciphertext) {
       console.warn('not JSON or no cipherText', req.body);
       return sendresponse({
         meta: {
@@ -461,7 +463,7 @@ module.exports = (app, prefix) => {
 
     // after we get our bearings
     // get the base64 body...
-    const cipherText64 = req.body.cipherText;
+    const cipherText64 = req.body.ciphertext; // snode uses ciphertext
     const debugHeaders = req.headers['x-loki-debug-headers'];
     const debugCryptoValues = req.headers['x-loki-debug-crypto-values'];
     const debugPayload = req.headers['x-loki-debug-payload'];
