@@ -19,12 +19,12 @@ const storage = multer.memoryStorage();
 module.exports=function(app, prefix) {
   const dispatcher=app.dispatcher;
 
-  // console.log('limits', dispatcher.limits);
+  // console_wrapper.log('limits', dispatcher.limits);
   // FIXME: loop through all limits and find largest...
-  console.log('default limits', dispatcher.limits.default);
+  console_wrapper.log('default limits', dispatcher.limits.default);
 
   const max_fup_size = dispatcher.limits.default.max_file_size;
-  console.log('setting max file upload to', max_fup_size.toLocaleString());
+  console_wrapper.log('setting max file upload to', max_fup_size.toLocaleString());
   const upload  = multer({ storage: storage, limits: {fileSize: max_fup_size } });
 
   /*
@@ -32,14 +32,14 @@ module.exports=function(app, prefix) {
    */
   app.get(prefix+'/token', function(req, resp) {
     // req.token convert into userid/sourceid
-    //console.log('dialect.*.js::/token  - looking up usertoken', req.token);
+    //console_wrapper.log('dialect.*.js::/token  - looking up usertoken', req.token);
     if (req.token!==null && req.token!==undefined && req.token!='') {
       // need to translate token...
       dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-        //console.log('usertoken',usertoken);
-        //console.log('dialect.*.js::/token  - got usertoken');
+        //console_wrapper.log('usertoken',usertoken);
+        //console_wrapper.log('dialect.*.js::/token  - got usertoken');
         if (usertoken==null) {
-          console.log('dialect.*.js::No valid token passed in to /token', req.token);
+          console_wrapper.log('dialect.*.js::No valid token passed in to /token', req.token);
           var res={
             "meta": {
               "code": 401,
@@ -48,13 +48,13 @@ module.exports=function(app, prefix) {
           };
           resp.status(401).type('application/json').send(JSON.stringify(res));
         } else {
-          //console.log('dialect.*.js::got token for /token { userid:',usertoken.userid,'client_id:',usertoken.client_id);
+          //console_wrapper.log('dialect.*.js::got token for /token { userid:',usertoken.userid,'client_id:',usertoken.client_id);
           // FIXME: pass params
           dispatcher.getToken(usertoken.userid, usertoken.client_id, callbacks.tokenCallback(resp, req.token));
         }
       });
     } else {
-      console.log('dialect.*.js::No token passed in to /token');
+      console_wrapper.log('dialect.*.js::No token passed in to /token');
       var res={
         "meta": {
           "code": 401,
@@ -70,7 +70,7 @@ module.exports=function(app, prefix) {
     // req.token
     // req.token convert into userid/sourceid
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      //console.log('usertoken', usertoken);
+      //console_wrapper.log('usertoken', usertoken);
       if (usertoken==null) {
         // could be they didn't log in through a server restart
         var res={
@@ -99,14 +99,14 @@ module.exports=function(app, prefix) {
       if (typeof(ids) === 'string') {
         ids = [ ids ];
       }
-      console.log('dialect.appdotnet_official.js:GETusers/ID - ids', ids)
+      console_wrapper.log('dialect.appdotnet_official.js:GETusers/ID - ids', ids)
       dispatcher.getUsers(ids, req.apiParams, callbacks.usersCallback(resp));
       return;
     }
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      //console.log('dialect.appdotnet_official.js:GETusers/ID - ', usertoken);
+      //console_wrapper.log('dialect.appdotnet_official.js:GETusers/ID - ', usertoken);
       if (usertoken!=null) {
-        //console.log('dialect.appdotnet_official.js:GETusers/ID - found a token');
+        //console_wrapper.log('dialect.appdotnet_official.js:GETusers/ID - found a token');
         req.apiParams.tokenobj=usertoken;
       }
       if (!req.query.ids) {
@@ -124,15 +124,15 @@ module.exports=function(app, prefix) {
   });
 
   app.get(prefix+'/users/:user_id', function(req, resp) {
-    //console.log('dialect.appdotnet_official.js:GETusersX - token', req.token);
+    //console_wrapper.log('dialect.appdotnet_official.js:GETusersX - token', req.token);
     if (!req.token) {
       dispatcher.getUser(req.params.user_id, req.apiParams, callbacks.dataCallback(resp));
       return;
     }
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      //console.log('dialect.appdotnet_official.js:GETusers/ID - ', usertoken);
+      //console_wrapper.log('dialect.appdotnet_official.js:GETusers/ID - ', usertoken);
       if (usertoken!=null) {
-        //console.log('dialect.appdotnet_official.js:GETusers/ID - found a token');
+        //console_wrapper.log('dialect.appdotnet_official.js:GETusers/ID - found a token');
         req.apiParams.tokenobj=usertoken;
       }
       dispatcher.getUser(req.params.user_id, req.apiParams, callbacks.userCallback(resp));
@@ -141,9 +141,9 @@ module.exports=function(app, prefix) {
 
   // Token: User Scope: update_profile
   app.put(prefix+'/users/me', function updateUser(req, resp) {
-    //console.log('dialect.appdotnet_official.js:PUTusersX - token', req.token)
+    //console_wrapper.log('dialect.appdotnet_official.js:PUTusersX - token', req.token)
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      //console.log('dialect.appdotnet_official.js:PUTusersX - usertoken', usertoken)
+      //console_wrapper.log('dialect.appdotnet_official.js:PUTusersX - usertoken', usertoken)
       if (usertoken===null) {
         var res={
           "meta": {
@@ -155,8 +155,8 @@ module.exports=function(app, prefix) {
         return;
       }
       req.apiParams.tokenobj=usertoken;
-      console.log('dialect.appdotnet_official.js:PUTusersXx - body', req.body);
-      //console.log('dialect.appdotnet_official.js:PUTusersX - creating channel of type', req.body.type);
+      console_wrapper.log('dialect.appdotnet_official.js:PUTusersXx - body', req.body);
+      //console_wrapper.log('dialect.appdotnet_official.js:PUTusersX - creating channel of type', req.body.type);
       if (req.body.name === undefined || req.body.locale  === undefined ||
         req.body.timezone  === undefined || req.body.description === undefined ||
         req.body.description.text === undefined) {
@@ -169,9 +169,9 @@ module.exports=function(app, prefix) {
         resp.status(400).type('application/json').send(JSON.stringify(res));
         return;
       }
-      //console.log('dialect.appdotnet_official.js:PUTusersXx - description.text', req.body.description.text)
+      //console_wrapper.log('dialect.appdotnet_official.js:PUTusersXx - description.text', req.body.description.text)
       // user param to load everything
-      //console.log('dialect.appdotnet_official.js:PUTusersXx - userid', usertoken.userid)
+      //console_wrapper.log('dialect.appdotnet_official.js:PUTusersXx - userid', usertoken.userid)
       dispatcher.getUser(usertoken.userid, { generalParams: { annotations: true, include_html: true } }, function(userObj, err) {
         // These are required fields
         /*
@@ -196,13 +196,13 @@ module.exports=function(app, prefix) {
           for(var i in req.body.annotations) {
             var note = req.body.annotations[i]
             if (note.type && note.value === undefined) {
-              console.log('dialect.appdotnet_official.js:PUTusersXx - need to delete', note.type);
+              console_wrapper.log('dialect.appdotnet_official.js:PUTusersXx - need to delete', note.type);
             }
           }
           userObj.annotations = req.body.annotations;
         }
         //userObj.id = usertoken.userid;
-        console.log('dialect.appdotnet_official.js:PUTusersXx - userobj', userObj);
+        console_wrapper.log('dialect.appdotnet_official.js:PUTusersXx - userobj', userObj);
         dispatcher.updateUser(userObj, Date.now()/1000, callbacks.dataCallback(resp));
       });
       //dispatcher.addChannel(channel, req.apiParams, usertoken, callbacks.dataCallback(resp));
@@ -221,7 +221,7 @@ module.exports=function(app, prefix) {
       resp.status(400).type('application/json').send(JSON.stringify(res));
       return;
     }
-    console.log('POSTavatar - file upload got', req.file.buffer.length, 'bytes');
+    console_wrapper.log('POSTavatar - file upload got', req.file.buffer.length, 'bytes');
     if (!req.file.buffer.length) {
       // no files uploaded
       var res={
@@ -233,15 +233,15 @@ module.exports=function(app, prefix) {
       resp.status(400).type('application/json').send(JSON.stringify(res));
       return;
     }
-    //console.log('looking for type - params:', req.params, 'body:', req.body);
+    //console_wrapper.log('looking for type - params:', req.params, 'body:', req.body);
     // type is in req.body.type
-    //console.log('POSTfiles - req token', req.token);
+    //console_wrapper.log('POSTfiles - req token', req.token);
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
       if (err) {
-        console.log('dialect.appdotnet_official.js:POSTavatar - token err', err);
+        console_wrapper.log('dialect.appdotnet_official.js:POSTavatar - token err', err);
       }
       if (usertoken==null) {
-        console.log('dialect.appdotnet_official.js:POSTavatar - no token');
+        console_wrapper.log('dialect.appdotnet_official.js:POSTavatar - no token');
         // could be they didn't log in through a server restart
         var res={
           "meta": {
@@ -251,8 +251,8 @@ module.exports=function(app, prefix) {
         };
         return resp.status(401).type('application/json').send(JSON.stringify(res));
       }
-      //console.log('dialect.appdotnet_official.js:POSTavatar - usertoken', usertoken);
-      //console.log('dialect.appdotnet_official.js:POSTavatar - uploading to pomf');
+      //console_wrapper.log('dialect.appdotnet_official.js:POSTavatar - usertoken', usertoken);
+      //console_wrapper.log('dialect.appdotnet_official.js:POSTavatar - uploading to pomf');
       var uploadUrl = dispatcher.appConfig.provider_url + 'api/upload';
       request.post({
         url: uploadUrl,
@@ -269,7 +269,7 @@ module.exports=function(app, prefix) {
         }
       }, function (err, uploadResp, body) {
         if (err) {
-          console.log('dialect.appdotnet_official.js:POSTavatar - pomf upload Error!', err);
+          console_wrapper.log('dialect.appdotnet_official.js:POSTavatar - pomf upload Error!', err);
           var res={
             "meta": {
               "code": 500,
@@ -279,7 +279,7 @@ module.exports=function(app, prefix) {
           resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
           return;
         }
-        //console.log('URL: ' + body);
+        //console_wrapper.log('URL: ' + body);
         /*
         {"success":true,"files":[
           {
@@ -300,7 +300,7 @@ module.exports=function(app, prefix) {
         try {
           data=JSON.parse(body);
         } catch(e) {
-          console.log('couldnt json parse body', body);
+          console_wrapper.log('couldnt json parse body', body);
           var res={
             "meta": {
               "code": 500,
@@ -332,11 +332,11 @@ module.exports=function(app, prefix) {
           return;
         }
         if (data.files.length > 1) {
-          console.warn('dialect.appdotnet_official.js:POSTavatar - Multiple files!', data);
+          console_wrapper.warn('dialect.appdotnet_official.js:POSTavatar - Multiple files!', data);
         }
         //for(var i in data.files) {
         var file=data.files[0];
-        //console.log('dialect.appdotnet_official.js:POSTavatar - setting', file.url);
+        //console_wrapper.log('dialect.appdotnet_official.js:POSTavatar - setting', file.url);
         dispatcher.updateUserAvatar(file.url, req.apiParams, usertoken, callbacks.userCallback(resp, req.token));
         //}
       });
@@ -345,9 +345,9 @@ module.exports=function(app, prefix) {
 
   // partially update a user (Token: User Scope: update_profile)
   app.patch(prefix+'/users/me', function updateUser(req, resp) {
-    //console.log('dialect.appdotnet_official.js:PATCHusersX - token', req.token)
+    //console_wrapper.log('dialect.appdotnet_official.js:PATCHusersX - token', req.token)
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      //console.log('dialect.appdotnet_official.js:PATCHusersX - usertoken', usertoken)
+      //console_wrapper.log('dialect.appdotnet_official.js:PATCHusersX - usertoken', usertoken)
       if (usertoken===null) {
         var res={
           "meta": {
@@ -359,16 +359,16 @@ module.exports=function(app, prefix) {
         return;
       }
       req.apiParams.tokenobj=usertoken;
-      //console.log('dialect.appdotnet_official.js:PATCHusersX - bodyType['+req.body+']');
-      //console.log('dialect.appdotnet_official.js:PATCHusersX - body ', req.body);
+      //console_wrapper.log('dialect.appdotnet_official.js:PATCHusersX - bodyType['+req.body+']');
+      //console_wrapper.log('dialect.appdotnet_official.js:PATCHusersX - body ', req.body);
       //var bodyObj = JSON.parse(req.body)
       var bodyObj = req.body
       /*
       for(var i in req.body) {
-        console.log('dialect.appdotnet_official.js:PATCHusersX -', i, '=', req.body[i]);
+        console_wrapper.log('dialect.appdotnet_official.js:PATCHusersX -', i, '=', req.body[i]);
       }
       */
-      //console.log('dialect.appdotnet_official.js:PATCHusersX - test', req.body.annotations);
+      //console_wrapper.log('dialect.appdotnet_official.js:PATCHusersX - test', req.body.annotations);
       var request={
         //name: req.body.name,
         //locale: req.body.locale,
@@ -391,8 +391,8 @@ module.exports=function(app, prefix) {
       if (req.body.annotations) {
         request.annotations = req.body.annotations;
       }
-      console.log('dialect.appdotnet_official.js:PATCHusersX - request', request);
-      //console.log('dialect.appdotnet_official.js:PATCHusersX - creating channel of type', req.body.type);
+      console_wrapper.log('dialect.appdotnet_official.js:PATCHusersX - request', request);
+      //console_wrapper.log('dialect.appdotnet_official.js:PATCHusersX - creating channel of type', req.body.type);
       dispatcher.patchUser(request, req.apiParams, usertoken, callbacks.dataCallback(resp));
     });
   });
@@ -402,7 +402,7 @@ module.exports=function(app, prefix) {
     // req.token
     // req.token convert into userid/sourceid
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
-      //console.log('usertoken', usertoken);
+      //console_wrapper.log('usertoken', usertoken);
       if (usertoken==null) {
         // could be they didn't log in through a server restart
         var res={
@@ -428,7 +428,7 @@ module.exports=function(app, prefix) {
 
 
   app.put(prefix+'/files', function(req, resp) {
-    console.log('dialect.appdotnet_official.js:PUT/files - detect');
+    console_wrapper.log('dialect.appdotnet_official.js:PUT/files - detect');
     resp.status(401).type('application/json').send(JSON.stringify({
       meta: {
         code: 401,
@@ -440,7 +440,7 @@ module.exports=function(app, prefix) {
   // create file (for attachments)
   app.post(prefix+'/files', upload.single('content'), function(req, resp) {
     if (req.file) {
-      console.log('POSTfiles - file upload got', req.file.buffer.length, 'bytes');
+      console_wrapper.log('POSTfiles - file upload got', req.file.buffer.length, 'bytes');
     } else {
       // no files uploaded
       var res={
@@ -449,7 +449,7 @@ module.exports=function(app, prefix) {
           error_message: "No file uploaded"
         }
       };
-      console.warn('no file attached');
+      console_wrapper.warn('no file attached');
       resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
       return
     }
@@ -461,11 +461,11 @@ module.exports=function(app, prefix) {
           error_message: "No file data"
         }
       };
-      console.warn('empty file attached');
+      console_wrapper.warn('empty file attached');
       resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
       return
     }
-    console.log('FUP SIZE', req.file.buffer.length.toLocaleString());
+    console_wrapper.log('FUP SIZE', req.file.buffer.length.toLocaleString());
     if (req.file.buffer.length >= max_fup_size) {
       //
       var res={
@@ -474,19 +474,19 @@ module.exports=function(app, prefix) {
           error_message: "File is too big"
         }
       };
-      console.warn('file too large, max size', max_fup_size);
+      console_wrapper.warn('file too large, max size', max_fup_size);
       resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
       return
     }
-    //console.log('looking for type - params:', req.params, 'body:', req.body);
+    //console_wrapper.log('looking for type - params:', req.params, 'body:', req.body);
     // type is in req.body.type
-    //console.log('POSTfiles - req token', req.token);
+    //console_wrapper.log('POSTfiles - req token', req.token);
     dispatcher.getUserClientByToken(req.token, function(usertoken, err) {
       if (err) {
-        console.log('dialect.appdotnet_official.js:POSTfiles - token err', err);
+        console_wrapper.log('dialect.appdotnet_official.js:POSTfiles - token err', err);
       }
       if (usertoken==null) {
-        console.log('dialect.appdotnet_official.js:POSTfiles - no token');
+        console_wrapper.log('dialect.appdotnet_official.js:POSTfiles - no token');
         // could be they didn't log in through a server restart
         var res={
           meta: {
@@ -501,7 +501,7 @@ module.exports=function(app, prefix) {
           req.body.type = ''
         }
         var uploadUrl = dispatcher.appConfig.provider_url + 'api/upload'
-        console.log('dialect.appdotnet_official.js:POSTfiles - uploading to pomf', uploadUrl);
+        console_wrapper.log('dialect.appdotnet_official.js:POSTfiles - uploading to pomf', uploadUrl);
         request.post({
           url: uploadUrl,
           formData: {
@@ -517,7 +517,7 @@ module.exports=function(app, prefix) {
           }
         }, function (err, uploadResp, body) {
           if (err) {
-            console.log('dialect.appdotnet_official.js:POSTfiles - pomf upload Error!', err);
+            console_wrapper.log('dialect.appdotnet_official.js:POSTfiles - pomf upload Error!', err);
             var res={
               meta: {
                 code: 500,
@@ -527,7 +527,7 @@ module.exports=function(app, prefix) {
             resp.status(res.meta.code).type('application/json').send(JSON.stringify(res));
             return;
           } else {
-            //console.log('URL: ' + body);
+            //console_wrapper.log('URL: ' + body);
             // which pomf software is this ;^p
             /*
             {"success":true,"files":[
@@ -548,7 +548,7 @@ module.exports=function(app, prefix) {
             try {
               data=JSON.parse(body);
             } catch(e) {
-              console.log('couldnt json parse body', body);
+              console_wrapper.log('couldnt json parse body', body);
               var res={
                 meta: {
                   code: 500,
@@ -569,7 +569,7 @@ module.exports=function(app, prefix) {
               return;
             }
             //, 'from', body
-            console.log('dialect.appdotnet_official.js:POSTfiles - pomf result', data);
+            console_wrapper.log('dialect.appdotnet_official.js:POSTfiles - pomf result', data);
             for(var i in data.files) {
               var file=data.files[i];
               // write this to the db dude
@@ -588,13 +588,13 @@ module.exports=function(app, prefix) {
               // there's only image or other
               file.kind=req.file.mimetype.match(/image/i)?'image':'other';
               // if it's an image or video, we should get w/h
-              //console.log('type', req.body.type, typeof(req.body.type)); // it's string...
+              //console_wrapper.log('type', req.body.type, typeof(req.body.type)); // it's string...
               // warn if body.type is empty because it'll crash the server
               file.type = req.body.type;
               dispatcher.addFile(file, usertoken, req.apiParams, callbacks.fileCallback(resp, req.token));
             }
           }
-            //console.log('Regular:', fs.createReadStream(__dirname+'/git/caminte/media/mysql.png'));
+            //console_wrapper.log('Regular:', fs.createReadStream(__dirname+'/git/caminte/media/mysql.png'));
         });
       }
     });

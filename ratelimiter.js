@@ -13,7 +13,7 @@ setInterval(function () {
   var ts=new Date().getTime();
   process.stdout.write("\n");
   var ref=module.exports;
-  console.log('rate.limit report, resetting in', (ts-ref.resetAt).toLocaleString(), 'ms');
+  console_wrapper.log('rate.limit report, resetting in', (ts-ref.resetAt).toLocaleString(), 'ms');
   // just need a redis info call to pull memory and keys stats
 }, 60*1000);
 
@@ -24,7 +24,7 @@ module.exports = {
   logRequest: function(isAuth, isWrite) {
     var now=Date.now();
     if (now>=this.resetAt) {
-      console.log('resetting rate limits');
+      console_wrapper.log('resetting rate limits');
       // how often do we want to reset?
       this.resetAt=now+60000; // 50 calls per 1 minute is the strickest
       this.rateCounters[0]={};
@@ -34,17 +34,17 @@ module.exports = {
       this.rateCounters[1][0]=83;
       this.rateCounters[1][1]=20;
     }
-    console.log('watching rate limit');
+    console_wrapper.log('watching rate limit');
     this.rateCounters[isAuth][isWrite]--;
   },
   rateLimit: function(isAuth, isWrite, callback) {
     if (this.rateCounters[isAuth]===undefined) this.rateCounters[isAuth]={};
     var callsleft=this.rateCounters[isAuth][isWrite];
-    console.log('callsleft for', isAuth, isWrite, 'are', callsleft);
+    console_wrapper.log('callsleft for', isAuth, isWrite, 'are', callsleft);
     // FIXME: nginx is going to time this shit out
     if (callsleft<1) {
       var delay=this.resetAt-Date.now();
-      console.log('delaying call by', delay);
+      console_wrapper.log('delaying call by', delay);
       setTimeout(function() {
         callback();
       }, delay);

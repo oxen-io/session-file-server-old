@@ -57,15 +57,15 @@ const deleteTempStorageForToken = (pubKey, token) => {
 }
 
 const checkTempStorageForToken = (token) => {
-  //console.log('searching for', token)
+  //console_wrapper.log('searching for', token)
   // check temp storage
   for(var pubKey in tempDB) {
     const found = tempDB[pubKey].find(tempObjs => {
       const tempToken = tempObjs.token;
-      //console.log('pubKey', pubKey, 'token', tempToken);
+      //console_wrapper.log('pubKey', pubKey, 'token', tempToken);
       if (tempToken === token) return true;
     })
-    //console.log('pubKey', pubKey, 'found', found);
+    //console_wrapper.log('pubKey', pubKey, 'found', found);
     if (found) {
       return true;
     }
@@ -214,7 +214,7 @@ const confirmToken = (pubKey, token) => {
   return new Promise(async (res, rej) => {
     // Check to ensure the token submitted has been generated in the last 2 minutes
     if (!checkTempStorageForToken(token)) {
-      console.log('token', token, 'not in', getTempTokenList());
+      console_wrapper.log('token', token, 'not in', getTempTokenList());
       return rej('invalid');
     }
     // Token has been recently generated
@@ -244,7 +244,7 @@ const sendresponse = (json, resp) => {
   if (diff > 1000) {
     // this could be to do the client's connection speed
     // how because we stop the clock before we send the response...
-    console.log(`${resp.path} served in ${ts - resp.start}ms`);
+    console_wrapper.log(`${resp.path} served in ${ts - resp.start}ms`);
   }
   if (json.meta && json.meta.code) {
     resp.status(json.meta.code);
@@ -270,7 +270,7 @@ module.exports = (app, prefix) => {
     if (fs.existsSync('loki.ini')) {
       const ini_bytes = fs.readFileSync('loki.ini')
       disk_config = ini.iniToJSON(ini_bytes.toString())
-      console.log('config', disk_config);
+      console_wrapper.log('config', disk_config);
 
       // reset permissions to purge any deletions
       user_access = {};
@@ -279,7 +279,7 @@ module.exports = (app, prefix) => {
         const access = disk_config.globals[pubKey];
         // translate pubKey to id of user
         cache.getUserID(pubKey, (user, err) => {
-          //console.log('setting', user.id, 'to', access);
+          //console_wrapper.log('setting', user.id, 'to', access);
 
           // only if user has registered
           if (user) {
@@ -308,7 +308,7 @@ module.exports = (app, prefix) => {
   app.get(prefix + '/loki/v1/get_challenge', (req, res) => {
     const { pubKey } = req.query;
     if (!pubKey) {
-      console.log('get_challenge pubKey missing');
+      console_wrapper.log('get_challenge pubKey missing');
       res.status(422).type('application/json').end(JSON.stringify({
         error: 'PubKey missing',
       }));
@@ -316,7 +316,7 @@ module.exports = (app, prefix) => {
     }
 
     if (!passesWhitelist(pubKey)) {
-      console.log('get_challenge ', pubKey, 'not whitelisted');
+      console_wrapper.log('get_challenge ', pubKey, 'not whitelisted');
       return res.status(401).type('application/json').end(JSON.stringify({
         error: 'not allowed',
       }));
@@ -325,7 +325,7 @@ module.exports = (app, prefix) => {
     getChallenge(pubKey).then(keyInfo => {
       res.status(200).type('application/json').end(JSON.stringify(keyInfo));
     }).catch(err => {
-      console.log(`Error getting challenge: ${err}`);
+      console_wrapper.log(`Error getting challenge: ${err}`);
       res.status(500).type('application/json').end(JSON.stringify({
         error: err.toString(),
       }));
@@ -343,30 +343,30 @@ module.exports = (app, prefix) => {
         const user = await getUser(userid);
         roles.moderators.push(user.username);
       } catch (e) {
-        console.error(`Errer getting user: ${e}`);
+        console_wrapper.error(`Errer getting user: ${e}`);
       }
     }
     res.status(200).type('application/json').end(JSON.stringify(roles));
   });
 
   app.post(prefix + '/loki/v1/submit_challenge', (req, res) => {
-    // console.log('submit_challenge body', req.body, typeof req.body);
+    // console_wrapper.log('submit_challenge body', req.body, typeof req.body);
     const { pubKey, token } = req.body;
     if (!pubKey) {
-      console.log('submit_challenge pubKey missing');
+      console_wrapper.log('submit_challenge pubKey missing');
       res.status(422).type('application/json').end(JSON.stringify({
         error: 'pubKey missing',
       }));
       return;
     }
     if (!passesWhitelist(pubKey)) {
-      console.log('get_challenge ', pubKey, 'not whitelisted');
+      console_wrapper.log('get_challenge ', pubKey, 'not whitelisted');
       return res.status(401).type('application/json').end(JSON.stringify({
         error: 'not allowed',
       }));
     }
     if (!token) {
-      console.log('submit_challenge token missing');
+      console_wrapper.log('submit_challenge token missing');
       res.status(422).type('application/json').end(JSON.stringify({
         error: 'token missing',
       }));
@@ -376,7 +376,7 @@ module.exports = (app, prefix) => {
       // confirmation should be true
       res.status(200).end();
     }).catch(err => {
-      console.log(`Error confirming challenge: ${err}`);
+      console_wrapper.log(`Error confirming challenge: ${err}`);
       // handle errors we know
       if (err === 'invalid') {
         res.status(401).end();
@@ -402,7 +402,7 @@ module.exports = (app, prefix) => {
     return new Promise((resolve, rej) => {
       app.dispatcher.getUserClientByToken(token, (usertoken, err) => {
         if (err) {
-          console.error('token err', err);
+          console_wrapper.error('token err', err);
           const resObj={
             meta: {
               code: 500,
@@ -451,7 +451,7 @@ module.exports = (app, prefix) => {
 
   app.get(prefix + '/loki/v1/user_info', (req, res) => {
     validUser(req.token, res, (usertoken) => {
-      //console.log('usertoken',  JSON.stringify(usertoken))
+      //console_wrapper.log('usertoken',  JSON.stringify(usertoken))
       const resObj={
         meta: {
           code: 200,
