@@ -13,7 +13,7 @@ const FILE_SERVER_PUB_KEY_FILE = 'proxy.pub'
 
 // load local key
 if (!fs.existsSync(FILE_SERVER_PUB_KEY_FILE)) {
-  console.log(FILE_SERVER_PUB_KEY_FILE, 'is missing');
+  console_wrapper.log(FILE_SERVER_PUB_KEY_FILE, 'is missing');
   process.exit(1);
 }
 
@@ -154,7 +154,7 @@ module.exports = (testInfo) => {
       const json = await testSecureRpc(payloadObj, testInfo);
       assert.ok(json);
       const obj = JSON.parse(json);
-      // console.log('obj', obj)
+      // console_wrapper.log('obj', obj)
       assert.ok(obj);
       assert.ok(obj.meta);
       assert.equal(200, obj.meta.code);
@@ -169,7 +169,7 @@ module.exports = (testInfo) => {
       const json = await testSecureRpc(payloadObj, testInfo);
       assert.ok(json);
       const obj = JSON.parse(json);
-      // console.log('obj', obj)
+      // console_wrapper.log('obj', obj)
       assert.ok(obj);
       assert.ok(obj.meta);
       assert.equal(200, obj.meta.code);
@@ -255,7 +255,7 @@ module.exports = (testInfo) => {
         headers: {},
       };
       const resp = await testLsrpc(payloadObj, testInfo);
-      //console.log('resp', resp)
+      //console_wrapper.log('resp', resp)
       assert.ok(resp.body);
     });
     it('lsrpc time', async function() {
@@ -288,7 +288,7 @@ module.exports = (testInfo) => {
       const resp = await testLsrpc(payloadObj, testInfo);
       assert.ok(resp.body);
       const obj = JSON.parse(resp.body);
-      // console.log('obj', obj)
+      // console_wrapper.log('obj', obj)
       assert.ok(obj);
       assert.ok(obj.meta);
       assert.equal(200, obj.meta.code);
@@ -303,7 +303,7 @@ module.exports = (testInfo) => {
       const resp = await testLsrpc(payloadObj, testInfo);
       assert.ok(resp.body);
       const obj = JSON.parse(resp.body);
-      // console.log('obj', obj)
+      // console_wrapper.log('obj', obj)
       assert.ok(obj);
       assert.ok(obj.meta);
       assert.equal(200, obj.meta.code);

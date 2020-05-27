@@ -75,7 +75,7 @@ function makeSymmetricKey(privKey, pubKey) {
     pubKey,
     privKey,
   );
-  //console.log('makeSymmetricKey agreement', keyAgreement.toString('hex'))
+  //console_wrapper.log('makeSymmetricKey agreement', keyAgreement.toString('hex'))
 
   // hash the key agreement
   const hashedSymmetricKeyBuf = crypto.createHmac('sha256', 'LOKI').update(keyAgreement).digest()

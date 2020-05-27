@@ -143,7 +143,7 @@ exports.login_from_code = function (req, code, cb) {
                 cb();
             });
         } else {
-            console.log('Error:', e, 'status', r && r.statusCode);
+            console_wrapper.log('Error:', e, 'status', r && r.statusCode);
             cb();
         }
     });
@@ -168,10 +168,10 @@ exports.get_app_token = function (cb) {
         if (!e && r.statusCode === 200) {
             var obj = JSON.parse(body);
             var access_token = obj.access_token;
-            //console.log("GET GOT AT! "+access_token);
+            //console_wrapper.log("GET GOT AT! "+access_token);
             cb(access_token);
         } else {
-            console.log('Error getting app access token', e, 'status', r.statusCode, 'body', body);
+            console_wrapper.log('Error getting app access token', e, 'status', r.statusCode, 'body', body);
             cb();
         }
     });

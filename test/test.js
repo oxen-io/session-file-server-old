@@ -11,7 +11,7 @@ nconf.argv().env('__').file({file: config_path}).file('model', {file: config_mod
 
 let webport = nconf.get('web:port') || 7070;
 const base_url = 'http://localhost:' + webport + '/'
-console.log('read', base_url)
+console_wrapper.log('read', base_url)
 
 const token = ''
 

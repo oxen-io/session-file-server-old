@@ -5,7 +5,7 @@ function sendresponse(json, resp) {
   if (diff > 1000) {
     // this could be to do the client's connection speed
     // how because we stop the clock before we send the response...
-    console.log(resp.path+' served in '+(ts-resp.start)+'ms');
+    console_wrapper.log(resp.path+' served in '+(ts-resp.start)+'ms');
   }
   if (resp.prettyPrint) {
     json=JSON.stringify(JSON.parse(json),null,4);
@@ -22,7 +22,7 @@ function sendObject(obj, resp) {
   if (diff > 1000) {
     // this could be to do the client's connection speed
     // how because we stop the clock before we send the response...
-    console.log(resp.path+' served in '+(ts-resp.start)+'ms');
+    console_wrapper.log(resp.path+' served in '+(ts-resp.start)+'ms');
   }
 
   if (obj.meta==undefined) {
@@ -41,7 +41,7 @@ function sendObject(obj, resp) {
 
 function ISODateString(d) {
   if (!d || !d.getUTCFullYear) {
-    //console.log('created_at is type (!date): ',d,typeof(d));
+    //console_wrapper.log('created_at is type (!date): ',d,typeof(d));
     return d;
   }
   function pad(n){return n<10 ? '0'+n : n}
@@ -92,7 +92,7 @@ function formatuser(user, token) {
     user.created_at=ISODateString(user.created_at);
     if (!user.counts) {
       // usually caused by call user instead of users callback
-      console.log('dialect.appdotnet_official.callback.js::formatuser - no user counts object')
+      console_wrapper.log('dialect.appdotnet_official.callback.js::formatuser - no user counts object')
       user.counts={}
     }
     user.counts.following=parseInt(0+user.counts.following);
@@ -130,7 +130,7 @@ module.exports = {
         meta: meta,
         data: users
       };
-      //console.log('ADNO.CB::usersCallback - res', res);
+      //console_wrapper.log('ADNO.CB::usersCallback - res', res);
       sendObject(res, resp);
     }
   },
@@ -189,7 +189,7 @@ module.exports = {
 
   'fileCallback': function(resp, token) {
     return function(data, err, meta) {
-      console.log('fileCallback', data, 'err', err, 'meta', meta);
+      console_wrapper.log('fileCallback', data, 'err', err, 'meta', meta);
       err = typeof err !== 'undefined' ? err : undefined;
       meta = typeof meta !== 'undefined' ? meta : undefined;
       var res={
@@ -203,7 +203,7 @@ module.exports = {
   'oembedCallback' : function(resp) {
     return function(oembed, err) {
       // there's no data/meta envelope for oembed
-      //console.log('ADNO::oembed got ',oembed);
+      //console_wrapper.log('ADNO::oembed got ',oembed);
       sendresponse(JSON.stringify(oembed), resp);
     }
   },

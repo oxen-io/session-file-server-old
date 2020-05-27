@@ -9,6 +9,6 @@ module.exports = (testInfo) => {
     const result = await lib.submit_challenge(testInfo.tokenString, testInfo.ourPubKeyHex);
     assert.equal(200, result.statusCode);
     // body should be ''
-    //console.log('submit challenge body', body);
+    //console_wrapper.log('submit challenge body', body);
   });
 }

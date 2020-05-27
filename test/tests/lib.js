@@ -22,7 +22,7 @@ function get_challenge(ourPubKeyHex) {
       });
       resolve(result);
     } catch (e) {
-      console.error('platformApi.serverRequest err', e, result)
+      console_wrapper.error('platformApi.serverRequest err', e, result)
       rej(e);
     }
   });

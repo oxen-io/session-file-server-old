@@ -10,7 +10,7 @@ const sendresponse = (json, resp) => {
   if (diff > 1000) {
     // this could be to do the client's connection speed
     // how because we stop the clock before we send the response...
-    console.log(`${resp.path} served in ${ts - resp.start}ms`);
+    console_wrapper.log(`${resp.path} served in ${ts - resp.start}ms`);
   }
   if (json.meta && json.meta.code) {
     resp.status(json.meta.code);
@@ -35,7 +35,7 @@ module.exports = (app, prefix) => {
 
   app.get(prefix + '/loki/v1/rss/messenger', (req, res) => {
     res.start = Date.now();
-    //console.log('rss/messenger');
+    //console_wrapper.log('rss/messenger');
     fetch('https://loki.network/category/messenger-updates/feed/')
       .then(res => res.text())
       .then(body => {
@@ -49,7 +49,7 @@ module.exports = (app, prefix) => {
   });
   app.get(prefix + '/loki/v1/rss/loki', (req, res) => {
     res.start = Date.now();
-    //console.log('rss/loki');
+    //console_wrapper.log('rss/loki');
     fetch('https://loki.network/feed/')
       .then(res => res.text())
       .then(body => {
@@ -77,7 +77,7 @@ module.exports = (app, prefix) => {
   app.get(prefix + '/loki/v1/getOpenGroupKey/:host', (req, res) => {
     res.start = Date.now();
     const safeHost = req.params.host.replace(/^[^A-Za-z0-9:\.]{1,63}$/, '');
-    //console.log('getOpenGroupKey', safeHost);
+    //console_wrapper.log('getOpenGroupKey', safeHost);
     fetch(`https://${safeHost}/loki/v1/public_key`)
       .then(res => res.text())
       .then(body => {

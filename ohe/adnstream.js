@@ -50,20 +50,20 @@ ADNStream.prototype.process = function (purge) {
     });
 
     this.request.on('response', function (response) {
-        console.info('Got response:', response.statusCode);
+        console_wrapper.info('Got response:', response.statusCode);
         if (response.statusCode === 200) {
-            console.info('Connected to stream');
+            console_wrapper.info('Connected to stream');
         } else if (response.statusCode === 429) {
-          console.info('Rate limited, that\'s bad...');
+          console_wrapper.info('Rate limited, that\'s bad...');
           var stop = new Date().getTime();
           // wait 30 sesc
           while(new Date().getTime() < stop + 30*1000) {
             // this block all incoming web requests
               ;
           }
-          console.log("Trying again...");
+          console_wrapper.log("Trying again...");
         } else {
-            console.error('Unexpected status code:', response.statusCode);
+            console_wrapper.error('Unexpected status code:', response.statusCode);
         }
 
         response.on('end', function () {
@@ -82,7 +82,7 @@ ADNStream.prototype.process = function (purge) {
             return;
         }
 
-        //console.log("Processing "+obj.meta.type);
+        //console_wrapper.log("Processing "+obj.meta.type);
 
         // dispatch event
         self.emit(obj.meta.type, obj);

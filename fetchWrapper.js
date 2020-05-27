@@ -29,7 +29,7 @@ const adnServerAPI = function(url, token) {
       fetchOptions.headers = new Headers(headers);
       result = await fetch(url, fetchOptions || undefined);
     } catch (e) {
-      console.log(`e ${e}`);
+      console_wrapper.log(`e ${e}`);
       return {
         err: e,
       };
@@ -45,7 +45,7 @@ const adnServerAPI = function(url, token) {
     try {
       response = await result.json();
     } catch (e) {
-      console.log(`serverRequest json parse ${e}`);
+      console_wrapper.log(`serverRequest json parse ${e}`);
       return {
         err: e,
         statusCode: result.status,

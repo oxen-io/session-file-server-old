@@ -26,16 +26,16 @@ setInterval(function () {
   */
   // break so the line stands out from the instant updates
   process.stdout.write("\n");
-  console.log("dispatcher @"+ts+" Memory+["+(mem.heapUsed-lmem.heapUsed).toLocaleString()+"] Heap["+(mem.heapUsed).toLocaleString()+"] uptime: "+process.uptime());
+  console_wrapper.log("dispatcher @"+ts+" Memory+["+(mem.heapUsed-lmem.heapUsed).toLocaleString()+"] Heap["+(mem.heapUsed).toLocaleString()+"] uptime: "+process.uptime());
   lmem=mem;
   ts=null;
 }, 60*1000);
 
 function normalizeUserID(input, tokenobj, callback) {
-  //console.log('dispatcher::normalizeUserID', input)
+  //console_wrapper.log('dispatcher::normalizeUserID', input)
   if (input=='me') {
     if (tokenobj && tokenobj.userid) {
-      //console.log('dispatcher.js::normalizeUserID - me became', tokenobj.userid);
+      //console_wrapper.log('dispatcher.js::normalizeUserID - me became', tokenobj.userid);
       callback(tokenobj.userid, '');
       return;
     } else {
@@ -45,10 +45,10 @@ function normalizeUserID(input, tokenobj, callback) {
   }
   var ref=module.exports;
   if (input[0]=='@') {
-    //console.log('dispatcher::normalizeUserID @', input.substr(1))
+    //console_wrapper.log('dispatcher::normalizeUserID @', input.substr(1))
     ref.cache.getUserID(input.substr(1), function(userobj, err) {
       if (err) {
-        console.log('dispatcher.js::normalizeUserID err', err);
+        console_wrapper.log('dispatcher.js::normalizeUserID err', err);
       }
       if (userobj) {
         callback(userobj.id, '');
@@ -137,12 +137,12 @@ module.exports = {
         user: user,
         "invite_link": "https://join.app.net/from/notareallink"
       };
-      //console.log('dispatcher::getToken - ', token);
+      //console_wrapper.log('dispatcher::getToken - ', token);
       callback(token, null);
     });
   },
   getUserClientByToken: function(token, callback) {
-    //console.log('dispatcher::getUserClientByToken', token);
+    //console_wrapper.log('dispatcher::getUserClientByToken', token);
     this.cache.getAPIUserToken(token, callback);
   },
   /**
@@ -175,27 +175,27 @@ module.exports = {
    */
   updateUser: function(data, ts, callback) {
     if (!data) {
-      console.log('dispatcher.js:updateUser - data is missing', data);
+      console_wrapper.log('dispatcher.js:updateUser - data is missing', data);
       callback(null, 'data is missing');
       return;
     }
     if (!data.id) {
-      console.log('dispatcher.js:updateUser - id is missing', data);
+      console_wrapper.log('dispatcher.js:updateUser - id is missing', data);
       callback(null, 'id is missing');
       return;
     }
     // FIXME: current user last_updated
     var ref=this;
     if (data.annotations) {
-      console.log('dispatcher.js:updateUser - hasNotes, userid', data.id, 'notes', data.annotations, 'full', data)
+      console_wrapper.log('dispatcher.js:updateUser - hasNotes, userid', data.id, 'notes', data.annotations, 'full', data)
       // FIXME: only updated annotation if the timestamp is newer than we have
       this.setAnnotations('user', data.id, data.annotations);
     }
     // fix api/stream record in db format
     this.apiToUser(data, function(userData) {
-      //console.log('made '+data.created_at+' become '+userData.created_at);
+      //console_wrapper.log('made '+data.created_at+' become '+userData.created_at);
       // can we tell the difference between an add or update?
-      //console.log('dispatcher.js::updateUser - final', userData)
+      //console_wrapper.log('dispatcher.js::updateUser - final', userData)
       ref.cache.setUser(userData, ts, function(user, err, meta) {
         // TODO: define signal if ts is old
         if (callback) {
@@ -222,14 +222,14 @@ module.exports = {
     userData.cover_image=data.cover_image.url;
 
     if (data.description) {
-      //console.log('user '+data.id+' has description', data.description.entities);
+      //console_wrapper.log('user '+data.id+' has description', data.description.entities);
       if (data.description.entities) {
-        //console.log('user '+data.id+' has entities');
+        //console_wrapper.log('user '+data.id+' has entities');
         this.setEntities('user', data.id, data.description.entities, function(entities, err) {
           if (err) {
-            console.log("entities Update err: "+err);
+            console_wrapper.log("entities Update err: "+err);
           //} else {
-            //console.log("entities Updated");
+            //console_wrapper.log("entities Updated");
           }
         });
       }
@@ -259,12 +259,12 @@ module.exports = {
       if (request.description.text) changes.description=request.description.text;
       if (request.description.html) changes.descriptionhtml=request.description.html;
     }
-    //console.log("dispatcher.js::patchUser - user", tokenObj.userid, 'changes', changes);
+    //console_wrapper.log("dispatcher.js::patchUser - user", tokenObj.userid, 'changes', changes);
     // params we'd have to pay attention to:
     // include_annotations, include_user_annotations, include_html
     var ref=this;
     if (request.annotations) {
-      console.log('dispatcher.js::patchUser - annotations', request.annotations);
+      console_wrapper.log('dispatcher.js::patchUser - annotations', request.annotations);
       this.setAnnotations('user', tokenObj.userid, request.annotations);
     }
     this.cache.patchUser(tokenObj.userid, changes, function(user, err, meta) {
@@ -277,10 +277,10 @@ module.exports = {
   },
   updateUserAvatar: function(avatar_url, params, tokenObj, callback) {
     if (!tokenObj.userid) {
-      console.trace('dispatcher.js::updateUserAvatar - no user id in tokenObj', tokenObj, tokenObj.userid);
+      console_wrapper.trace('dispatcher.js::updateUserAvatar - no user id in tokenObj', tokenObj, tokenObj.userid);
       return callback({}, 'not userid');
     }
-    //console.log('dispatcher.js::updateUserAvatar - avatar', avatar_url);
+    //console_wrapper.log('dispatcher.js::updateUserAvatar - avatar', avatar_url);
     // we can also set the image width/height...
     changes = {
       avatar_image: avatar_url
@@ -288,7 +288,7 @@ module.exports = {
     var ref=this;
     this.cache.patchUser(tokenObj.userid, changes, function(changes, err, meta) {
       // hrm memory driver does return the complete object...
-      //console.log('dispatcher.js::updateUserAvatar - changes', changes);
+      //console_wrapper.log('dispatcher.js::updateUserAvatar - changes', changes);
       if (callback) {
         ref.getUser(tokenObj.userid, params, callback);
       }
@@ -301,7 +301,7 @@ module.exports = {
     // copy what we can without linking to the orignal, so we don't destroy
     var userData=JSON.parse(JSON.stringify(user));
     if (user.username === undefined) {
-      console.log('dispatcher::apiToUser - user', user.id, 'doesnt have a username', user)
+      console_wrapper.log('dispatcher::apiToUser - user', user.id, 'doesnt have a username', user)
       user.username = ''
     }
     userData.username=user.username.toLowerCase(); // so we can find it
@@ -314,7 +314,7 @@ module.exports = {
       userData.stars=user.counts.stars;
     }
     if (user.avatar_image === undefined) {
-      console.log('dispatcher::apiToUser - user', user.id, 'doesnt have a avatar_image', user)
+      console_wrapper.log('dispatcher::apiToUser - user', user.id, 'doesnt have a avatar_image', user)
       user.avatar_image = {}
     }
     // set avatar to null if is_default true
@@ -322,7 +322,7 @@ module.exports = {
     userData.avatar_height=user.avatar_image.height;
     userData.avatar_image=user.avatar_image.url;
     if (user.cover_image === undefined) {
-      console.log('dispatcher::apiToUser - user', user.id, 'doesnt have a cover_image', user)
+      console_wrapper.log('dispatcher::apiToUser - user', user.id, 'doesnt have a cover_image', user)
       user.cover_image = {}
     }
     userData.cover_width=user.cover_image.width;
@@ -330,14 +330,14 @@ module.exports = {
     userData.cover_image=user.cover_image.url;
 
     if (user.description) {
-      //console.log('user '+data.id+' has description', data.description.entities);
+      //console_wrapper.log('user '+data.id+' has description', data.description.entities);
       if (user.description.entities) {
-        //console.log('user '+data.id+' has entities');
+        //console_wrapper.log('user '+data.id+' has entities');
         this.setEntities('user', user.id, user.description.entities, function(entities, err) {
           if (err) {
-            console.log("entities Update err: "+err);
+            console_wrapper.log("entities Update err: "+err);
           //} else {
-            //console.log("entities Updated");
+            //console_wrapper.log("entities Updated");
           }
         });
       }
@@ -351,7 +351,7 @@ module.exports = {
   },
   // from internal database format
   userToAPI: function(user, token, callback, meta) {
-    //console.log('dispatcher.js::userToAPI - '+user.id, callback, meta);
+    //console_wrapper.log('dispatcher.js::userToAPI - '+user.id, callback, meta);
     if (!user) {
       callback(null, 'dispatcher.js::userToAPI - no user passed in');
       return;
@@ -360,8 +360,8 @@ module.exports = {
       callback(null, 'dispatcher.js::userToAPI - no callback passed in');
       return;
     }
-    //console.log('dispatcher.js::userToAPI - user in', user);
-    //console.log('dispatcher.js::userToAPI - setting up res');
+    //console_wrapper.log('dispatcher.js::userToAPI - user in', user);
+    //console_wrapper.log('dispatcher.js::userToAPI - setting up res');
     // copy user structure
     var res={
       id: user.id,
@@ -412,7 +412,7 @@ module.exports = {
     }
 
     if (user.description && !res.description) {
-      console.log('dispatcher.js::userToAPI - sanity check failure...');
+      console_wrapper.log('dispatcher.js::userToAPI - sanity check failure...');
     }
 
     var need = {
@@ -423,16 +423,16 @@ module.exports = {
     function needComplete(type) {
       need[type] = false;
       // if something is not done
-      //console.log('dispatcher.js::userToAPI - checking if done, just finished', type);
+      //console_wrapper.log('dispatcher.js::userToAPI - checking if done, just finished', type);
       for(var i in need) {
         if (need[i]) {
-          if (user.debug) console.log('dispatcher.js::userToAPI('+user.id+') -', i, 'is not done');
+          if (user.debug) console_wrapper.log('dispatcher.js::userToAPI('+user.id+') -', i, 'is not done');
           return;
         }
       }
       // , res, meta
-      if (user.debug) console.log('dispatcher.js::userToAPI ('+user.id+') - done');
-      //console.log('dispatcher.js::userToAPI - done, text', user.description);
+      if (user.debug) console_wrapper.log('dispatcher.js::userToAPI ('+user.id+') - done');
+      //console_wrapper.log('dispatcher.js::userToAPI - done, text', user.description);
       // everything is done
       reallyDone();
       //callback(data, null, meta);
@@ -444,7 +444,7 @@ module.exports = {
       if (user.description) {
         // use entity cache?
         if (1) {
-          //console.log('dispatcher.js::userToAPI - getEntities '+user.id);
+          //console_wrapper.log('dispatcher.js::userToAPI - getEntities '+user.id);
           ref.getEntities('user', user.id, function(userEntities, userEntitiesErr, userEntitiesMeta) {
             copyentities('mentions', userEntities.mentions, res.description);
             copyentities('hashtags', userEntities.hashtags, res.description);
@@ -454,9 +454,9 @@ module.exports = {
               if (res.description) {
                 res.description.html=user.descriptionhtml;
               } else {
-                console.log('dispatcher.js::userToAPI - what happened to the description?!? ', user, res);
+                console_wrapper.log('dispatcher.js::userToAPI - what happened to the description?!? ', user, res);
               }
-              if (user.debug) console.log('dispatcher.js::userToAPI('+user.id+') - calling back');
+              if (user.debug) console_wrapper.log('dispatcher.js::userToAPI('+user.id+') - calling back');
               callback(res, userEntitiesErr);
             } else {
               // you can pass entities if you want...
@@ -468,8 +468,8 @@ module.exports = {
             }
           });
         } else {
-          //console.log('dispatcher.js::userToAPI - textProcess description '+user.id);
-          //console.log('dispatcher.js::userToAPI - calling back', res);
+          //console_wrapper.log('dispatcher.js::userToAPI - textProcess description '+user.id);
+          //console_wrapper.log('dispatcher.js::userToAPI - calling back', res);
           ref.textProcess(user.description, user.entities, false, function(textProc, err) {
             res.description.html=textProc.html;
             res.description.entities=textProc.entities;
@@ -477,22 +477,22 @@ module.exports = {
           });
         }
       } else {
-        //console.log('dispatcher.js::userToAPI - calling back', res);
+        //console_wrapper.log('dispatcher.js::userToAPI - calling back', res);
         callback(res, null);
       }
     }
 
     if (user.annotations) {
-      if (user.debug) console.log('dispatcher.js::userToAPI('+user.id+') - need user annotations');
+      if (user.debug) console_wrapper.log('dispatcher.js::userToAPI('+user.id+') - need user annotations');
       need.annotation = true;
       var loadAnnotation=function(user, cb) {
-        if (user.debug) console.log('dispatcher.js::userToAPI('+user.id+') - get user annotations');
+        if (user.debug) console_wrapper.log('dispatcher.js::userToAPI('+user.id+') - get user annotations');
         ref.getAnnotation('user', user.id, function(dbNotes, err, noteMeta) {
-          if (user.debug) console.log('user', user.id, 'annotations', dbNotes.length);
+          if (user.debug) console_wrapper.log('user', user.id, 'annotations', dbNotes.length);
           var apiNotes=[];
           for(var j in dbNotes) {
             var note=dbNotes[j];
-            //console.log('got note', j, '#', note.type, '/', note.value, 'for', user.id);
+            //console_wrapper.log('got note', j, '#', note.type, '/', note.value, 'for', user.id);
             apiNotes.push({
               type: note.type,
               value: note.value,
@@ -503,24 +503,24 @@ module.exports = {
       }
 
       loadAnnotation(user, function(apiNotes, notesErr, notesMeta) {
-        if (notesErr) console.log('dispatcher.js::userToAPI - loadAnnotation', notesErr);
-        if (user.debug) console.log('final anno', apiNotes.length)
+        if (notesErr) console_wrapper.log('dispatcher.js::userToAPI - loadAnnotation', notesErr);
+        if (user.debug) console_wrapper.log('final anno', apiNotes.length)
         res.annotations=apiNotes;
         needComplete('annotation')
       });
       //res.annotations = user.annotations
     }
-    //console.log('token', token, 'tokenuserid', token.userid)
+    //console_wrapper.log('token', token, 'tokenuserid', token.userid)
     if (token && token.userid) {
       /*
       need.tokenFollow = true;
-      //console.log('dispatcher.js::userToAPI - need tokenFollow');
+      //console_wrapper.log('dispatcher.js::userToAPI - need tokenFollow');
       // follows_you
       // you_follow
       this.cache.follows(token.userid, user.id, function(following, err) {
-        //console.log('do we follow this guy?', following, 'err', err);
+        //console_wrapper.log('do we follow this guy?', following, 'err', err);
         if (following && following.active) {
-          //console.log('flagging as followed');
+          //console_wrapper.log('flagging as followed');
           res.you_follow=true;
         }
         //reallyDone();
@@ -534,9 +534,9 @@ module.exports = {
     }
   },
   getUser: function(user, params, callback) {
-    //console.log('dispatcher.js::getUser - '+user, params);
+    //console_wrapper.log('dispatcher.js::getUser - '+user, params);
     if (!callback) {
-      console.error('dispatcher.js::getUser - no callback passed in');
+      console_wrapper.error('dispatcher.js::getUser - no callback passed in');
       return;
     }
     if (!user) {
@@ -544,34 +544,34 @@ module.exports = {
       return;
     }
     if (params===null) {
-      console.log('dispatcher.js::getUser - params are null');
+      console_wrapper.log('dispatcher.js::getUser - params are null');
       params={
         generalParams: {},
         tokenobj: {}
       };
     }
-    //console.log('dispatcher.js::getUser - params', params);
+    //console_wrapper.log('dispatcher.js::getUser - params', params);
     var ref=this;
     normalizeUserID(user, params.tokenobj, function(userid, err) {
       if (err) {
-        console.log('dispatcher.js::getUser - cant normalize user', user, err);
+        console_wrapper.log('dispatcher.js::getUser - cant normalize user', user, err);
       }
       // maybe just spare caminte all together and just callback now
       if (!userid) userid = 0 // don't break caminte
-      //console.log('dispatcher.js::getUser - normalized user', userid);
+      //console_wrapper.log('dispatcher.js::getUser - normalized user', userid);
       ref.cache.getUser(userid, function(userobj, userErr, userMeta) {
-        //console.log('dispatcher.js::getUser - got user', userobj);
+        //console_wrapper.log('dispatcher.js::getUser - got user', userobj);
         if (userErr) {
-          console.log('dispatcher.js::getUser - cant get user', userid, userErr);
+          console_wrapper.log('dispatcher.js::getUser - cant get user', userid, userErr);
         }
         if (userobj && params.generalParams) {
           // FIXME: temp hack (until we can change the userToAPI prototype)
           userobj.annotations = params.generalParams.annotations || params.generalParams.user_annotations
         //} else {
-          //console.log('dispatcher.js::getUser - not such user?', userid, 'or no generalParams?', params)
+          //console_wrapper.log('dispatcher.js::getUser - not such user?', userid, 'or no generalParams?', params)
         }
-        //console.log('dispatcher.js::getUser - annotations', userobj.annotations);
-        //console.log('found user', userobj.id, '==', user)
+        //console_wrapper.log('dispatcher.js::getUser - annotations', userobj.annotations);
+        //console_wrapper.log('found user', userobj.id, '==', user)
         if (userobj === null) userobj = {}
         //if (params.debug) userobj.debug = true
         ref.userToAPI(userobj, params.tokenobj, callback, userMeta);
@@ -579,22 +579,22 @@ module.exports = {
     })
     /*
     if (user=='me') {
-      //console.log('getUser token', params.tokenobj);
+      //console_wrapper.log('getUser token', params.tokenobj);
       if (params.tokenobj) {
-        console.dir(params.tokenobj);
+        console_wrapper.dir(params.tokenobj);
         this.cache.getUser(params.tokenobj.userid, function(userobj, userErr, userMeta) {
-          //console.log('dispatcher.js::getUser - gotUser', userErr);
+          //console_wrapper.log('dispatcher.js::getUser - gotUser', userErr);
           ref.userToAPI(userobj, params.tokenobj, callback, userMeta);
         });
       } else {
         this.getUserClientByToken(params.token, function(usertoken, err) {
           if (usertoken==null) {
-            console.log('dispatcher.js::getUser - me but not token');
+            console_wrapper.log('dispatcher.js::getUser - me but not token');
             callback(null, 'dispatcher.js::getUser - me but not token');
             return;
           } else {
             ref.cache.getUser(usertoken.userid, function(userobj, userErr, userMeta) {
-              //console.log('dispatcher.js::getUser - gotUser', userErr);
+              //console_wrapper.log('dispatcher.js::getUser - gotUser', userErr);
               ref.userToAPI(userobj, params.token, callback, userMeta);
             });
           }
@@ -608,9 +608,9 @@ module.exports = {
         // strip @ from beginning
         user=user.substr(1);
       }
-      //console.log('dispatcher.js::getUser - calling', func);
+      //console_wrapper.log('dispatcher.js::getUser - calling', func);
       this.cache[func](user, function(userobj, userErr, userMeta) {
-        //console.log('dispatcher.js::getUser - gotUser', userErr);
+        //console_wrapper.log('dispatcher.js::getUser - gotUser', userErr);
         ref.userToAPI(userobj, params.tokenobj, callback, userMeta);
       });
     }
@@ -618,9 +618,9 @@ module.exports = {
   },
   // NOTE: users has to be an array!
   getUsers: function(users, params, callback) {
-    //console.log('dispatcher.js::getUsers - '+user, params);
+    //console_wrapper.log('dispatcher.js::getUsers - '+user, params);
     if (!callback) {
-      console.log('dispatcher.js::getUsers - no callback passed in');
+      console_wrapper.log('dispatcher.js::getUsers - no callback passed in');
       return;
     }
     if (!users) {
@@ -628,7 +628,7 @@ module.exports = {
       return;
     }
     if (params===null) {
-      console.log('dispatcher.js::getUsers - params are null');
+      console_wrapper.log('dispatcher.js::getUsers - params are null');
       params={
         tokenobj: {}
       };
@@ -644,7 +644,7 @@ module.exports = {
       var rUsers=[]
       for(var i in userObjs) {
         ref.userToAPI(userObjs[i], params.tokenobj, function(adnUserObj, err) {
-          //console.log('dispatcher.js::getUsers - got', adnUserObj, 'for', users[i])
+          //console_wrapper.log('dispatcher.js::getUsers - got', adnUserObj, 'for', users[i])
           rUsers.push(adnUserObj)
           if (rUsers.length==users.length) {
             callback(rUsers, null, meta);
@@ -653,24 +653,24 @@ module.exports = {
       }
     });
     */
-    //console.log('dispatcher.js::getUsers - calling', func);
+    //console_wrapper.log('dispatcher.js::getUsers - calling', func);
     var rUsers=[]
-    //console.log('dispatcher.js::getUsers - users', users);
+    //console_wrapper.log('dispatcher.js::getUsers - users', users);
     for(var i in users) {
-      //console.log('dispatcher.js::getUsers - user', users[i]);
+      //console_wrapper.log('dispatcher.js::getUsers - user', users[i]);
       normalizeUserID(users[i], params.tokenobj, function(userid, err) {
         ref.cache.getUser(userid, function(userobj, userErr, userMeta) {
-          //console.log('dispatcher.js::getUsers - gotUser', userErr);
+          //console_wrapper.log('dispatcher.js::getUsers - gotUser', userErr);
 
           if (userobj && params.generalParams) {
             // FIXME: temp hack (until we can change the userToAPI prototype)
             userobj.annotations = params.generalParams.annotations || params.generalParams.user_annotations
           //} else {
-            //console.log('dispatcher.js::getUser - not such user?', userid, 'or no generalParams?', params)
+            //console_wrapper.log('dispatcher.js::getUser - not such user?', userid, 'or no generalParams?', params)
           }
 
           ref.userToAPI(userobj, params.tokenobj, function(adnUserObj, err) {
-            //console.log('dispatcher.js::getUsers - got', adnUserObj, 'for', users[i])
+            //console_wrapper.log('dispatcher.js::getUsers - got', adnUserObj, 'for', users[i])
             rUsers.push(adnUserObj)
             if (rUsers.length==users.length) {
               callback(rUsers, '');
@@ -683,7 +683,7 @@ module.exports = {
   userSearch: function(query, params, tokenObj, callback) {
     var ref=this;
     this.cache.searchUsers(query, params, function(users, err, meta) {
-      //console.log('dispatcher.js::userSearch - got', users.length, 'users')
+      //console_wrapper.log('dispatcher.js::userSearch - got', users.length, 'users')
       if (!users.length) {
         callback([], null, meta);
         return;
@@ -691,10 +691,10 @@ module.exports = {
       var rUsers=[]
       for(var i in users) {
         ref.userToAPI(users[i], tokenObj, function(adnUserObj, err) {
-          //console.log('dispatcher.js::userSearch - got', adnUserObj, 'for', users[i])
+          //console_wrapper.log('dispatcher.js::userSearch - got', adnUserObj, 'for', users[i])
           rUsers.push(adnUserObj)
           if (rUsers.length==users.length) {
-            //console.log('dispatcher.js::userSearch - final', rUsers)
+            //console_wrapper.log('dispatcher.js::userSearch - final', rUsers)
             callback(rUsers, null, meta);
           }
         }, meta);
@@ -745,12 +745,12 @@ module.exports = {
     }, false); // don't need to add if d.n.e.
   },
   getFile: function(fileid, params, callback) {
-    console.log('dispatcher.js::getFile - write me!');
+    console_wrapper.log('dispatcher.js::getFile - write me!');
     callback(null, null);
   },
   getFiles: function(userid, params, callback) {
     var ref=this
-    //console.log('dispatcher.js::getFiles - for user', userid);
+    //console_wrapper.log('dispatcher.js::getFiles - for user', userid);
     this.cache.getFiles(userid, params, function(dbFiles, err, meta) {
       if (!dbFiles.length) {
         callback([], null)
@@ -821,12 +821,12 @@ module.exports = {
       callback(null, 'source is undefined');
       return;
     }
-    //console.dir(source);
+    //console_wrapper.dir(source);
     var ref=this.cache;
-    console.log('dispatcher.js::getSource ', source.client_id);
+    console_wrapper.log('dispatcher.js::getSource ', source.client_id);
     this.cache.getClient(source.client_id, function(client, err, meta) {
       if (client==null || err) {
-        //console.log('dispatcher.js::getSource failure ', err, client);
+        //console_wrapper.log('dispatcher.js::getSource failure ', err, client);
         // we need to create it
         ref.addSource(source.client_id, source.name, source.link, callback);
       } else {
@@ -847,19 +847,19 @@ module.exports = {
       return;
     }
     var ref=this.cache;
-    //console.log('dispatcher.js::getClient', client_id);
+    //console_wrapper.log('dispatcher.js::getClient', client_id);
     this.cache.getClient(client_id, function(client, err, meta) {
       if (err) {
-        console.error('dispatcher.js::getClient - err', err);
+        console_wrapper.error('dispatcher.js::getClient - err', err);
       }
       if (client) {
         delete client.secret; // don't expose the secret!
       }
       if (client==null) {
-        console.log('dispatcher.js::getClient - no such client', client_id);
+        console_wrapper.log('dispatcher.js::getClient - no such client', client_id);
         // should we just be setClient??
         if (shouldAdd!=undefined) {
-          console.log("Should add client_id: "+client_id, shouldAdd);
+          console_wrapper.log("Should add client_id: "+client_id, shouldAdd);
           //var source={ client_id: client_id, name: ??, link: ?? };
           //ref.setSource();
         }
@@ -876,9 +876,9 @@ module.exports = {
   /** annotations */
   getAnnotation: function(type, id, callback) {
     var ref=this;
-    //console.log('dispathcer.js::getAnnotation - type', type, 'id', id);
+    //console_wrapper.log('dispathcer.js::getAnnotation - type', type, 'id', id);
     this.cache.getAnnotations(type, id, function(notes, err, meta) {
-      //console.log('dispathcer.js::getAnnotation - start notes', notes);
+      //console_wrapper.log('dispathcer.js::getAnnotation - start notes', notes);
       //var fixedNotes=[];
       if (!notes.length) {
         callback(notes, err, meta);
@@ -890,20 +890,20 @@ module.exports = {
 
       function checkDone(i) {
         done[i]++;
-        //console.log('(', type, id, ')', i, 'done', done[i], 'calls', calls[i]);
+        //console_wrapper.log('(', type, id, ')', i, 'done', done[i], 'calls', calls[i]);
         if (done[i]===calls[i]) {
           // replace value
           notes[i].value=fixedSet;
           replaces++;
-          //console.log('dispatcher.js::getAnnotation(', type, id, ') - checkdone replaces', replaces, 'notes', notes.length);
+          //console_wrapper.log('dispatcher.js::getAnnotation(', type, id, ') - checkdone replaces', replaces, 'notes', notes.length);
           if (replaces===notes.length) {
-            //console.log('dispatcher.js::getAnnotation(', type, id, ') - final notes', notes);
+            //console_wrapper.log('dispatcher.js::getAnnotation(', type, id, ') - final notes', notes);
             callback(notes, err, meta);
           }
         }
       }
 
-      //console.log('dispatcher.js::getAnnotation(', type, id, ') - notes', notes.length);
+      //console_wrapper.log('dispatcher.js::getAnnotation(', type, id, ') - notes', notes.length);
       for(var i in notes) {
         // check values
         var fixedSet={};
@@ -912,31 +912,31 @@ module.exports = {
         calls[i]=0;
         done[i]=0;
         // is notes[i].value is a key value tuple, not an array
-        //console.log('dispatcher.js::getAnnotation - note', i, 'has', notes[i].value);
+        //console_wrapper.log('dispatcher.js::getAnnotation - note', i, 'has', notes[i].value);
         for(var k in notes[i].value) {
           calls[i]++;
         }
         // I think we only every have one value
         // nope because you can have an empty array
-        //console.log(i, 'value', notes[i].value, 'len', notes[i].value.length, typeof(notes[i].value), notes[i].value.constructor.name, notes[i].value)
+        //console_wrapper.log(i, 'value', notes[i].value, 'len', notes[i].value.length, typeof(notes[i].value), notes[i].value.constructor.name, notes[i].value)
         if (notes[i].value.constructor.name == 'Array' && !notes[i].value.length || JSON.stringify(notes[i].value)==='{}') {
-          //console.log('empty value')
+          //console_wrapper.log('empty value')
           fixedSet=notes[i].value;
           calls[i]++;
           checkDone(i);
           continue;
         }
         for(var k in notes[i].value) {
-          //console.log('value', notes[i].value, 'vs', oldValue, 'k', k, 'val', notes[i].value[k], 'vs', oldValue[k]);
+          //console_wrapper.log('value', notes[i].value, 'vs', oldValue, 'k', k, 'val', notes[i].value[k], 'vs', oldValue[k]);
           if (k[0]=='+') {
             if (k=='+net.app.core.file') {
               // look up file
               var scope=function(k, oldValue, fixedSet,i ) {
-                //console.log('oldValue', oldValue);
-                //console.log('looking up', oldValue[k].file_id);
+                //console_wrapper.log('oldValue', oldValue);
+                //console_wrapper.log('looking up', oldValue[k].file_id);
                 ref.cache.getFile(oldValue[k].file_id, function(fData, fErr, fMeta) {
-                  //console.log('looking at', oldValue);
-                  //console.log('looking at', oldValue[k]);
+                  //console_wrapper.log('looking at', oldValue);
+                  //console_wrapper.log('looking at', oldValue[k]);
                   fixedSet.file_id=oldValue[k].file_id;
                   fixedSet.file_token=oldValue[k].file_token;
                   fixedSet.url=fData.url;
@@ -964,7 +964,7 @@ module.exports = {
               }(k, oldValue, fixedSet, i);
             }
           } else {
-            //console.log('dispatcher.js::getAnnotation - note', i, 'value', k, 'copying', notes[i].value[k]);
+            //console_wrapper.log('dispatcher.js::getAnnotation - note', i, 'value', k, 'copying', notes[i].value[k]);
             fixedSet[k]=notes[i].value[k];
             checkDone(i);
           }
@@ -975,34 +975,34 @@ module.exports = {
     });
   },
   setAnnotations: function(type, id, annotations, callback) {
-    //console.log('dispatcher.js::setAnnotations - id', id, 'annotations', annotations);
+    //console_wrapper.log('dispatcher.js::setAnnotations - id', id, 'annotations', annotations);
     // probably should clear all the existing anntations for this ID
     // channel annotations mutable
     // and we don't have a unique constraint to tell if it's an add or update or del
     var ref=this;
-    //console.log('dispatcher.js::setAnnotations - annotations', annotations);
-    //console.log('dispatcher.js::setAnnotations - clearing', type, id);
+    //console_wrapper.log('dispatcher.js::setAnnotations - annotations', annotations);
+    //console_wrapper.log('dispatcher.js::setAnnotations - clearing', type, id);
     this.cache.clearAnnotations(type, id, function() {
       for(var i in annotations) {
         var note=annotations[i];
 
         if (!note.type) {
-          console.warn('dispatcher.js::setAnnotations - missing type in note', note)
+          console_wrapper.warn('dispatcher.js::setAnnotations - missing type in note', note)
           continue;
         }
         if (!note.value) {
           // no value, means we clear the annotation in PATCH, so we don't need to add
-          //console.log('dispatcher.js::setAnnotations - missing value in note', note)
+          //console_wrapper.log('dispatcher.js::setAnnotations - missing value in note', note)
           continue;
         }
 
-        //console.log('dispatcher.js::setAnnotations - note', i, note);
+        //console_wrapper.log('dispatcher.js::setAnnotations - note', i, note);
         // insert into idtype, id, type, value
         // type, id, note.type, note.value
-        //console.log('dispatcher.js::setAnnotations - insert', note.type, note.value);
+        //console_wrapper.log('dispatcher.js::setAnnotations - insert', note.type, note.value);
         ref.cache.addAnnotation(type, id, note.type, note.value, function(nNote, err) {
           if (err) {
-            console.log('dispatcher.js::setAnnotations - addAnnotation failure', err);
+            console_wrapper.log('dispatcher.js::setAnnotations - addAnnotation failure', err);
           //} else {
           }
           if (this.notsilent) {
@@ -1033,7 +1033,7 @@ module.exports = {
   /** dispatcher for streamrouter */
   dispatch: function(userid, json) {
     // remember json is in app streaming format!
-    //console.dir(json);
+    //console_wrapper.dir(json);
     var data=json.data;
     var meta=json.meta;
     // the missing meta is going to be an issue
@@ -1067,22 +1067,22 @@ module.exports = {
         this.setChannelSubscription(data, meta.is_deleted, meta.timestamp);
       break;
       case 'file':
-        console.log('file');
+        console_wrapper.log('file');
       break;
       case 'stream_marker':
-        console.log('stream_marker');
+        console_wrapper.log('stream_marker');
       break;
       case 'token':
-        console.log('token');
+        console_wrapper.log('token');
       break;
       case 'star':
         this.setStar(data, meta.is_deleted, meta.id, meta.timestamp);
       break;
       case 'mute':
-        console.log('mute');
+        console_wrapper.log('mute');
       break;
       case 'block':
-        console.log('block');
+        console_wrapper.log('block');
       break;
       case 'user':
         this.updateUser(data, meta.timestamp);
@@ -1095,7 +1095,7 @@ module.exports = {
         }
       break;
       default:
-        console.log("dispatcher.js::dispatch - unknown appstream type ["+meta.type+"]");
+        console_wrapper.log("dispatcher.js::dispatch - unknown appstream type ["+meta.type+"]");
       break;
     }
     // done with data
@@ -1104,13 +1104,13 @@ module.exports = {
     json=false;
   },
   pumpStreams: function(options, data) {
-    console.log('dispatcher::pumpStreams -', options)
+    console_wrapper.log('dispatcher::pumpStreams -', options)
     // op isn't used (add/del), type is only used in the meta
     function checkKey(key, op, type) {
-      console.log('dispatcher::pumpStreams - checking', key);
+      console_wrapper.log('dispatcher::pumpStreams - checking', key);
       // see if there's any connections we need to pump
       if (module.exports.pumps[key]) {
-        console.log('pumping', key, 'with', module.exports.pumps[key].length);
+        console_wrapper.log('pumping', key, 'with', module.exports.pumps[key].length);
         // FIXME: by queuing all connections that data needs to be set on
         for(var i in module.exports.pumps[key]) {
           var connId = module.exports.pumps[key][i];

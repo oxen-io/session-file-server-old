@@ -41,10 +41,10 @@ StreamRouter.prototype.get_or_create_stream = function (app_access_token, cb) {
             json: stream_template
         }, function (e, r, body) {
             if (!e && r.statusCode === 200) {
-                console.log('created stream id ' +  body.data.id);
+                console_wrapper.log('created stream id ' +  body.data.id);
                 cb(body.data.endpoint);
             } else {
-                console.log('Error getting creating stream', e, 'status', r.statusCode, 'body', body);
+                console_wrapper.log('Error getting creating stream', e, 'status', r.statusCode, 'body', body);
                 cb();
             }
         });
@@ -65,7 +65,7 @@ StreamRouter.prototype.get_or_create_stream = function (app_access_token, cb) {
                 found_stream.filter_id = stream.filter && stream.filter.id;
 
                 if (_.isEqual(found_stream, stream_template)) {
-                    console.log('reusing stream id', stream.id);
+                    console_wrapper.log('reusing stream id', stream.id);
                     cb(stream.endpoint);
                 } else {
                     // delete stream so we can recreate it with correct template
@@ -76,7 +76,7 @@ StreamRouter.prototype.get_or_create_stream = function (app_access_token, cb) {
                         if (!e && r.statusCode === 200){
                             create_stream();
                         } else {
-                            console.log('Error deleting stream ' + stream.id);
+                            console_wrapper.log('Error deleting stream ' + stream.id);
                             cb();
                         }
                     });
@@ -85,7 +85,7 @@ StreamRouter.prototype.get_or_create_stream = function (app_access_token, cb) {
                 create_stream();
             }
         } else {
-            console.log('Error getting stream', e, 'status', r.statusCode, 'body', body);
+            console_wrapper.log('Error getting stream', e, 'status', r.statusCode, 'body', body);
             cb();
         }
     });
@@ -133,8 +133,8 @@ StreamRouter.prototype.stream = function (token) {
               // this should be right
               self.consumer.dispatch(msg.data.user.id, msg);
             } else {
-              console.log('What happened to data.user.id?');
-              console.dir(msg.data);
+              console_wrapper.log('What happened to data.user.id?');
+              console_wrapper.dir(msg.data);
               self.consumer.dispatch(null, msg);
             }
             //});
@@ -197,7 +197,7 @@ StreamRouter.prototype.stream = function (token) {
               self.consumer.dispatch(msg.data.user.id, msg);
             } else {
               self.consumer.dispatch(null, msg);
-              console.log('ohe:::streamrouter.js::stream:listen_to_endpoint.user_follow - no data in msg',msg);
+              console_wrapper.log('ohe:::streamrouter.js::stream:listen_to_endpoint.user_follow - no data in msg',msg);
               /*
                  { timestamp: 1400743370135,
                    is_deleted: true,
@@ -218,14 +218,14 @@ StreamRouter.prototype.stream = function (token) {
         });
 
         stream.on('error', function (error) {
-            console.error('Stream error, reconnecting:', error);
+            console_wrapper.error('Stream error, reconnecting:', error);
             setTimeout(function () {
                 stream.process(true);
             }, 2000);
         });
 
         stream.on('end', function () {
-            console.error('Stream ended, reconnecting.');
+            console_wrapper.error('Stream ended, reconnecting.');
             setTimeout(function () {
                 stream.process(true);
             }, 2000);

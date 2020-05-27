@@ -12,21 +12,21 @@ const adnServerAPI = require('../fetchWrapper');
 const IV_LENGTH = 16;
 
 const config_path = path.join(__dirname, '/../config.json');
-console.log('config_path', config_path);
+console_wrapper.log('config_path', config_path);
 nconf.argv().env('__').file({file: config_path});
 
 const webport = nconf.get('web:port') || 7070;
 const base_url = 'http://localhost:' + webport + '/'
-console.log('base_url', base_url);
+console_wrapper.log('base_url', base_url);
 
 // loki specific endpoints
 const overlayApi  = new adnServerAPI(base_url);
 
 const ensureServer = () => {
   return new Promise((resolve, rej) => {
-    console.log('app port', webport);
+    console_wrapper.log('app port', webport);
     lokinet.portIsFree('localhost', webport, function(free) {
-      console.log('overlay_port is free?', !!free)
+      console_wrapper.log('overlay_port is free?', !!free)
       if (free) {
         // make sure we use the same config...
         process.env['config-file-path'] = config_path;
@@ -34,7 +34,7 @@ const ensureServer = () => {
         process.env['web__port'] = webport;
         const startPlatform = require('../app');
       } else {
-        console.log('detected running file server testing that');
+        console_wrapper.log('detected running file server testing that');
       }
       resolve();
     });
@@ -66,14 +66,14 @@ function get_challenge(ourKey, ourPubKeyHex) {
         });
         assert.equal(200, result.statusCode);
         const body = result.response;
-        //console.log('get challenge body', body);
+        //console_wrapper.log('get challenge body', body);
         // body.cipherText64
         // body.serverPubKey64 // base64 encoded pubkey
 
-        // console.log('serverPubKey64', body.serverPubKey64);
+        // console_wrapper.log('serverPubKey64', body.serverPubKey64);
         const serverPubKeyBuff = Buffer.from(body.serverPubKey64, 'base64')
         const serverPubKeyHex = serverPubKeyBuff.toString('hex');
-        //console.log('serverPubKeyHex', serverPubKeyHex)
+        //console_wrapper.log('serverPubKeyHex', serverPubKeyHex)
 
         const ivAndCiphertext = Buffer.from(body.cipherText64, 'base64');
 
@@ -83,7 +83,7 @@ function get_challenge(ourKey, ourPubKeyHex) {
         );
         const token = await DHDecrypt(symmetricKey, ivAndCiphertext);
         const tokenString = token.toString('utf8');
-        //console.log('tokenString', tokenString);
+        //console_wrapper.log('tokenString', tokenString);
         resolve(tokenString);
       //});
     });
@@ -104,7 +104,7 @@ function submit_challenge(tokenString) {
         });
         assert.equal(200, result.statusCode);
         // body should be ''
-        //console.log('submit challenge body', body);
+        //console_wrapper.log('submit challenge body', body);
         resolve();
       //});
     });
@@ -118,7 +118,7 @@ function user_info() {
       //it("returns status code 200", async () => {
         const result = await overlayApi.serverRequest('loki/v1/user_info');
         assert.equal(200, result.statusCode);
-        //console.log('get user_info body', body);
+        //console_wrapper.log('get user_info body', body);
         // {"meta":{"code":200},"data":{
         // "user_id":10,"client_id":"messenger",
         //"scopes":"basic stream write_post follow messages update_profile files export",
@@ -144,7 +144,7 @@ const runIntegrationTests = async (ourKey, ourPubKeyHex) => {
     require('./tests/tokens/submit_challenge.js')(testInfo);
     it('set token', async function() {
       tokenString = testInfo.tokenString;
-      console.log('tokenString', tokenString);
+      console_wrapper.log('tokenString', tokenString);
       // set token
       overlayApi.token = tokenString;
       //platformApi.token = tokenString;
@@ -159,7 +159,7 @@ const runIntegrationTests = async (ourKey, ourPubKeyHex) => {
   // test custom homepage
 
   // all tests should be complete
-  //console.log('all done!')
+  //console_wrapper.log('all done!')
   //process.exit(0);
 }
 
@@ -169,5 +169,5 @@ let testInfo = {
   ourPubKeyHex
 }
 
-//console.log('bob');
+//console_wrapper.log('bob');
 runIntegrationTests(ourKey, ourPubKeyHex);
