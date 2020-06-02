@@ -431,7 +431,7 @@ module.exports = (app, prefix) => {
   });
 
   app.post(prefix + '/loki/v1/lsrpc', async (req, res) => {
-    console.log('loki/v1/lsrpc - start', typeof(req.body))
+    // console.log('loki/v1/lsrpc - start', typeof(req.body))
 
     //console.log('headers', req.headers);
     //console.log('req.originalBody', req.originalBody);
@@ -440,7 +440,8 @@ module.exports = (app, prefix) => {
     if (Object.keys(req.body) == 0 && req.lokiReady) {
       console.log('no json header, waiting on request to finish')
       await req.lokiReady
-      console.log('overriding body with', req.originalBody)
+      //console.log('overriding body with', req.originalBody)
+      console.log('request finished', req.originalBody.length.toLocaleString(), 'bytes')
       try {
         req.body = JSON.parse(req.originalBody)
       } catch(e) {
