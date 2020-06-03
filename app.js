@@ -4,7 +4,7 @@
 var path  = require('path');
 var nconf = require('nconf');
 
-var ENABLE_CONSOLE_OUTPUT = true;
+var ENABLE_CONSOLE_OUTPUT = false;
 global.console_wrapper = {};
 
 if (!ENABLE_CONSOLE_OUTPUT) {
