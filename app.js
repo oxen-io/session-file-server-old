@@ -99,9 +99,12 @@ if (proxy) db.next = proxy;
 cache.next = db;
 dispatcher.cache = cache;
 dispatcher.notsilent = !(nconf.get('uplink:silent') || false);
+
+// well we don't bind to an interface, so likely 0.0.0.0
+// so localhost should be fine
 dispatcher.appConfig = {
-  provider: nconf.get('pomf:provider') || 'pomf.cat',
-  provider_url: nconf.get('pomf:provider_url') || 'https://pomf.cat/',
+  provider: nconf.get('pomf:provider') || 'local integrated nodepomf',
+  provider_url: nconf.get('pomf:provider_url') || 'http://127.0.0.1:' + webport + '/upload',
 }
 
 console_wrapper.log('configuring app as', dispatcher.appConfig)
@@ -406,9 +409,9 @@ if (0) {
   app.all('/*', function (req, res, next) {
     // , req.headers
     console_wrapper.debug('DBGrequest', req.path, req.headers['content-type'])
-    //if (req.method == 'POST' || req.method == 'PATCH' ) {
+    if (req.method == 'POST' || req.method == 'PATCH' ) {
     //if (req.method == 'POST' && req.path=='/users/me/avatar') {
-    if (req.method === 'POST' && req.path === '/loki/v1/lsrpc') {
+    //if (req.method === 'POST' && req.path === '/loki/v1/lsrpc') {
       //console_wrapper.debug('DBGbody', req)
 
       // this breaks unit tests...
@@ -442,20 +445,23 @@ if (0) {
 // snode hack work around
 // preserve original body
 app.use(function(req, res, next) {
-  let resolver
-  req.lokiReady = new Promise(res => {
-    resolver = res
-  })
-  let body = '';
-  req.on('data', function (data) {
-    body += data.toString();
-  });
-  req.on('end', function() {
-    // preserve original body
-    req.originalBody = body;
-    // console.log('perserved', body);
-    resolver(); // resolve promise
-  })
+  if (req.method === 'POST' && req.path === '/loki/v1/lsrpc') {
+    let resolver;
+    req.lokiReady = new Promise(res => {
+      resolver = res;
+    })
+    console.log('downloading body...')
+    let body = '';
+    req.on('data', function (data) {
+      body += data.toString();
+    });
+    req.on('end', function() {
+      // preserve original body
+      req.originalBody = body;
+      // console.log('perserved', body);
+      resolver(); // resolve promise
+    })
+  }
   next();
 });
 
@@ -488,6 +494,7 @@ if (1) {
  */
 app.apiroot = apiroot;
 app.dispatcher = dispatcher;
+app.nconf = nconf;
 
 /* load dialects from config */
 var mounts = nconf.get('web:mounts') || [
@@ -506,6 +513,10 @@ var mounts = nconf.get('web:mounts') || [
   {
     "destination": "",
     "dialect": "loki_rss_proxy"
+  },
+  {
+    "destination": "",
+    "dialect": "loki_nodepomf"
   },
 ];
 var dialects = {};
