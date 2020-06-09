@@ -184,6 +184,7 @@ module.exports=function(app, prefix) {
           },
         };
         */
+        if (userObj.description === undefined) userObj.description = {}
         userObj.name = req.body.name;
         userObj.locale = req.body.locale;
         userObj.timezone = req.body.timezone;
@@ -500,7 +501,7 @@ module.exports=function(app, prefix) {
           // spec doesn't say required
           req.body.type = ''
         }
-        var uploadUrl = dispatcher.appConfig.provider_url + 'api/upload'
+        var uploadUrl = dispatcher.appConfig.provider_url
         console_wrapper.log('dialect.appdotnet_official.js:POSTfiles - uploading to pomf', uploadUrl);
         request.post({
           url: uploadUrl,
