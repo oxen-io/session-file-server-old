@@ -286,6 +286,22 @@ function start(nconf) {
     muteeid: { type: Number }
   });
 
+  // entities needed for users/files...
+
+  // total cache table (since I think we can extract from text),
+  // we'll have an option to omitted its use
+  // though we need it for hashtag look ups
+  /** entity storage model */
+  entityModel = schemaData.define('entity', {
+    idtype: { type: String, length: 16, index: true }, // user, post, channel, message
+    typeid: { type: Number, index: true }, // causing problems?
+    type: { type: String, length: 16, index: true }, // link, hashtag, mention
+    pos: { type: Number },
+    len: { type: Number },
+    text: { type: String, length: 255, index: true }, // hashtag is stored here
+    alt: { type: String, length: 255, index: true },
+    altnum: { type: Number },
+  });
 
   /** annotation storage model */
   annotationModel = schemaData.define('annotation', {
@@ -1201,9 +1217,15 @@ module.exports = {
   // allow a user to have more than one token
   addUnconstrainedAPIUserToken: function(userid, client_id, scopes, token, expireInMins, callback) {
     // make sure this token is not in use
+    // console.log('caminte.js::addUnconstrainedAPIUserToken - token', token)
+    if (token === undefined) {
+      console.trace('caminte.js::addUnconstrainedAPIUserToken -  no token')
+      callback(null, 'no token');
+      return;
+    }
     localUserTokenModel.findOne({ where: { token: token }}, function(err, tokenUnique) {
       if (err) {
-        console_wrapper.log('caminte.js::addAPIUserToken - token lookup', err);
+        console_wrapper.log('caminte.js::addUnconstrainedAPIUserToken - token lookup', err);
         callback(null, 'token_lookup');
         return;
       }
@@ -1681,6 +1703,62 @@ dataaccess.caminte.js::status 19U 44F 375P 0C 0M 0s 77/121i 36a 144e
     //query.debug = true
     setparams(query, params, 0, function(files, err, meta) {
       callback(files, err, meta);
+    });
+  },
+  getEntities: function(type, id, callback) {
+    //console.log('type: '+type+' id: '+id);
+    if (!type) {
+      console.log('dataaccess.caminte.js::getEntities - type', type, 'id', id);
+      console.trace('dataaccess.caminte.js::getEntities - no type');
+      callback([], 'invalid type', {
+        code: 500
+      });
+      return;
+    }
+    if (!id) {
+      console.log('dataaccess.caminte.js::getEntities - type', type, 'id', id);
+      console.trace('dataaccess.caminte.js::getEntities - no id');
+      callback([], 'invalid type', {
+        code: 500
+      });
+      return;
+    }
+    var res={
+      mentions: [],
+      hashtags: [],
+      links: [],
+    };
+    // count is always 0 or 1...
+    // with find or all
+    var ref=this;
+    entityModel.find({ where: { idtype: type, typeid: id } }, function(err, entities) {
+      if (entities==null && err==null) {
+        if (ref.next) {
+          ref.next.getEntities(type, id, callback);
+          return;
+        }
+      } else {
+        //console.log('dataaccess.caminte.js::getEntities '+type+' '+id+' - count ',entities.length);
+        for(var i in entities) {
+          var entity=entities[i];
+          // why is find returning empty sets...
+          if (entity.id===null) continue;
+          //console.log('entity',entity,'i',i);
+          //console.log('et '+entity.type);
+          if (res[entity.type+'s']) {
+            res[entity.type+'s'].push(entities[i]);
+          } else {
+            // temp disabled, just makes debugging other things harder
+            // you're data is bad I get it
+            console.log('getEntities unknown type ['+entity.type+'] for ['+type+'] ['+id+'] test['+entity.id+']');
+            // we need to delete it
+            //entity.destroy();
+            //entityModel.destroy(entity);
+            entityModel.destroyById(entity.id);
+          }
+        }
+      }
+      callback(res, null);
     });
   },
   /**
