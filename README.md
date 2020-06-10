@@ -1,7 +1,7 @@
-# loki-file-server
-Loki file server
+# Session-file-server
+Session file server
 
-an express REST API for serving persistent data for Loki Software Suite.
+an express REST API for serving persistent data for Session Software Suite.
 
 System requirements:
 - NodeJS
