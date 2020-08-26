@@ -37,7 +37,7 @@ module.exports = (app, prefix) => {
     res.start = Date.now();
     //console.log('rss/messenger');
     fetch('https://loki.network/category/messenger-updates/feed/')
-      .then(res => res.text())
+      .then(fetchRes => fetchRes.text())
       .then(body => {
         sendresponse({
           meta: {
@@ -51,7 +51,7 @@ module.exports = (app, prefix) => {
     res.start = Date.now();
     //console.log('rss/loki');
     fetch('https://loki.network/feed/')
-      .then(res => res.text())
+      .then(fetchRes => fetchRes.text())
       .then(body => {
         sendresponse({
           meta: {
@@ -78,12 +78,16 @@ module.exports = (app, prefix) => {
     res.start = Date.now();
     const safeHost = req.params.host.replace(/^[^A-Za-z0-9:\.]{1,63}$/, '');
     //console.log('getOpenGroupKey', safeHost);
+    let status
     fetch(`https://${safeHost}/loki/v1/public_key`)
-      .then(res => res.text())
+      .then(fetchRes => {
+        status = fetchRes.status
+        return fetchRes.text()
+      })
       .then(body => {
         sendresponse({
           meta: {
-            code: 200
+            code: status
           },
           data: body
         }, res);
